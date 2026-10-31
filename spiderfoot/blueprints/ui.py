@@ -6,6 +6,7 @@ from spiderfoot import SpiderFootDb
 from spiderfoot.__version__ import __version__
 from spiderfoot.helpers import SpiderFootHelpers
 from spiderfoot.services.preset_service import serialize_preset
+from spiderfoot.services import ai_service
 from spiderfoot.services.ai_persistence import (
     fetch_models_for_scan, fetch_cached
 )
@@ -376,10 +377,7 @@ def scaninfo():
     fallback_model = current_app.config['SF_CONFIG'].get(
         '_ai_fallback_model', 'z-ai/glm-5.1'
     )
-    all_models = [
-        {"id": "moonshotai/kimi-k2.6", "label": "Kimi K2.6"},
-        {"id": "z-ai/glm-5.1",         "label": "GLM 5.1"},
-    ]
+    all_models = ai_service.model_choices(current_app.config['SF_CONFIG'])
     try:
         cached_models = fetch_models_for_scan(
             dbh, scan_id=scan_id, kind='scan', target_id=''

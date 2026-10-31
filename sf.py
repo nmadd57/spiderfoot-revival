@@ -65,9 +65,10 @@ def main() -> None:
         '_socks3port': '',
         '_socks4user': '',
         '_socks5pwd': '',
-        # AI Assistant (OpenRouter)
+        # AI Assistant (OpenRouter, or any OpenAI-compatible endpoint)
         '_ai_enabled': False,
         '_ai_openrouter_key': '',
+        '_ai_base_url': '',
         '_ai_default_model': 'moonshotai/kimi-k2.6',
         '_ai_fallback_model': 'z-ai/glm-5.1',
         '_ai_redact_pii': False,
@@ -88,6 +89,7 @@ def main() -> None:
         '_socks4user': 'SOCKS Username. Valid only for SOCKS4 and SOCKS5 servers.',
         '_socks5pwd': "SOCKS Password. Valid only for SOCKS5 servers.",
         '_ai_enabled': "Enable AI summarization features (requires OpenRouter API key).",
+        '_ai_base_url': "Optional OpenAI-compatible base URL (e.g. http://host:11434/v1) for a local/self-hosted endpoint. Leave empty to use OpenRouter. When set, the API key is optional and model names are free-form.",
         '_ai_openrouter_key': "OpenRouter API key for AI summarization. Stored in your local SpiderFoot database; never sent anywhere except OpenRouter.",
         '_ai_default_model': "Default OpenRouter model. 'moonshotai/kimi-k2.6' or 'z-ai/glm-5.1'.",
         '_ai_fallback_model': "Fallback model if default fails. 'moonshotai/kimi-k2.6' or 'z-ai/glm-5.1'.",

@@ -1,9 +1,14 @@
-"""OpenRouter chat-completions client for SpiderFoot AI summarization.
+"""Chat-completions client for SpiderFoot AI summarization.
 
-This module wraps the OpenRouter `/api/v1/chat/completions` endpoint with
+By default this wraps the OpenRouter `/api/v1/chat/completions` endpoint with
 the project-specific defaults documented in the AI summarization design
 spec: streaming on, low temperature, throughput-sorted provider, automatic
 failover via the `models` array, and stable attribution headers.
+
+When a custom ``base_url`` is supplied (e.g. ``http://host:11434/v1`` for
+Ollama, llama.cpp, vLLM, LM Studio, llama-swap), the client instead speaks
+plain OpenAI-compatible ``POST {base_url}/chat/completions`` without any
+OpenRouter-only request fields, and the API key is optional.
 
 The client is intentionally narrow: it does not know about scans,
 correlations, prompts, or the database. Higher-level orchestration
@@ -45,12 +50,64 @@ _STATUS_MESSAGES = {
 }
 
 
+def _chat_completions_url(base_url: str) -> str:
+    """Normalise a user-supplied base URL to a chat-completions endpoint."""
+    url = base_url.strip().rstrip("/")
+    if url.endswith("/chat/completions"):
+        return url
+    return url + "/chat/completions"
+
+
+_CUSTOM_STATUS_MESSAGES = {
+    401: "AI endpoint rejected the API key — check Settings → AI Assistant.",
+    404: "AI endpoint or model not found — check the base URL and model name.",
+    408: "Model took too long. Try regenerating or a smaller scan.",
+    413: "Scan too large for the model. Reduce events or use a larger-context model.",
+    422: "Request validation failed — check the model name.",
+    429: "AI endpoint is rate limiting or busy. Try again shortly.",
+    500: "AI endpoint server error. Try again shortly.",
+    502: "AI endpoint upstream is unavailable.",
+    503: "AI endpoint unavailable (model may still be loading). Try again shortly.",
+}
+
+
+OPENROUTER_MODELS = [
+    {"id": "moonshotai/kimi-k2.6", "label": "Kimi K2.6"},
+    {"id": "z-ai/glm-5.1", "label": "GLM 5.1"},
+]
+
+
+def model_choices(config) -> List[dict]:
+    """Models offered in the UI pickers.
+
+    OpenRouter mode offers the curated list. With a custom base URL the model
+    names are whatever the endpoint serves, so offer the configured default
+    and fallback models as-is.
+    """
+    if not (config.get('_ai_base_url') or '').strip():
+        return [dict(m) for m in OPENROUTER_MODELS]
+    seen, out = set(), []
+    for key in ('_ai_default_model', '_ai_fallback_model'):
+        mid = (config.get(key) or '').strip()
+        if mid and mid not in seen:
+            seen.add(mid)
+            out.append({"id": mid, "label": mid})
+    return out
+
+
 class OpenRouterClient:
-    def __init__(self, api_key: str, timeout: int = 60):
-        if not api_key:
+    """OpenRouter client, or a generic OpenAI-compatible client if ``base_url`` is set."""
+
+    def __init__(self, api_key: str = "", timeout: int = 60, base_url: str = ""):
+        self._base_url = (base_url or "").strip()
+        if not api_key and not self._base_url:
             raise ValueError("OpenRouter API key is required")
-        self._api_key = api_key
+        self._api_key = api_key or ""
         self._timeout = timeout
+        self._custom = bool(self._base_url)
+        self._url = (_chat_completions_url(self._base_url)
+                     if self._custom else OPENROUTER_URL)
+        self._provider = "AI endpoint" if self._custom else "OpenRouter"
 
     def stream_chat(
         self,
@@ -76,12 +133,12 @@ class OpenRouterClient:
         Raises OpenRouterError with a user-facing message on HTTP error or
         upstream stream error before any token chunk arrives.
         """
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": ATTRIBUTION_REFERER,
-            "X-Title": ATTRIBUTION_TITLE,
-        }
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        if not self._custom:
+            headers["HTTP-Referer"] = ATTRIBUTION_REFERER
+            headers["X-Title"] = ATTRIBUTION_TITLE
         body = {
             "model": model,
             "models": [model, fallback] if fallback and fallback != model else [model],
@@ -103,23 +160,43 @@ class OpenRouterClient:
             "session_id": session_id,
         }
 
+        if self._custom:
+            # Plain OpenAI-compatible request: no OpenRouter-only fields
+            # (models/usage/provider/metadata/session_id), which strict
+            # servers may reject. No fallback list either.
+            body = {
+                "model": model,
+                "messages": list(messages),
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "top_p": top_p,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            }
+
         # Note: we never log `headers` or `body` — they contain the API key
         # and full payload. Log only the model and metadata identifiers.
-        log.info("OpenRouter request: model=%s session=%s", model, session_id)
+        log.info("%s request: model=%s session=%s", self._provider, model, session_id)
 
         try:
             with requests.post(
-                OPENROUTER_URL,
+                self._url,
                 headers=headers,
                 json=body,
                 stream=True,
                 timeout=self._timeout,
             ) as resp:
                 if resp.status_code != 200:
-                    msg = _STATUS_MESSAGES.get(
-                        resp.status_code,
-                        f"OpenRouter returned HTTP {resp.status_code}.",
-                    )
+                    if self._custom:
+                        msg = _CUSTOM_STATUS_MESSAGES.get(
+                            resp.status_code,
+                            f"AI endpoint returned HTTP {resp.status_code}.",
+                        )
+                    else:
+                        msg = _STATUS_MESSAGES.get(
+                            resp.status_code,
+                            f"OpenRouter returned HTTP {resp.status_code}.",
+                        )
                     raise OpenRouterError(msg)
 
                 yield from self._iter_sse(resp)
@@ -129,9 +206,11 @@ class OpenRouterClient:
                 "or the other model."
             )
         except requests.RequestException as e:
-            log.warning("OpenRouter network error: %s", e)
+            log.warning("%s network error: %s", self._provider, e)
             raise OpenRouterError(
-                "Network error contacting OpenRouter. Check your connection."
+                f"Network error contacting {self._provider}. "
+                + ("Check the base URL and that the server is reachable."
+                   if self._custom else "Check your connection.")
             )
 
     @staticmethod

@@ -46,6 +46,7 @@ def _ai_config():
     return {
         "enabled": bool(cfg.get('_ai_enabled')),
         "key": cfg.get('_ai_openrouter_key', ''),
+        "base_url": (cfg.get('_ai_base_url') or '').strip(),
         "default": cfg.get('_ai_default_model', 'moonshotai/kimi-k2.6'),
         "fallback": cfg.get('_ai_fallback_model', 'z-ai/glm-5.1'),
         "redact": bool(cfg.get('_ai_redact_pii')),
@@ -171,8 +172,8 @@ def scan_summary(scan_id: str):
     _enforce_same_origin()
 
     cfg = _ai_config()
-    if not cfg["key"]:
-        abort(400, "OpenRouter API key not configured.")
+    if not cfg["key"] and not cfg["base_url"]:
+        abort(400, "OpenRouter API key or custom base URL not configured.")
 
     model = request.args.get('model', cfg["default"])
     regenerate = request.args.get('regenerate') == '1'
@@ -209,6 +210,7 @@ def scan_summary(scan_id: str):
     return _stream_response(
         dbh=dbh, scan_id=scan_id, kind='scan', target_id=target_id,
         model=model, fallback=cfg["fallback"], api_key=cfg["key"],
+        base_url=cfg["base_url"],
         messages=messages, max_tokens=1200, scan_ended=scan_ended,
         truncation_note=truncation_note, lock_key=key,
         metadata={"scan_id": scan_id, "kind": "scan"},
@@ -221,8 +223,8 @@ def correlation_explain(correlation_id: str):
     _enforce_same_origin()
 
     cfg = _ai_config()
-    if not cfg["key"]:
-        abort(400, "OpenRouter API key not configured.")
+    if not cfg["key"] and not cfg["base_url"]:
+        abort(400, "OpenRouter API key or custom base URL not configured.")
     model = request.args.get('model', cfg["default"])
     regenerate = request.args.get('regenerate') == '1'
 
@@ -284,6 +286,7 @@ def correlation_explain(correlation_id: str):
     return _stream_response(
         dbh=dbh, scan_id=scan_id, kind='correlation', target_id=correlation_id,
         model=model, fallback=cfg["fallback"], api_key=cfg["key"],
+        base_url=cfg["base_url"],
         messages=messages, max_tokens=500, scan_ended=scan_ended,
         truncation_note=None, lock_key=key,
         metadata={"scan_id": scan_id, "kind": "correlation",
@@ -292,9 +295,10 @@ def correlation_explain(correlation_id: str):
 
 
 def _stream_response(*, dbh, scan_id, kind, target_id, model, fallback,
-                     api_key, messages, max_tokens, scan_ended,
+                     api_key, base_url, messages, max_tokens, scan_ended,
                      truncation_note, lock_key, metadata):
-    client = ai_service.OpenRouterClient(api_key=api_key, timeout=60)
+    client = ai_service.OpenRouterClient(
+        api_key=api_key, timeout=60, base_url=base_url)
     runner = ai_service.StreamRunner(
         client=client, model=model, fallback=fallback,
         messages=messages, max_tokens=max_tokens,

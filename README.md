@@ -52,8 +52,11 @@ Requires Python 3.9+.
 
 ## AI Summarization (5.2.0+)
 
-The AI Assistant uses Server-Sent Events (SSE) to stream summaries from OpenRouter.
-Configure your key at **Settings → AI Assistant** and enable the feature.
+The AI Assistant uses Server-Sent Events (SSE) to stream summaries from OpenRouter
+or any OpenAI-compatible endpoint. Configure it at **Settings → AI Assistant** and enable the feature.
+
+- **OpenRouter (default):** enter your API key; models are picked from the curated list (free text also works).
+- **Local / self-hosted (Ollama, llama.cpp, vLLM, LM Studio, llama-swap, …):** set **Custom base URL** to the server's OpenAI-compatible root, e.g. `http://host:11434/v1` (requests go to `<base URL>/chat/completions`). The API key is optional, the model name is free-form (whatever your server serves), and the fallback model is not used. Token usage is recorded; cost is recorded as unknown. Make sure the SpiderFoot container can reach the endpoint.
 
 - **Single-worker assumption.** The in-flight concurrency lock is process-local. Multi-worker deployments may permit duplicate concurrent generations for the same scan/model (each worker grants its own lock); we recommend single-worker until v2.
 - **gunicorn:** SSE requires `--worker-class gevent` (or `eventlet`), or sync workers with `--threads N` (≥4). The default sync single-thread worker will serialize all SSE clients and the UI will appear to hang.

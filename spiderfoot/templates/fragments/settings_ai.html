@@ -1,4 +1,5 @@
-{# AI Assistant settings — OpenRouter key + model selection + redaction toggle.
+{# AI Assistant settings — OpenRouter key or custom OpenAI-compatible endpoint,
+   model selection + redaction toggle.
    The OpenRouter key field is pre-filled with the masked placeholder
    "********" when a key is stored; the savesettings endpoint preserves
    existing values when this exact placeholder is resubmitted. #}
@@ -7,8 +8,9 @@
   <div>
     <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">AI Assistant</h2>
     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-      OpenRouter-powered scan summaries and correlation explanations.
-      Get a key at
+      Scan summaries and correlation explanations via OpenRouter or any
+      OpenAI-compatible endpoint (Ollama, llama.cpp, vLLM, LM Studio, llama-swap…).
+      Get an OpenRouter key at
       <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer"
          class="text-sf-accent hover:underline">openrouter.ai</a>.
     </p>
@@ -24,12 +26,26 @@
     </label>
 
     <label class="block">
-      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">OpenRouter API key</span>
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Custom base URL (optional)</span>
+      <input type="url"
+             name="_ai_base_url"
+             value="{{ config._ai_base_url or '' }}"
+             placeholder="http://192.168.1.10:11434/v1"
+             class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
+      <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+        Leave empty to use OpenRouter. When set, requests go to
+        <span class="font-mono">&lt;base URL&gt;/chat/completions</span>, the API key below is
+        optional, and model names are whatever your server serves.
+      </span>
+    </label>
+
+    <label class="block">
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">API key</span>
       <input type="password"
              name="_ai_openrouter_key"
              autocomplete="new-password"
              value="{{ '********' if config._ai_openrouter_key else '' }}"
-             placeholder="sk-or-..."
+             placeholder="sk-or-... (optional for custom endpoints)"
              class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
       <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
         Leave the masked value to keep your existing key. Type a new value to replace it.
@@ -39,29 +55,24 @@
     <div class="grid grid-cols-2 gap-4">
       <label class="block">
         <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Default model</span>
-        <select name="_ai_default_model"
-                class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
-          {% for m in ai_models %}
-            <option value="{{ m.id }}"
-                    {% if m.id == config._ai_default_model %}selected{% endif %}>
-              {{ m.label }}
-            </option>
-          {% endfor %}
-        </select>
+        <input type="text" name="_ai_default_model" list="ai-model-list"
+               value="{{ config._ai_default_model or '' }}" autocomplete="off"
+               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
       </label>
       <label class="block">
         <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Fallback model</span>
-        <select name="_ai_fallback_model"
-                class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
-          {% for m in ai_models %}
-            <option value="{{ m.id }}"
-                    {% if m.id == config._ai_fallback_model %}selected{% endif %}>
-              {{ m.label }}
-            </option>
-          {% endfor %}
-        </select>
+        <input type="text" name="_ai_fallback_model" list="ai-model-list"
+               value="{{ config._ai_fallback_model or '' }}" autocomplete="off"
+               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
       </label>
     </div>
+
+    <datalist id="ai-model-list">
+      {% for m in ai_models %}<option value="{{ m.id }}">{{ m.label }}</option>{% endfor %}
+    </datalist>
+    <p class="text-xs text-slate-500 dark:text-slate-400 -mt-2">
+      Fallback is only used with OpenRouter; custom endpoints use the default model.
+    </p>
 
     <label class="flex items-start gap-2">
       <input type="checkbox" name="_ai_redact_pii"
@@ -69,7 +80,7 @@
              class="mt-0.5 rounded border-slate-300 dark:border-slate-700 text-sf-accent focus:ring-sf-accent">
       <span class="text-sm text-slate-700 dark:text-slate-200">
         Mask emails, public IPs, and the scan target's root domain before sending
-        payloads to OpenRouter
+        payloads to the AI provider
       </span>
     </label>
 
@@ -102,7 +113,7 @@
       opts[key] = fd.has(key) ? '1' : '0';
     }
     // String/select fields
-    for (const key of ['_ai_openrouter_key', '_ai_default_model', '_ai_fallback_model']) {
+    for (const key of ['_ai_openrouter_key', '_ai_base_url', '_ai_default_model', '_ai_fallback_model']) {
       opts[key] = fd.get(key) || '';
     }
     const body = new URLSearchParams();

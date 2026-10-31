@@ -2,6 +2,15 @@
 
 All notable changes to the SpiderFoot Revival project.
 
+## [Unreleased]
+
+### Local OpenAI-compatible endpoints for AI Summarization
+
+- New `_ai_base_url` option ("Custom base URL" in Settings → AI Assistant). When set, requests go to `<base URL>/chat/completions` instead of OpenRouter, so Ollama, llama.cpp, vLLM, LM Studio, llama-swap, etc. work.
+- Custom endpoints get a plain OpenAI-style request (no OpenRouter-only `models`/`provider`/`usage`/`metadata` fields), no attribution headers, and the API key is optional.
+- Model names are free-form text (with suggestions) and pickers show the configured default/fallback models; the fallback is not used with custom endpoints.
+- Errors are reported generically for custom endpoints instead of mentioning OpenRouter.
+
 ## [5.2.0] - 2026-05-04
 
 ### AI Summarization Feature

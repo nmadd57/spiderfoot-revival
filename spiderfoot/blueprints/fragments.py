@@ -6,6 +6,7 @@ from collections import OrderedDict
 from flask import Blueprint, current_app, render_template, request
 
 from spiderfoot import SpiderFootDb
+from spiderfoot.services import ai_service
 from spiderfoot.services.event_service import (
     EVENT_CATEGORIES, categorize_event_summary,
     human_size, dedup_events, build_event_dict,
@@ -191,10 +192,7 @@ def results_tab():
         sf_config = current_app.config.get('SF_CONFIG', {})
         ai_enabled = bool(sf_config.get('_ai_enabled'))
         default_model = sf_config.get('_ai_default_model', 'moonshotai/kimi-k2.6')
-        all_models = [
-            {"id": "moonshotai/kimi-k2.6", "label": "Kimi K2.6"},
-            {"id": "z-ai/glm-5.1",         "label": "GLM 5.1"},
-        ]
+        all_models = ai_service.model_choices(sf_config)
 
         return render_template(
             'fragments/results_correlations.html',
@@ -531,10 +529,7 @@ def settings_section():
         from spiderfoot.services.ai_persistence import fetch_monthly_cost
         import time
 
-        ai_models = [
-            {"id": "moonshotai/kimi-k2.6", "label": "Kimi K2.6"},
-            {"id": "z-ai/glm-5.1",         "label": "GLM 5.1"},
-        ]
+        ai_models = ai_service.model_choices(config)
         try:
             month_start = int(time.time()) - 30 * 86400
             monthly_cost = fetch_monthly_cost(dbh, since_unix=month_start)
