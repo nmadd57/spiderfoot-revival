@@ -23,6 +23,7 @@ class sfp_ipapicom(SpiderFootPlugin):
         'name': "ipapi.com",
         'summary': "Queries ipapi.com to identify geolocation of IP Addresses using ipapi.com API",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

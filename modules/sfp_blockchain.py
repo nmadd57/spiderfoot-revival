@@ -22,6 +22,7 @@ class sfp_blockchain(SpiderFootPlugin):
         'name': "Blockchain",
         'summary': "Queries blockchain.info to find the balance of identified bitcoin wallet addresses.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"],
         'dataSource': {

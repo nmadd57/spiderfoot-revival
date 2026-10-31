@@ -23,6 +23,7 @@ class sfp_googlemaps(SpiderFootPlugin):
         'name': "Google Maps",
         'summary': "Identifies potential physical addresses and latitude/longitude coordinates.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

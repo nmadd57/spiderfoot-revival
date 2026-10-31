@@ -23,11 +23,12 @@ class sfp_abstractapi(SpiderFootPlugin):
         'name': "AbstractAPI",
         'summary': "Look up domain, phone and IP address information from AbstractAPI.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://app.abstractapi.com/",
-            'model': "FREE_NOAUTH_LIMITED",
+            'model': "FREE_AUTH_LIMITED",
             'references': [
                 "https://app.abstractapi.com/",
             ],

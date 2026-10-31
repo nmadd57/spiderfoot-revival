@@ -228,6 +228,7 @@ def _build_modules_data():
             'requiresKey': requires_key,
             'keyConfigured': key_configured,
             'isLocalTool': is_local_tool,
+            'pricing': meta.get('pricing', 'local'),
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }
 

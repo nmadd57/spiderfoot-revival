@@ -21,6 +21,7 @@ class sfp_blocklistde(SpiderFootPlugin):
         'name': "blocklist.de",
         'summary': "Check if a netblock or IP is malicious according to blocklist.de.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

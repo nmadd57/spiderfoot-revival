@@ -19,6 +19,7 @@ class sfp_googlesearch(SpiderFootPlugin):
         'name': "Google",
         'summary': "Obtain information from the Google Custom Search API to identify sub-domains and links.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

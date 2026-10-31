@@ -21,6 +21,7 @@ class sfp_greensnow(SpiderFootPlugin):
         'name': "Greensnow",
         'summary': "Check if a netblock or IP address is malicious according to greensnow.co.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

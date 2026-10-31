@@ -24,6 +24,7 @@ class sfp_intelx(SpiderFootPlugin):
         'name': "IntelligenceX",
         'summary': "Obtain information from IntelligenceX about identified IP addresses, domains, e-mail addresses and phone numbers.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

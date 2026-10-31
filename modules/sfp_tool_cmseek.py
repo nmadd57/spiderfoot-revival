@@ -25,6 +25,7 @@ class sfp_tool_cmseek(SpiderFootPlugin):
         'name': "Tool - CMSeeK",
         'summary': "Identify what Content Management System (CMS) might be used.",
         'flags': ["tool"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Content Analysis"],
         'toolDetails': {

@@ -25,6 +25,7 @@ class sfp_tool_snallygaster(SpiderFootPlugin):
         "name": "Tool - snallygaster",
         "summary": "Finds file leaks and other security problems on HTTP servers.",
         "flags": ["tool"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

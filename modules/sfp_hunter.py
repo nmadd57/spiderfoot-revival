@@ -23,6 +23,7 @@ class sfp_hunter(SpiderFootPlugin):
         'name': "Hunter.io",
         'summary': "Check for e-mail addresses and names on hunter.io.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

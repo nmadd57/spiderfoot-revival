@@ -22,6 +22,7 @@ class sfp_honeypot(SpiderFootPlugin):
         'name': "Project Honey Pot",
         'summary': "Query the Project Honey Pot database for IP addresses.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

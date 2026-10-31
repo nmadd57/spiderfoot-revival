@@ -25,6 +25,7 @@ class sfp_abuseipdb(SpiderFootPlugin):
         'name': "AbuseIPDB",
         'summary': "Check if an IP address is malicious according to AbuseIPDB.com blacklist.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Investigate"],
         'categories': ["Reputation Systems"],
         'dataSource': {

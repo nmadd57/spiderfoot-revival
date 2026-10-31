@@ -27,6 +27,7 @@ class sfp_shodan(SpiderFootPlugin):
         'name': "SHODAN",
         'summary': "Obtain information from SHODAN about identified IP addresses.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

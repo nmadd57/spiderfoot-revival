@@ -26,6 +26,7 @@ class sfp_koodous(SpiderFootPlugin):
         'name': "Koodous",
         'summary': "Search Koodous for mobile apps.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Footprint", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

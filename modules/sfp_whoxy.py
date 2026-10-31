@@ -21,6 +21,7 @@ class sfp_whoxy(SpiderFootPlugin):
         'name': "Whoxy",
         'summary': "Reverse Whois lookups using Whoxy.com.",
         'flags': ["apikey"],
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

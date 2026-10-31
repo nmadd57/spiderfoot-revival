@@ -25,6 +25,7 @@ class sfp_wigle(SpiderFootPlugin):
         'name': "WiGLE",
         'summary': "Query WiGLE to identify nearby WiFi access points.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Secondary Networks"],
         'dataSource': {

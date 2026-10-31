@@ -23,6 +23,7 @@ class sfp_stackoverflow(SpiderFootPlugin):
         'name': "StackOverflow",
         'summary': "Search StackOverflow for any mentions of a target domain. Returns potentially related information.",
         'flags': ["errorprone", "apikey"],
+        'pricing': 'free',
         'useCases': ["Passive"],
         'categories': ["Content Analysis"],
         'dataSource': {

@@ -419,8 +419,34 @@
       </div>
     </div>
 
-    {# Search results (shown when searching) #}
-    <div x-show="moduleSearch && moduleSearch.trim().length > 0" x-cloak class="mb-4">
+    {# Pricing filter (module meta "pricing") #}
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">Show:</span>
+      <template x-for="opt in [
+          {id: 'free_any', label: 'Free / free tier'},
+          {id: 'free',     label: 'Free, no key'},
+          {id: 'paid',     label: 'Paid'},
+          {id: 'local',    label: 'Local'}]" :key="opt.id">
+        <button type="button"
+                @click="pricingFilter = (pricingFilter === opt.id ? '' : opt.id)"
+                :class="pricingFilter === opt.id
+                  ? 'bg-sf-accent/15 text-sf-accent border-cyan-500/30'
+                  : 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-sf-border hover:bg-slate-100 dark:hover:bg-sf-elevated'"
+                class="px-3 py-1 text-xs font-medium rounded-full border transition-colors duration-150">
+          <span x-text="opt.label"></span>
+          <span class="opacity-60" x-text="'(' + pricingCount(opt.id) + ')'"></span>
+        </button>
+      </template>
+      <button type="button" x-show="pricingFilter === 'free_any' || pricingFilter === 'free'" x-cloak
+              @click="enableByPricing(pricingFilter)"
+              class="px-3 py-1 text-xs font-medium rounded-full border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              title="Enable all shown modules that don't need an unconfigured API key">
+        Enable these
+      </button>
+    </div>
+
+    {# Search results (shown when searching or a pricing filter is active) #}
+    <div x-show="(moduleSearch && moduleSearch.trim().length > 0) || pricingFilter" x-cloak class="mb-4">
       <template x-if="filteredModules().length > 0">
         <div class="border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden divide-y divide-slate-100 dark:divide-sf-border/60">
           <template x-for="[key, mod] in filteredModules()" :key="key">
@@ -445,6 +471,7 @@
                      x-text="mod.name"></p>
                   <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none"
                         x-text="mod.category"></span>
+            {% include 'components/pricing_badge.html' %}
                   <span x-show="mod.requiresKey && mod.keyConfigured"
                         class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20 leading-none">
                     API
@@ -464,12 +491,12 @@
         </div>
       </template>
       <template x-if="filteredModules().length === 0">
-        <p class="text-sm text-slate-400 dark:text-slate-500 text-center py-4">No modules match your search.</p>
+        <p class="text-sm text-slate-400 dark:text-slate-500 text-center py-4">No modules match your search or filter.</p>
       </template>
     </div>
 
     {# ============ Local Tools section — cross-cutting view of tool modules ============ #}
-    <div :class="{ 'hidden': moduleSearch && moduleSearch.trim().length > 0 }" class="space-y-2">
+    <div :class="{ 'hidden': (moduleSearch && moduleSearch.trim().length > 0) || pricingFilter }" class="space-y-2">
 
       {# Local Tools accordion #}
       <div x-data="{ toolsOpen: false }"

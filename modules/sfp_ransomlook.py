@@ -23,6 +23,7 @@ class sfp_ransomlook(SpiderFootPlugin):
         "name": "RansomLook",
         "summary": "Check if a target domain or organization has appeared as a victim on ransomware gang leak sites.",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

@@ -22,6 +22,7 @@ class sfp_company(SpiderFootPlugin):
         'name': "Company Name Extractor",
         'summary': "Identify company names in any obtained data.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

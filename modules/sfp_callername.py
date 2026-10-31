@@ -22,6 +22,7 @@ class sfp_callername(SpiderFootPlugin):
         'name': "CallerName",
         'summary': "Lookup US phone number location and reputation information.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

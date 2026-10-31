@@ -22,6 +22,7 @@ class sfp_skymem(SpiderFootPlugin):
         'name': "Skymem",
         'summary': "Look up e-mail addresses on Skymem.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

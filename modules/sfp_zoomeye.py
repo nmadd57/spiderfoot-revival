@@ -22,6 +22,7 @@ class sfp_zoomeye(SpiderFootPlugin):
         "name": "ZoomEye",
         "summary": "Query ZoomEye for internet-connected devices, open ports, services, and web applications associated with the target.",
         "flags": ["apikey"],
+        "pricing": "paid",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

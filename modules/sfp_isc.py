@@ -21,6 +21,7 @@ class sfp_isc(SpiderFootPlugin):
         'name': "Internet Storm Center",
         'summary': "Check if an IP address is malicious according to SANS ISC.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

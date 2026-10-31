@@ -23,6 +23,7 @@ class sfp_uceprotect(SpiderFootPlugin):
         'name': "UCEPROTECT",
         'summary': "Check if a netblock or IP address is in the UCEPROTECT database.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

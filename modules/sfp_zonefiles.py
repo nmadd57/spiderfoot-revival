@@ -22,6 +22,7 @@ class sfp_zonefiles(SpiderFootPlugin):
         'name': "ZoneFile.io",
         'summary': "Search ZoneFiles.io Domain query API for domain information.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         "dataSource": {

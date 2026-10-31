@@ -22,6 +22,7 @@ class sfp_neutrinoapi(SpiderFootPlugin):
         'name': "NeutrinoAPI",
         'summary': "Search NeutrinoAPI for phone location information, IP address information, and host reputation.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -21,6 +21,7 @@ class sfp_whoisology(SpiderFootPlugin):
         'name': "Whoisology",
         'summary': "Reverse Whois lookups using Whoisology.com.",
         'flags': ["apikey"],
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

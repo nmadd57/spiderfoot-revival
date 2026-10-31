@@ -31,6 +31,7 @@ class sfp_tool_nuclei(SpiderFootPlugin):
             "slow",
             "invasive"
         ],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

@@ -532,6 +532,7 @@ class SpiderFootPlugin():
             'cats': self.meta.get('categories', []),
             'group': self.meta.get('useCases', []),
             'labels': self.meta.get('flags', []),
+            'pricing': self.meta.get('pricing', 'local'),
             'provides': self.producedEvents(),
             'consumes': self.watchedEvents(),
             'meta': self.meta,

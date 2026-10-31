@@ -25,6 +25,7 @@ class sfp_greynoise_community(SpiderFootPlugin):
         "name": "GreyNoise Community",
         "summary": "Obtain IP enrichment data from GreyNoise Community API",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

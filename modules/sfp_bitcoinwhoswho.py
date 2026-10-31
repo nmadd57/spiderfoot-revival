@@ -21,6 +21,7 @@ class sfp_bitcoinwhoswho(SpiderFootPlugin):
         'name': "Bitcoin Who's Who",
         'summary': "Check for Bitcoin addresses against the Bitcoin Who's Who database of suspect/malicious addresses.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Investigate"],
         'categories': ["Reputation Systems"],
         'dataSource': {

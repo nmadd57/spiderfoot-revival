@@ -21,6 +21,7 @@ class sfp_ipqualityscore(SpiderFootPlugin):
         "name": "IPQualityScore",
         "summary": "Determine if target is malicious using IPQualityScore API",
         'flags': ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

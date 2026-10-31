@@ -21,6 +21,7 @@ class sfp_names(SpiderFootPlugin):
         'name': "Human Name Extractor",
         'summary': "Attempt to identify human names in fetched content.",
         'flags': ["errorprone"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Content Analysis"]
     }

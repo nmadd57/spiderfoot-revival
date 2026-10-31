@@ -21,6 +21,7 @@ class sfp_alienvaultiprep(SpiderFootPlugin):
     meta = {
         'name': "AlienVault IP Reputation",
         'summary': "Check if an IP or netblock is malicious according to the AlienVault IP Reputation database.",
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -21,6 +21,7 @@ class sfp_junkfiles(SpiderFootPlugin):
         'name': "Junk File Finder",
         'summary': "Looks for old/temporary and other similar files.",
         'flags': ["slow", "errorprone", "invasive"],
+        'pricing': 'local',
         'useCases': ["Footprint"],
         'categories': ["Crawling and Scanning"]
     }

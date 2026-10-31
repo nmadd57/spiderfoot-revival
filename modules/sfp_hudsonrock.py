@@ -23,6 +23,7 @@ class sfp_hudsonrock(SpiderFootPlugin):
         "name": "Hudson Rock",
         "summary": "Query Hudson Rock's Cavalier API for infostealer malware exposure on email addresses and domains.",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Leaks, Dumps and Breaches"],
         "dataSource": {

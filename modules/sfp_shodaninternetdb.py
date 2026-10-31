@@ -24,6 +24,7 @@ class sfp_shodaninternetdb(SpiderFootPlugin):
         "name": "Shodan InternetDB",
         "summary": "Query Shodan's free InternetDB API for open ports, vulnerabilities, hostnames, and CPEs of IP addresses.",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

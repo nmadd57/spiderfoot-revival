@@ -22,6 +22,7 @@ class sfp_leakcheck(SpiderFootPlugin):
         "name": "LeakCheck",
         "summary": "Query LeakCheck's breach database for exposed credentials associated with email addresses and usernames.",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Leaks, Dumps and Breaches"],
         "dataSource": {

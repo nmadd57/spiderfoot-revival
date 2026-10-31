@@ -20,6 +20,7 @@ class sfp_slideshare(SpiderFootPlugin):
         'name': "SlideShare",
         'summary': "Gather name and location from SlideShare profiles.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Social Media"],
         'dataSource': {

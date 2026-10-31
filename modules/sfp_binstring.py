@@ -21,6 +21,7 @@ class sfp_binstring(SpiderFootPlugin):
         'name': "Binary String Extractor",
         'summary': "Attempt to identify strings in binary content.",
         'flags': ["errorprone"],
+        'pricing': 'local',
         'useCases': ["Footprint"],
         'categories': ["Content Analysis"]
     }

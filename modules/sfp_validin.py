@@ -22,6 +22,7 @@ class sfp_validin(SpiderFootPlugin):
         "name": "Validin",
         "summary": "Query Validin for current and historical DNS records, subdomain enumeration, and certificate transparency data.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Passive DNS"],
         "dataSource": {

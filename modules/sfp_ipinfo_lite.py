@@ -22,6 +22,7 @@ class sfp_ipinfo_lite(SpiderFootPlugin):
         'summary': "Obtain ASN, organization, and country data for IP addresses "
                    "using the free IPinfo Lite API (unlimited requests).",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

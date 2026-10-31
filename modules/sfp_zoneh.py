@@ -22,6 +22,7 @@ class sfp_zoneh(SpiderFootPlugin):
         'name': "Zone-H Defacement Check",
         'summary': "Check if a hostname/domain appears on the zone-h.org 'special defacements' RSS feed.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Leaks, Dumps and Breaches"],
         'dataSource': {

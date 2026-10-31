@@ -24,6 +24,7 @@ class sfp_subdomain_takeover(SpiderFootPlugin):
         'name': "Subdomain Takeover Checker",
         'summary': "Check if affiliated subdomains are vulnerable to takeover.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"]
     }

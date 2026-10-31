@@ -24,6 +24,7 @@ class sfp_circllu(SpiderFootPlugin):
         'name': "CIRCL.LU",
         'summary': "Obtain information from CIRCL.LU's Passive DNS and Passive SSL databases.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

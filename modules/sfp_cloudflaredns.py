@@ -22,6 +22,7 @@ class sfp_cloudflaredns(SpiderFootPlugin):
         'name': "CloudFlare DNS",
         'summary': "Check if a host would be blocked by CloudFlare DNS.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

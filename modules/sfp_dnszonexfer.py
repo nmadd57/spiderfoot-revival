@@ -24,6 +24,7 @@ class sfp_dnszonexfer(SpiderFootPlugin):
         'name': "DNS Zone Transfer",
         'summary': "Attempts to perform a full DNS zone transfer.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["DNS"]
     }

@@ -19,7 +19,8 @@ class sfp__stor_stdout(SpiderFootPlugin):
 
     meta = {
         'name': "Command-line output",
-        'summary': "Dumps output to standard out. Used for when a SpiderFoot scan is run via the command-line."
+        'summary': "Dumps output to standard out. Used for when a SpiderFoot scan is run via the command-line.",
+        'pricing': 'local',
     }
 
     _priority = 0

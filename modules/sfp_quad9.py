@@ -22,6 +22,7 @@ class sfp_quad9(SpiderFootPlugin):
         'name': "Quad9",
         'summary': "Check if a host would be blocked by Quad9 DNS.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -25,6 +25,7 @@ class sfp_tool_bbot_cloud(SpiderFootPlugin):
         "name": "Tool - BBOT Cloud Recon",
         "summary": "Use BBOT for cloud infrastructure recon: S3/Azure/GCP bucket discovery, Docker Hub, Postman workspace leaks, and Azure tenant enumeration.",
         "flags": ["tool", "slow"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

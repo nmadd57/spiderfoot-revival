@@ -24,6 +24,7 @@ class sfp_viewdns(SpiderFootPlugin):
         'name': "ViewDNS.info",
         'summary': "Identify co-hosted websites and perform reverse Whois lookups using ViewDNS.info.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

@@ -27,6 +27,7 @@ class sfp_grep_app(SpiderFootPlugin):
         'name': "grep.app",
         'summary': "Search grep.app API for links and emails related to the specified domain.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

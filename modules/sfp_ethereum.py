@@ -22,6 +22,7 @@ class sfp_ethereum(SpiderFootPlugin):
         'name': "Ethereum Address Extractor",
         'summary': "Identify ethereum addresses in scraped webpages.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

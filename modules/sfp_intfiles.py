@@ -19,6 +19,7 @@ class sfp_intfiles(SpiderFootPlugin):
         'name': "Interesting File Finder",
         'summary': "Identifies potential files of interest, e.g. office documents, zip files.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Crawling and Scanning"]
     }

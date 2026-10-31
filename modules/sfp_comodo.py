@@ -22,6 +22,7 @@ class sfp_comodo(SpiderFootPlugin):
         'name': "Comodo Secure DNS",
         'summary': "Check if a host would be blocked by Comodo Secure DNS.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

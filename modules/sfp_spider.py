@@ -23,6 +23,7 @@ class sfp_spider(SpiderFootPlugin):
         'name': "Web Spider",
         'summary': "Spidering of web-pages to extract content for searching.",
         'flags': ["slow"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"]
     }

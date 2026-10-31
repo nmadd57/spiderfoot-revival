@@ -26,6 +26,7 @@ class sfp_networksdb(SpiderFootPlugin):
         'name': "NetworksDB",
         'summary': "Search NetworksDB.io API for IP address and domain information.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         'dataSource': {

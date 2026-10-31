@@ -25,6 +25,7 @@ class sfp_countryname(SpiderFootPlugin):
         'name': "Country Name Extractor",
         'summary': "Identify country names in any obtained data.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

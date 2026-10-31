@@ -23,6 +23,7 @@ class sfp_gleif(SpiderFootPlugin):
         'name': "GLEIF",
         'summary': "Look up company information from Global Legal Entity Identifier Foundation (GLEIF).",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

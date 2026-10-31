@@ -27,6 +27,7 @@ class sfp_flickr(SpiderFootPlugin):
         'name': "Flickr",
         'summary': "Search Flickr for domains, URLs and emails related to the specified domain.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Social Media"],
         'dataSource': {

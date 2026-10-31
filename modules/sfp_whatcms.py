@@ -25,6 +25,7 @@ class sfp_whatcms(SpiderFootPlugin):
         'name': "WhatCMS",
         'summary': "Check web technology using WhatCMS.org API.",
         'flags': ["apikey", "slow"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"],
         'dataSource': {

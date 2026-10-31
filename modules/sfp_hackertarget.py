@@ -29,6 +29,7 @@ class sfp_hackertarget(SpiderFootPlugin):
         'name': "HackerTarget",
         'summary': "Search HackerTarget.com for hosts sharing the same IP.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Passive DNS"],
         'dataSource': {

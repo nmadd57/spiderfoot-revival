@@ -18,6 +18,10 @@
           </svg>
         </a>
         {% endif %}
+        {% set pr = card.pricing %}
+        {% if pr == 'free' %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 leading-none" title="Free, no account or API key needed">FREE</span>
+        {% elif pr == 'free_key' %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 leading-none" title="Free tier available with an account / API key (may be rate limited)">FREE TIER</span>
+        {% elif pr == 'paid' %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 leading-none" title="Commercial / paid only">PAID</span>{% endif %}
       </div>
       <p class="text-xs text-slate-400 dark:text-slate-500 font-mono truncate mt-0.5">{{ card.mod_name }}</p>
     </div>

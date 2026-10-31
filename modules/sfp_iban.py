@@ -20,6 +20,7 @@ class sfp_iban(SpiderFootPlugin):
         'name': "IBAN Number Extractor",
         'summary': "Identify International Bank Account Numbers (IBANs) in any data.",
         'flags': ["errorprone"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

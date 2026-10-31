@@ -18,6 +18,7 @@ class sfp_bingsearch(SpiderFootPlugin):
         'name': "Bing",
         'summary': "Obtain information from bing to identify sub-domains and links.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

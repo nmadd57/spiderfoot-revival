@@ -27,6 +27,7 @@ class sfp_wikipediaedits(SpiderFootPlugin):
         'name': "Wikipedia Edits",
         'summary': "Identify edits to Wikipedia articles made from a given IP address or username.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Secondary Networks"],
         'dataSource': {

@@ -21,6 +21,7 @@ class sfp_bingsharedip(SpiderFootPlugin):
         'name': "Bing (Shared IPs)",
         'summary': "Search Bing for hosts sharing the same IP.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

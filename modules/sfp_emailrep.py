@@ -22,6 +22,7 @@ class sfp_emailrep(SpiderFootPlugin):
         'name': "EmailRep",
         'summary': "Search EmailRep.io for email address reputation.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

@@ -24,6 +24,7 @@ class sfp_google_tag_manager(SpiderFootPlugin):
         'name': "Google Tag Manager",
         'summary': "Search Google Tag Manager (GTM) for hosts sharing the same GTM code.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         'dataSource': {

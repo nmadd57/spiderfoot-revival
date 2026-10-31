@@ -22,6 +22,7 @@ class sfp_multiproxy(SpiderFootPlugin):
         'name': "multiproxy.org Open Proxies",
         'summary': "Check if an IP address is an open proxy according to multiproxy.org open proxy list.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Secondary Networks"],
         'dataSource': {

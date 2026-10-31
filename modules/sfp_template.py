@@ -39,6 +39,7 @@ class sfp_template(SpiderFootPlugin):
         #   - Passive means the user's scan target is not contacted at all
         #   - Footprint means that this module is useful when understanding the target's footprint on the Internet
         #   - Investigate means that this module is useful when investigating the danger/risk of a target
+        'pricing': 'free',
         'useCases': ["Passive"],
 
         # Categories: The categories this module belongs in, describing how it operates. Only the first category is

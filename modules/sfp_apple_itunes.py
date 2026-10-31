@@ -25,11 +25,12 @@ class sfp_apple_itunes(SpiderFootPlugin):
         'name': "Apple iTunes",
         'summary': "Search Apple iTunes for mobile apps.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Footprint", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://itunes.apple.com/",
-            'model': "FREE_AUTH_UNLIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'favIcon': "https://itunes.apple.com/favicon.ico",
             'logo': "https://itunes.apple.com/favicon.ico",
             'description': "The Apple iTunes store is a store for downloading "

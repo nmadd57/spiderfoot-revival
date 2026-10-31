@@ -19,6 +19,7 @@ class sfp_vxvault(SpiderFootPlugin):
         'name': "VXVault.net",
         'summary': "Check if a domain or IP address is malicious according to VXVault.net.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

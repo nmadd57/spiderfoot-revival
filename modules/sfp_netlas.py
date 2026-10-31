@@ -22,6 +22,7 @@ class sfp_netlas(SpiderFootPlugin):
         "name": "Netlas.io",
         "summary": "Query Netlas.io for internet scan data, DNS records, WHOIS, and SSL certificates related to the target.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

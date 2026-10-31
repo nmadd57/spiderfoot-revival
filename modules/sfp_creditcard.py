@@ -20,6 +20,7 @@ class sfp_creditcard(SpiderFootPlugin):
         'name': "Credit Card Number Extractor",
         'summary': "Identify Credit Card Numbers in any data",
         'flags': ["errorprone"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

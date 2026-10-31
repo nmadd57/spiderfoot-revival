@@ -22,6 +22,7 @@ class sfp_seon(SpiderFootPlugin):
         'name': "Seon",
         'summary': "Queries seon.io to gather intelligence about IP Addresses, email addresses, and phone numbers",
         'flags': ["apikey"],
+        'pricing': 'paid',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

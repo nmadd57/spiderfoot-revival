@@ -22,6 +22,7 @@ class sfp_surbl(SpiderFootPlugin):
         'name': "SURBL",
         'summary': "Check if a netblock, IP address or domain is in the SURBL blacklist.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

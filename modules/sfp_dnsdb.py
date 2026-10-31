@@ -22,6 +22,7 @@ class sfp_dnsdb(SpiderFootPlugin):
         "name": "DNSDB",
         "summary": "Query FarSight's DNSDB for historical and passive DNS data.",
         'flags': ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Passive", "Footprint", "Investigate"],
         "categories": ["Passive DNS"],
         "dataSource": {

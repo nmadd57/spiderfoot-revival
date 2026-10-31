@@ -24,6 +24,7 @@ class sfp_c2tracker(SpiderFootPlugin):
         "name": "C2 Tracker",
         "summary": "Check if IP addresses appear in the C2-Tracker live feed of known command and control servers (Cobalt Strike, Sliver, Havoc, Mythic, etc.).",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

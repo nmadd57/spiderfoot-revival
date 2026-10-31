@@ -24,6 +24,7 @@ class sfp_spyonweb(SpiderFootPlugin):
         'name': "SpyOnWeb",
         'summary': "Search SpyOnWeb for hosts sharing the same IP address, Google Analytics code, or Google Adsense code.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         'dataSource': {

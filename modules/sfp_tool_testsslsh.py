@@ -27,6 +27,7 @@ class sfp_tool_testsslsh(SpiderFootPlugin):
         'name': "Tool - testssl.sh",
         'summary': "Identify various TLS/SSL weaknesses, including Heartbleed, CRIME and ROBOT.",
         'flags': ["tool"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"],
         'toolDetails': {

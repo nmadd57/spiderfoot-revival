@@ -22,6 +22,7 @@ class sfp_talosintel(SpiderFootPlugin):
         'name': "Talos Intelligence",
         'summary': "Check if a netblock or IP address is malicious according to TalosIntelligence.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -23,11 +23,12 @@ class sfp_etherscan(SpiderFootPlugin):
         'name': "Etherscan",
         'summary': "Queries etherscan.io to find the balance of identified ethereum wallet addresses.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"],
         'dataSource': {
             'website': "https://etherscan.io",
-            'model': "FREE_NOAUTH_UNLIMITED",
+            'model': "FREE_AUTH_LIMITED",
             'references': [
                 "https://etherscan.io/apis"
             ],

@@ -24,6 +24,7 @@ class sfp_robtex(SpiderFootPlugin):
         'name': "Robtex",
         'summary': "Search Robtex.com for hosts sharing the same IP.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         'dataSource': {

@@ -24,6 +24,7 @@ class sfp_crossref(SpiderFootPlugin):
         'name': "Cross-Referencer",
         'summary': "Identify whether other domains are associated ('Affiliates') of the target by looking for links back to the target site(s).",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint"],
         'categories': ["Crawling and Scanning"]
     }

@@ -22,6 +22,7 @@ class sfp_googlesafebrowsing(SpiderFootPlugin):
         "name": "Google SafeBrowsing",
         "summary": "Check if the URL is included on any of the Safe Browsing lists.",
         'flags': ["slow", "apikey"],
+        "pricing": "free_key",
         "useCases": ["Passive", "Investigate"],
         "categories": ["Reputation Systems"],
         "dataSource": {

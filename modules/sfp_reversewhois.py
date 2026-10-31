@@ -22,6 +22,7 @@ class sfp_reversewhois(SpiderFootPlugin):
     meta = {
         "name": "ReverseWhois",
         "summary": "Reverse Whois lookups using reversewhois.io.",
+        "pricing": "free",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

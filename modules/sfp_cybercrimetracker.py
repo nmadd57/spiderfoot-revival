@@ -19,6 +19,7 @@ class sfp_cybercrimetracker(SpiderFootPlugin):
         'name': "CyberCrime-Tracker.net",
         'summary': "Check if a host/domain or IP address is malicious according to CyberCrime-Tracker.net.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

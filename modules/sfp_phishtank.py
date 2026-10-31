@@ -19,6 +19,7 @@ class sfp_phishtank(SpiderFootPlugin):
         'name': "PhishTank",
         'summary': "Check if a host/domain is malicious according to PhishTank.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

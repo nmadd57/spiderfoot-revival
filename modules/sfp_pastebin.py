@@ -22,6 +22,7 @@ class sfp_pastebin(SpiderFootPlugin):
         'name': "PasteBin",
         'summary': "PasteBin search (via Google Search API) to identify related content.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Leaks, Dumps and Breaches"],
         'dataSource': {

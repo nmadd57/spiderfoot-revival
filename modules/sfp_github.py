@@ -22,6 +22,7 @@ class sfp_github(SpiderFootPlugin):
         'name': "Github",
         'summary': "Identify associated public code repositories on Github.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Social Media"],
         'dataSource': {

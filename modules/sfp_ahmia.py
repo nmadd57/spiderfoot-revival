@@ -25,6 +25,7 @@ class sfp_ahmia(SpiderFootPlugin):
         'name': "Ahmia",
         'flags': ["tor"],
         'summary': "Search Tor 'Ahmia' search engine for mentions of the target.",
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

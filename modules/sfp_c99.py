@@ -20,6 +20,7 @@ class sfp_c99(SpiderFootPlugin):
         "name": "C99",
         "summary": "Queries the C99 API which offers various data (geo location, proxy detection, phone lookup, etc).",
         'flags': ["apikey"],
+        "pricing": "paid",
         "useCases": ["Footprint", "Passive", "Investigate"],
         "categories": ["Search Engines"],
         "dataSource": {

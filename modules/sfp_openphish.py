@@ -19,6 +19,7 @@ class sfp_openphish(SpiderFootPlugin):
         'name': "OpenPhish",
         'summary': "Check if a host/domain is malicious according to OpenPhish.com.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

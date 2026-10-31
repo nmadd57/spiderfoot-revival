@@ -24,6 +24,7 @@ class sfp_botscout(SpiderFootPlugin):
         'name': "BotScout",
         'summary': "Searches BotScout.com's database of spam-bot IP addresses and e-mail addresses.",
         'flags': ["apikey"],
+        'pricing': 'free',
         'useCases': ["Passive", "Investigate"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -22,6 +22,7 @@ class sfp_base64(SpiderFootPlugin):
         'name': "Base64 Decoder",
         'summary': "Identify Base64-encoded strings in URLs, often revealing interesting hidden information.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

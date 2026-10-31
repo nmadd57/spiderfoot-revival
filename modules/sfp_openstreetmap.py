@@ -27,6 +27,7 @@ class sfp_openstreetmap(SpiderFootPlugin):
         'name': "OpenStreetMap",
         'summary': "Retrieves latitude/longitude coordinates for physical addresses from OpenStreetMap API.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

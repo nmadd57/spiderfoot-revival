@@ -24,6 +24,7 @@ class sfp_tool_nmap(SpiderFootPlugin):
         'name': "Tool - Nmap",
         'summary': "Identify what Operating System might be used.",
         'flags': ["tool", "slow", "invasive"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"],
         'toolDetails': {

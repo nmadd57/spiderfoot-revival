@@ -22,6 +22,7 @@ class sfp_opensanctions(SpiderFootPlugin):
         "name": "OpenSanctions",
         "summary": "Screen person and company names against international sanctions lists and Politically Exposed Persons (PEP) databases.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Public Registries"],
         "dataSource": {

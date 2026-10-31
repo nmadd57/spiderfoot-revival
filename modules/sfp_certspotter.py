@@ -25,6 +25,7 @@ class sfp_certspotter(SpiderFootPlugin):
         'name': "CertSpotter",
         'summary': "Gather information about SSL certificates from SSLMate CertSpotter API.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Crawling and Scanning"],
         'dataSource': {

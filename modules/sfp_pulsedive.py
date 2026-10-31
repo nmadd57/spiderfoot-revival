@@ -28,6 +28,7 @@ class sfp_pulsedive(SpiderFootPlugin):
         'name': "Pulsedive",
         'summary': "Obtain information from Pulsedive's API.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

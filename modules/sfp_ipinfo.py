@@ -22,6 +22,7 @@ class sfp_ipinfo(SpiderFootPlugin):
         'name': "IPInfo.io",
         'summary': "Identifies the physical location of IP addresses identified using ipinfo.io.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

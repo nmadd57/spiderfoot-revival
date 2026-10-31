@@ -23,6 +23,7 @@ class sfp_fofa(SpiderFootPlugin):
         "name": "FOFA",
         "summary": "Query FOFA for internet asset data including IPs, ports, services, and technologies associated with the target.",
         "flags": ["apikey"],
+        "pricing": "paid",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

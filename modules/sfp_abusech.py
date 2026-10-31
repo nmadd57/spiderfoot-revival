@@ -22,6 +22,7 @@ class sfp_abusech(SpiderFootPlugin):
         'name': "abuse.ch",
         'summary': "Check if a host/domain, IP address or netblock is malicious according to Abuse.ch.",
         'flags': [],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Investigate"],
         'categories': ["Reputation Systems"],
         'dataSource': {

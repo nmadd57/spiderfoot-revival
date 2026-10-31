@@ -4,6 +4,12 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Module pricing tags
+
+- Every module now declares `meta['pricing']`: `free` (no account/key), `free_key` (free tier with an account/API key, possibly rate limited), `paid` (commercial only) or `local` (no third-party service: analysis modules, direct DNS/HTTP checks, local tools). Derived from each module's `dataSource.model`; modules without a data source were reviewed by hand. A unit test enforces a valid tag on every module and consistency with `dataSource.model`.
+- Corrected `dataSource.model` for etherscan, abstractapi, apple_itunes and ipapico to match how they actually behave.
+- The tag is exposed as `pricing` in `SpiderFootPlugin.asdict()` (and so `/api/modules`), shown as FREE / FREE TIER / PAID / LOCAL badges on the new-scan page and API-key cards, and drives new "Show:" filter pills on the new-scan page (with an "Enable these" shortcut for free modules).
+
 ### Local OpenAI-compatible endpoints for AI Summarization
 
 - New `_ai_base_url` option ("Custom base URL" in Settings → AI Assistant). When set, requests go to `<base URL>/chat/completions` instead of OpenRouter, so Ollama, llama.cpp, vLLM, LM Studio, llama-swap, etc. work.

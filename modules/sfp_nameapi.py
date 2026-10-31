@@ -22,6 +22,7 @@ class sfp_nameapi(SpiderFootPlugin):
         'name': "NameAPI",
         'summary': "Check whether an email is disposable",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

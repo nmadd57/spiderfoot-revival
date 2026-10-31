@@ -21,6 +21,7 @@ class sfp_ransomwarelive(SpiderFootPlugin):
         "name": "Ransomware.live",
         "summary": "Check whether the target appears on any tracked ransomware leak-site (ransomware.live).",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Leaks, Dumps and Breaches"],
         "dataSource": {

@@ -85,6 +85,7 @@ class sfp_strangeheaders(SpiderFootPlugin):
         'name': "Strange Header Identifier",
         'summary': "Obtain non-standard HTTP headers returned by web servers.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Content Analysis"]
     }

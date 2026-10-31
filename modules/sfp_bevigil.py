@@ -23,6 +23,7 @@ class sfp_bevigil(SpiderFootPlugin):
         "name": "BeVigil",
         "summary": "Query BeVigil's OSINT API for subdomains, URLs, and S3 buckets extracted from mobile application analysis.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

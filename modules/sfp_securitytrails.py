@@ -22,6 +22,7 @@ class sfp_securitytrails(SpiderFootPlugin):
         'name': "SecurityTrails",
         'summary': "Obtain Passive DNS and other information from SecurityTrails",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

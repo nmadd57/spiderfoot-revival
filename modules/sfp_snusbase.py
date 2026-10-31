@@ -22,6 +22,7 @@ class sfp_snusbase(SpiderFootPlugin):
         "name": "Snusbase",
         "summary": "Query Snusbase for breached credentials associated with email addresses, usernames, and domains.",
         "flags": ["apikey"],
+        "pricing": "paid",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Leaks, Dumps and Breaches"],
         "dataSource": {

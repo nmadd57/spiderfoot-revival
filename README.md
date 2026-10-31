@@ -74,6 +74,12 @@ python -c "import bcrypt; print('admin:' + bcrypt.hashpw(b'changeme', bcrypt.gen
 
 On startup, SpiderFoot loads this file and enforces HTTP Basic Auth on all endpoints. Plaintext passwords in existing passwd files are automatically upgraded to bcrypt on first load.
 
+## Module pricing tags
+
+Each module's `meta` carries a `pricing` tag, shown as a badge in the UI and available via `/api/modules`:
+`free` (no account needed), `free_key` (free tier with an API key/account), `paid` (commercial only), `local` (no third-party service).
+Use the "Show:" pills on the new-scan page to list/enable only the free ones.
+
 ## Features
 
 - **244 OSINT modules** across passive recon, active scanning, breach data, and threat intelligence

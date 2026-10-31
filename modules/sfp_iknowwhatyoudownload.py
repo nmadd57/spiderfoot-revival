@@ -23,6 +23,7 @@ class sfp_iknowwhatyoudownload(SpiderFootPlugin):
         'name': "Iknowwhatyoudownload.com",
         'summary': "Check iknowwhatyoudownload.com for IP addresses that have been using torrents.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Secondary Networks"],
         'dataSource': {

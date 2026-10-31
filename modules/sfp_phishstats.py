@@ -26,6 +26,7 @@ class sfp_phishstats(SpiderFootPlugin):
         'name': "PhishStats",
         'summary': "Check if an IP, domain, or URL is involved in phishing according to PhishStats.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

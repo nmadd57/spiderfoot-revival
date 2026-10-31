@@ -23,6 +23,7 @@ class sfp_torch(SpiderFootPlugin):
         'name': "TORCH",
         'summary': "Search Tor 'TORCH' search engine for mentions of the target domain.",
         'flags': ["errorprone", "tor"],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

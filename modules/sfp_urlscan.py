@@ -24,6 +24,7 @@ class sfp_urlscan(SpiderFootPlugin):
         'name': "URLScan.io",
         'summary': "Search URLScan.io cache for domain information.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

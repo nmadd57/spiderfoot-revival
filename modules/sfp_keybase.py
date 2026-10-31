@@ -27,6 +27,7 @@ class sfp_keybase(SpiderFootPlugin):
         'name': "Keybase",
         'summary': "Obtain additional information about domain names and identified usernames.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"],
         'dataSource': {

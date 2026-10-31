@@ -23,6 +23,7 @@ class sfp_dnsdumpster(SpiderFootPlugin):
         "name": "DNSDumpster",
         "summary": "Passive subdomain enumeration using HackerTarget's DNSDumpster API.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Footprint", "Passive"],
         "categories": ["Passive DNS"],
         "dataSource": {

@@ -21,6 +21,7 @@ class sfp_cinsscore(SpiderFootPlugin):
         'name': "CINS Army List",
         'summary': "Check if a netblock or IP address is malicious according to Collective Intelligence Network Security (CINS) Army list.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

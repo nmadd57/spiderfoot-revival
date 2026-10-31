@@ -23,6 +23,7 @@ class sfp_opencorporates(SpiderFootPlugin):
         'name': "OpenCorporates",
         'summary': "Look up company information from OpenCorporates.",
         'flags': ["apikey"],
+        'pricing': 'free',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

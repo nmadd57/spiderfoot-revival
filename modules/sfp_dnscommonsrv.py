@@ -22,6 +22,7 @@ class sfp_dnscommonsrv(SpiderFootPlugin):
         'name': "DNS Common SRV",
         'summary': "Attempts to identify hostnames through brute-forcing common DNS SRV records.",
         'flags': ["slow"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["DNS"]
     }

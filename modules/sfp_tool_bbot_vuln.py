@@ -26,6 +26,7 @@ class sfp_tool_bbot_vuln(SpiderFootPlugin):
         "name": "Tool - BBOT Vulnerability Scanner",
         "summary": "Use BBOT for vulnerability detection via nuclei, badsecrets, baddns, and wpscan modules.",
         "flags": ["tool", "slow", "invasive"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

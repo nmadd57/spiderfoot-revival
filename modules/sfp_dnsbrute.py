@@ -25,6 +25,7 @@ class sfp_dnsbrute(SpiderFootPlugin):
         'name': "DNS Brute-forcer",
         'summary': "Attempts to identify hostnames through brute-forcing common names and iterations.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["DNS"]
     }

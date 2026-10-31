@@ -27,6 +27,7 @@ class sfp_tool_bbot_scan(SpiderFootPlugin):
         "name": "Tool - BBOT Active Scanner",
         "summary": "Use BBOT for active port scanning, HTTP probing, service fingerprinting, and SSL certificate analysis.",
         "flags": ["tool", "slow", "invasive"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

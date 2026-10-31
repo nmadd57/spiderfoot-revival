@@ -21,6 +21,7 @@ class sfp_textmagic(SpiderFootPlugin):
         "name": "TextMagic",
         "summary": "Obtain phone number type from TextMagic API",
         'flags': ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

@@ -20,6 +20,7 @@ class sfp_hashes(SpiderFootPlugin):
         'name': "Hash Extractor",
         'summary': "Identify MD5 and SHA hashes in web content, files and more.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

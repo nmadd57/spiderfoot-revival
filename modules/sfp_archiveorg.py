@@ -23,6 +23,7 @@ class sfp_archiveorg(SpiderFootPlugin):
         'name': "Archive.org",
         'summary': "Identifies historic versions of interesting files/pages from the Wayback Machine.",
         'flags': ["slow"],
+        'pricing': 'free',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

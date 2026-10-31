@@ -1,0 +1,15 @@
+{# Pricing badge. Alpine usage: include inside an x-for over modules where `mod.pricing` is set.
+   Tags (module meta "pricing"): free = no account/key needed, free_key = free tier with
+   account/API key (may be rate limited), paid = commercial only, local = no third-party service. #}
+<span x-show="mod.pricing === 'free'"
+      class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 leading-none"
+      title="Free, no account or API key needed">FREE</span>
+<span x-show="mod.pricing === 'free_key'"
+      class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 leading-none"
+      title="Free tier available with an account / API key (may be rate limited)">FREE TIER</span>
+<span x-show="mod.pricing === 'paid'"
+      class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 leading-none"
+      title="Commercial / paid only">PAID</span>
+<span x-show="mod.pricing === 'local'"
+      class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none"
+      title="Runs locally or queries the target directly; no third-party service">LOCAL</span>

@@ -25,6 +25,7 @@ class sfp_numverify(SpiderFootPlugin):
         'name': "numverify",
         'summary': "Lookup phone number location and carrier information from numverify.com.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

@@ -23,6 +23,7 @@ class sfp_tool_wafw00f(SpiderFootPlugin):
         'name': "Tool - WAFW00F",
         'summary': "Identify what web application firewall (WAF) is in use on the specified website.",
         'flags': ["tool"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"],
         'toolDetails': {

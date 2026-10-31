@@ -22,6 +22,7 @@ class sfp_focsec(SpiderFootPlugin):
         'name': "Focsec",
         'summary': "Look up IP address information from Focsec.",
         'flags': ['apikey'],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

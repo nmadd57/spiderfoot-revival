@@ -24,6 +24,7 @@ class sfp_tool_bbot_enum(SpiderFootPlugin):
         "name": "Tool - BBOT Subdomain Enumeration",
         "summary": "Use BBOT's subdomain-enum preset to discover subdomains, IPs, and email addresses from 50+ passive sources.",
         "flags": ["tool", "slow"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

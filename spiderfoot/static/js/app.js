@@ -10,6 +10,7 @@ window.scanForm = (initialModules, presets) => ({
     scanName: '',
     targetType: '',
     moduleSearch: '',
+    pricingFilter: '',   // '' | 'free_any' | 'free' | 'paid' | 'local'
     presets: presets || [],
     activePresetId: 'builtin:footprint',
     appliedSnapshot: [],  // module names enabled at last preset apply
@@ -470,15 +471,45 @@ window.scanForm = (initialModules, presets) => ({
     /** Filter modules by search query (matches name, summary, category, or module key). */
     filteredModules() {
       const q = (this.moduleSearch || '').trim().toLowerCase();
-      if (!q) return [];
+      if (!q && !this.pricingFilter) return [];
       return Object.entries(this.modules)
         .filter(([key, m]) =>
-          m.name.toLowerCase().includes(q) ||
-          m.summary.toLowerCase().includes(q) ||
-          m.category.toLowerCase().includes(q) ||
-          key.toLowerCase().includes(q)
+          this.matchesPricing(m) && (!q ||
+            m.name.toLowerCase().includes(q) ||
+            m.summary.toLowerCase().includes(q) ||
+            m.category.toLowerCase().includes(q) ||
+            key.toLowerCase().includes(q))
         )
         .sort(([, a], [, b]) => a.name.localeCompare(b.name));
+    },
+
+    /** True if the module passes the active pricing filter (module meta "pricing"). */
+    matchesPricing(m) {
+      switch (this.pricingFilter) {
+        case 'free_any': return m.pricing === 'free' || m.pricing === 'free_key';
+        case 'free':     return m.pricing === 'free';
+        case 'paid':     return m.pricing === 'paid';
+        case 'local':    return m.pricing === 'local';
+        default:         return true;
+      }
+    },
+
+    /** Number of modules with a given pricing tag (or 'free_any' for free + free tier). */
+    pricingCount(kind) {
+      return Object.values(this.modules).filter(m =>
+        kind === 'free_any' ? (m.pricing === 'free' || m.pricing === 'free_key') : m.pricing === kind
+      ).length;
+    },
+
+    /** Enable every module matching the pricing kind that needs no missing API key. */
+    enableByPricing(kind) {
+      for (const key of Object.keys(this.modules)) {
+        const m = this.modules[key];
+        const match = kind === 'free_any' ? (m.pricing === 'free' || m.pricing === 'free_key') : m.pricing === kind;
+        if (match && !m.blockedPrivateIp && (!m.requiresKey || m.keyConfigured)) {
+          m.enabled = true;
+        }
+      }
     },
 
     /** Enable or disable all modules in a category. */

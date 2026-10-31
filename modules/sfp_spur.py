@@ -24,6 +24,7 @@ class sfp_spur(SpiderFootPlugin):
         'name': "spur.us",
         'summary': "Obtain information about any malicious activities involving IP addresses found",
         'flags': ["apikey"],
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

@@ -20,6 +20,7 @@ class sfp_projectdiscovery(SpiderFootPlugin):
         "name": "ProjectDiscovery Chaos",
         "summary": "Search for hosts/subdomains using chaos.projectdiscovery.io",
         'flags': ["apikey"],
+        "pricing": "paid",
         "useCases": ["Passive", "Footprint", "Investigate"],
         "categories": ["Passive DNS"],
         "dataSource": {

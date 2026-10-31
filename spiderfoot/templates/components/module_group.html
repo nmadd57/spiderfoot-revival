@@ -93,6 +93,7 @@
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug"
                x-text="mod.name"></p>
+            {% include 'components/pricing_badge.html' %}
             <span x-show="mod.requiresKey && mod.keyConfigured"
                   class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20 leading-none">
               API

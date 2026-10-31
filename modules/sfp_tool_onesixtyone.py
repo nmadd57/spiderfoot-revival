@@ -26,6 +26,7 @@ class sfp_tool_onesixtyone(SpiderFootPlugin):
         "name": "Tool - onesixtyone",
         "summary": "Fast scanner to find publicly exposed SNMP services.",
         "flags": ["tool"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

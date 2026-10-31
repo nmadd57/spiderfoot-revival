@@ -22,6 +22,7 @@ class sfp_hybrid_analysis(SpiderFootPlugin):
         'name': "Hybrid Analysis",
         'summary': "Search Hybrid Analysis for domains and URLs related to the target.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

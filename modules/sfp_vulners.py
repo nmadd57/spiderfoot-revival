@@ -23,6 +23,7 @@ class sfp_vulners(SpiderFootPlugin):
         "name": "Vulners",
         "summary": "Query Vulners.com vulnerability database for CVE details, exploit availability, and software vulnerability audits.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

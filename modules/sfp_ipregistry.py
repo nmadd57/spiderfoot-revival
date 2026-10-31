@@ -21,6 +21,7 @@ class sfp_ipregistry(SpiderFootPlugin):
         "name": "ipregistry",
         "summary": "Query the ipregistry.co database for reputation and geo-location.",
         'flags': ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Passive", "Footprint", "Investigate"],
         "categories": ["Reputation Systems"],
         "dataSource": {

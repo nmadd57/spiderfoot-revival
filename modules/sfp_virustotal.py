@@ -27,6 +27,7 @@ class sfp_virustotal(SpiderFootPlugin):
         'name': "VirusTotal",
         'summary': "Obtain information from VirusTotal about identified IP addresses.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

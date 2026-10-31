@@ -23,6 +23,7 @@ class sfp_spamcop(SpiderFootPlugin):
         'name': "SpamCop",
         'summary': "Check if a netblock or IP address is in the SpamCop database.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

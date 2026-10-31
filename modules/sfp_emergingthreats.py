@@ -22,6 +22,7 @@ class sfp_emergingthreats(SpiderFootPlugin):
         'name': "Emerging Threats",
         'summary': "Check if a netblock or IP address is malicious according to EmergingThreats.net.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

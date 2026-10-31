@@ -39,6 +39,7 @@ class sfp_social(SpiderFootPlugin):
         'name': "Social Network Identifier",
         'summary': "Identify presence on social media networks such as LinkedIn, Twitter and others.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Social Media"]
     }

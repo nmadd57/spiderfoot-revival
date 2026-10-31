@@ -19,6 +19,7 @@ class sfp_coinblocker(SpiderFootPlugin):
         'name': "CoinBlocker Lists",
         'summary': "Check if a domain appears on CoinBlocker lists.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

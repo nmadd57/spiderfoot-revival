@@ -22,6 +22,7 @@ class sfp_arin(SpiderFootPlugin):
         'name': "ARIN",
         'summary': "Queries ARIN registry for contact information.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"],
         'dataSource': {

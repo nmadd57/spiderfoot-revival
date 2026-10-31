@@ -21,6 +21,7 @@ class sfp_fullhunt(SpiderFootPlugin):
         'name': "FullHunt",
         'summary': "Identify domain attack surface using FullHunt API.",
         'flags': ['apikey'],
+        'pricing': 'free_key',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {

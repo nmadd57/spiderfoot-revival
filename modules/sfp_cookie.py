@@ -21,6 +21,7 @@ class sfp_cookie(SpiderFootPlugin):
         'name': "Cookie Extractor",
         'summary': "Extract Cookies from HTTP headers.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Content Analysis"]
     }

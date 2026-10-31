@@ -26,6 +26,7 @@ class sfp_portscan_tcp(SpiderFootPlugin):
         'name': "Port Scanner - TCP",
         'summary': "Scans for commonly open TCP ports on Internet-facing systems.",
         'flags': ["slow", "invasive"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"]
     }

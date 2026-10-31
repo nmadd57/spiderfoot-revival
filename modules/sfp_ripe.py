@@ -23,6 +23,7 @@ class sfp_ripe(SpiderFootPlugin):
         'name': "RIPE",
         'summary': "Queries the RIPE registry (includes ARIN data) to identify netblocks and other info.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"],
         'dataSource': {

@@ -21,6 +21,7 @@ class sfp_sslcert(SpiderFootPlugin):
         'name': "SSL Certificate Analyzer",
         'summary': "Gather information about SSL certificates used by the target's HTTPS sites.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"]
     }

@@ -24,6 +24,7 @@ class sfp_userscanner(SpiderFootPlugin):
         "name": "User Scanner",
         "summary": "Check email registrations across 95+ sites and username existence across 100+ platforms using the user-scanner library.",
         "flags": ["slow"],
+        "pricing": "free",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Public Registries"],
         "dataSource": {

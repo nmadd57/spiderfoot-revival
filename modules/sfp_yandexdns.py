@@ -22,6 +22,7 @@ class sfp_yandexdns(SpiderFootPlugin):
         'name': "Yandex DNS",
         'summary': "Check if a host would be blocked by Yandex DNS.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

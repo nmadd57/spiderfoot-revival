@@ -19,6 +19,7 @@ class sfp_email(SpiderFootPlugin):
     meta = {
         'name': "E-Mail Address Extractor",
         'summary': "Identify e-mail addresses in any obtained data.",
+        'pricing': 'local',
         'useCases': ["Passive", "Investigate", "Footprint"],
         'categories': ["Content Analysis"]
     }

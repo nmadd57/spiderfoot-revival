@@ -23,11 +23,12 @@ class sfp_ipapico(SpiderFootPlugin):
         'name': "ipapi.co",
         'summary': "Queries ipapi.co to identify geolocation of IP Addresses using ipapi.co API",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {
             'website': "https://ipapi.co/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://ipapi.co/api/"
             ],

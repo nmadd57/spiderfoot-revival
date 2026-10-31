@@ -25,6 +25,7 @@ class sfp_snov(SpiderFootPlugin):
         'name': "Snov",
         'summary': "Gather available email IDs from identified domains",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

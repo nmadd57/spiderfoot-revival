@@ -26,6 +26,7 @@ class sfp_emailcrawlr(SpiderFootPlugin):
         'name': "EmailCrawlr",
         'summary': "Search EmailCrawlr for email addresses and phone numbers associated with a domain.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

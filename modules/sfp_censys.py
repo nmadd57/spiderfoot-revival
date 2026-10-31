@@ -29,6 +29,7 @@ class sfp_censys(SpiderFootPlugin):
         'name': "Censys",
         'summary': "Obtain host information from Censys.io.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

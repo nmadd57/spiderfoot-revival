@@ -25,6 +25,7 @@ class sfp_phone(SpiderFootPlugin):
         'name': "Phone Number Extractor",
         'summary': "Identify phone numbers in scraped webpages.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Content Analysis"]
     }

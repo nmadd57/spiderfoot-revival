@@ -21,6 +21,7 @@ class sfp_dns_for_family(SpiderFootPlugin):
         'name': "DNS for Family",
         'summary': "Check if a host would be blocked by DNS for Family.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

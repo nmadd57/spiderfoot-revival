@@ -22,6 +22,7 @@ class sfp_metadefender(SpiderFootPlugin):
         'name': "MetaDefender",
         'summary': "Search MetaDefender API for IP address and domain IP reputation.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

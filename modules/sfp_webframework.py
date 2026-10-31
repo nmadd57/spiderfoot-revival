@@ -33,6 +33,7 @@ class sfp_webframework(SpiderFootPlugin):
         'name': "Web Framework Identifier",
         'summary': "Identify the usage of popular web frameworks like jQuery, YUI and others.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Content Analysis"]
     }

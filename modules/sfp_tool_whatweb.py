@@ -24,6 +24,7 @@ class sfp_tool_whatweb(SpiderFootPlugin):
         'name': "Tool - WhatWeb",
         'summary': "Identify what software is in use on the specified website.",
         'flags': ["tool"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Content Analysis"],
         'toolDetails': {

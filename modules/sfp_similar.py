@@ -64,6 +64,7 @@ class sfp_similar(SpiderFootPlugin):
         'name': "Similar Domain Finder",
         'summary': "Search various sources to identify similar looking domain names, for instance squatted domains.",
         'flags': [],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["DNS"]
     }

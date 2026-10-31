@@ -23,6 +23,7 @@ class sfp_spamhaus(SpiderFootPlugin):
         'name': "Spamhaus Zen",
         'summary': "Check if a netblock or IP address is in the Spamhaus Zen database.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

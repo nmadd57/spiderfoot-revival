@@ -23,6 +23,7 @@ class sfp_misp(SpiderFootPlugin):
         "name": "MISP",
         "summary": "Query a MISP Threat Intelligence Sharing Platform instance for known indicators matching IPs, domains, emails, and hashes found during scans.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {

@@ -25,6 +25,7 @@ class sfp_tool_nbtscan(SpiderFootPlugin):
         "name": "Tool - nbtscan",
         "summary": "Scans for open NETBIOS nameservers on your target's network.",
         "flags": ["tool", "slow"],
+        "pricing": "local",
         "useCases": ["Footprint", "Investigate"],
         "categories": ["Crawling and Scanning"],
         "toolDetails": {

@@ -25,6 +25,7 @@ class sfp_tool_trufflehog(SpiderFootPlugin):
         'name': "Tool - TruffleHog",
         'summary': "Searches through git repositories for high entropy strings and secrets, digging deep into commit history.",
         'flags': ["tool", "slow"],
+        'pricing': 'local',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Crawling and Scanning"],
         'toolDetails': {

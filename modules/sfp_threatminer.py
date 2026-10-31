@@ -25,6 +25,7 @@ class sfp_threatminer(SpiderFootPlugin):
         'name': "ThreatMiner",
         'summary': "Obtain information from ThreatMiner's database for passive DNS and threat intelligence.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

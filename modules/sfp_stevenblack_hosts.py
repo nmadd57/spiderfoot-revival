@@ -20,6 +20,7 @@ class sfp_stevenblack_hosts(SpiderFootPlugin):
         'name': "Steven Black Hosts",
         'summary': "Check if a domain is malicious (malware or adware) according to Steven Black Hosts list.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

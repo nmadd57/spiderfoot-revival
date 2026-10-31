@@ -22,6 +22,7 @@ class sfp_sociallinks(SpiderFootPlugin):
         'name': "Social Links",
         'summary': "Queries SocialLinks.io to gather intelligence from social media platforms and dark web.",
         'flags': ["apikey"],
+        'pricing': 'paid',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

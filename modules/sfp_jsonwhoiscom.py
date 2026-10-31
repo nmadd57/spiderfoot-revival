@@ -25,6 +25,7 @@ class sfp_jsonwhoiscom(SpiderFootPlugin):
         'name': "JsonWHOIS.com",
         'summary': "Search JsonWHOIS.com for WHOIS records associated with a domain.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

@@ -22,6 +22,7 @@ class sfp_voipbl(SpiderFootPlugin):
         'name': "VoIP Blacklist (VoIPBL)",
         'summary': "Check if an IP address or netblock is malicious according to VoIP Blacklist (VoIPBL).",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

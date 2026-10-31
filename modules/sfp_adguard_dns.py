@@ -22,6 +22,7 @@ class sfp_adguard_dns(SpiderFootPlugin):
         'name': "AdGuard DNS",
         'summary': "Check if a host would be blocked by AdGuard DNS.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

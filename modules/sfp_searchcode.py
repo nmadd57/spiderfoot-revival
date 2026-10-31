@@ -25,6 +25,7 @@ class sfp_searchcode(SpiderFootPlugin):
         'name': "searchcode",
         'summary': "Search searchcode for code repositories mentioning the target domain.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Footprint", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

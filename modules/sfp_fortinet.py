@@ -19,6 +19,7 @@ class sfp_fortinet(SpiderFootPlugin):
         'name': "FortiGuard Antispam",
         'summary': "Check if an IP address is malicious according to FortiGuard Antispam.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

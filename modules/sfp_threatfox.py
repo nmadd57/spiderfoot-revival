@@ -22,6 +22,7 @@ class sfp_threatfox(SpiderFootPlugin):
         'name': "ThreatFox",
         'summary': "Check if an IP address is malicious according to ThreatFox.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

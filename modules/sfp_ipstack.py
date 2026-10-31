@@ -22,6 +22,7 @@ class sfp_ipstack(SpiderFootPlugin):
         'name': "ipstack",
         'summary': "Identifies the physical location of IP addresses identified using ipstack.com.",
         'flags': ["apikey"],
+        'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Real World"],
         'dataSource': {

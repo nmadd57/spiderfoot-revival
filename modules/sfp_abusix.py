@@ -24,6 +24,7 @@ class sfp_abusix(SpiderFootPlugin):
         'name': "Abusix Mail Intelligence",
         'summary': "Check if a netblock or IP address is in the Abusix Mail Intelligence blacklist.",
         'flags': ['apikey'],
+        'pricing': 'free_key',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {

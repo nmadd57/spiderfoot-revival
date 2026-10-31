@@ -22,6 +22,7 @@ class sfp_whoisxmlapi(SpiderFootPlugin):
         "name": "WhoisXML API",
         "summary": "Query WhoisXML API for WHOIS records, DNS lookups, reverse IP, and subdomain discovery.",
         "flags": ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Search Engines"],
         "dataSource": {

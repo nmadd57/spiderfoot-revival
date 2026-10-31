@@ -21,6 +21,7 @@ class sfp_duckduckgo(SpiderFootPlugin):
         'name': "DuckDuckGo",
         'summary': "Query DuckDuckGo's API for descriptive information about your target.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {

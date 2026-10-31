@@ -21,6 +21,7 @@ class sfp_pgp(SpiderFootPlugin):
         'name': "PGP Key Servers",
         'summary': "Look up domains and e-mail addresses in PGP public key servers.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Public Registries"]
     }

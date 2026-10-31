@@ -22,6 +22,7 @@ class sfp_opennic(SpiderFootPlugin):
         'name': "OpenNIC DNS",
         'summary': "Resolves host names in the OpenNIC alternative DNS system.",
         'flags': [],
+        'pricing': 'free',
         'useCases': ["Investigate", "Footprint", "Passive"],
         'categories': ["DNS"],
         'dataSource': {

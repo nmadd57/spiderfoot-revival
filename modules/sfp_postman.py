@@ -23,6 +23,7 @@ class sfp_postman(SpiderFootPlugin):
         "name": "Postman",
         "summary": "Search for public Postman workspaces and collections that may contain leaked API keys, credentials, and internal endpoints.",
         "flags": [],
+        "pricing": "free",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Leaks, Dumps and Breaches"],
         "dataSource": {

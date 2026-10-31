@@ -24,6 +24,7 @@ class sfp_onyphe(SpiderFootPlugin):
         "name": "Onyphe",
         "summary": "Check Onyphe data (threat list, geo-location, pastries, vulnerabilities)  about a given IP.",
         'flags': ["apikey"],
+        "pricing": "free_key",
         "useCases": ["Footprint", "Passive", "Investigate"],
         "categories": ["Reputation Systems"],
         "dataSource": {
