@@ -187,6 +187,7 @@ def _build_modules_data(include_disabled=False):
 
     from spiderfoot.services import module_state
     disabled = module_state.parse(saved_config.get(module_state.KEY, ''))
+    default_off = module_state.parse(saved_config.get(module_state.DEFAULT_OFF_KEY, ''))
 
     for mod_name, mod_cfg in raw.items():
         # Skip internal storage modules
@@ -204,7 +205,7 @@ def _build_modules_data(include_disabled=False):
         category_set.add(category)
 
         # Default enabled state: module is in 'Footprint' use case
-        enabled = 'Footprint' in use_cases
+        enabled = 'Footprint' in use_cases and mod_name not in default_off
 
         # Detect local tools: modules with 'tool' flag or that run local binaries
         is_local_tool = 'tool' in flags or mod_name.startswith('sfp_tool_')
@@ -237,6 +238,7 @@ def _build_modules_data(include_disabled=False):
             'pricing': meta.get('pricing', 'local'),
             'broken': bool(meta.get('broken', False)),
             'disabled': mod_name in disabled,
+            'defaultOff': mod_name in default_off,
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }
 

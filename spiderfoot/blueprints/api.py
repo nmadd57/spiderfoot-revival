@@ -583,7 +583,11 @@ def stopscan():
 def modulestate():
     """Enable or disable modules globally.
 
-    JSON body: {"modules": ["sfp_x", ...], "enabled": true|false}
+    JSON body: {"modules": ["sfp_x", ...], "enabled": true|false,
+                "kind": "disabled" (default) | "default_off"}
+
+    ``kind`` "default_off" marks modules that stay available but are not
+    pre-selected on the New Scan page; here ``enabled`` means "on by default".
     """
     from spiderfoot.services import module_state
 
@@ -594,14 +598,18 @@ def modulestate():
     known = set(get_config().get('__modules__', {}))
     names = [n for n in names if n in known and not n.startswith('sfp__stor_')]
 
+    key = module_state.KINDS.get(body.get('kind', 'disabled'))
+    if key is None:
+        return jsonify(["ERROR", "kind must be 'disabled' or 'default_off'"]), 400
+
     dbh = get_db()
-    disabled = module_state.get_disabled(dbh)
+    current = module_state.get_names(dbh, key)
     if body.get('enabled'):
-        disabled -= set(names)
+        current -= set(names)
     else:
-        disabled |= set(names)
-    module_state.set_disabled(dbh, disabled)
-    return jsonify(["SUCCESS", sorted(disabled)])
+        current |= set(names)
+    module_state.set_names(dbh, current, key)
+    return jsonify(["SUCCESS", sorted(current)])
 
 
 # -- Start scan --------------------------------------------------------------

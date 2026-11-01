@@ -34,12 +34,20 @@
   </div>
 
   {# Bulk actions apply to whatever is currently shown #}
-  <div class="flex items-center gap-2 mb-3">
+  <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+    The switch enables or disables a module everywhere. "Default" controls whether an enabled module is
+    pre-selected on New Scan (you can still tick it by hand).
+  </p>
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
     <span class="text-xs text-slate-500 dark:text-slate-400" x-text="shown().length + ' shown'"></span>
     <button type="button" @click="setMany(shown(), true)"
             class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Enable shown</button>
     <button type="button" @click="setMany(shown(), false)"
             class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Disable shown</button>
+    <button type="button" @click="setMany(shown(), true, 'default_off')"
+            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Default on (shown)</button>
+    <button type="button" @click="setMany(shown(), false, 'default_off')"
+            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Default off (shown)</button>
     <span class="text-xs text-red-500" x-text="err"></span>
   </div>
 
@@ -52,6 +60,12 @@
           <span :class="m.disabled ? 'translate-x-0.5' : 'translate-x-4'"
                 class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white transition-transform"></span>
         </button>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 shrink-0 cursor-pointer order-last"
+               :class="m.disabled ? 'pointer-events-none opacity-40' : ''" title="Pre-select this module on New Scan">
+          <input type="checkbox" :checked="!m.defaultOff" @change="setMany([m], $event.target.checked, 'default_off')"
+                 class="rounded border-slate-300 dark:border-sf-border">
+          Default
+        </label>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-sm font-medium text-slate-800 dark:text-slate-100" x-text="m.name"></span>
@@ -77,11 +91,14 @@ function moduleSettings(data) {
     all: Object.entries(data).map(([id, m]) => ({ id, ...m }))
              .sort((a, b) => a.name.localeCompare(b.name)),
     q: '', err: '',
-    filters: { state: '', key: '', cost: '' },
+    filters: { state: '', default: '', key: '', cost: '' },
     filterGroups: [
       { id: 'state', label: 'State', options: [
         { id: 'enabled', label: 'Enabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
         { id: 'disabled', label: 'Disabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
+      { id: 'default', label: 'Default', options: [
+        { id: 'on', label: 'On by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
+        { id: 'off', label: 'Off by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
       { id: 'key', label: 'Key', options: [
         { id: 'active', label: 'Active (usable)', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
         { id: 'nokey', label: 'No key', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
@@ -95,6 +112,7 @@ function moduleSettings(data) {
     // "Active" = needs no key, or its key is configured. "No key" = key needed but missing.
     test(m, g, v) {
       if (g === 'state') return v === 'enabled' ? !m.disabled : m.disabled;
+      if (g === 'default') return v === 'off' ? m.defaultOff : !m.defaultOff;
       if (g === 'key') return v === 'active' ? (!m.requiresKey || m.keyConfigured) : (m.requiresKey && !m.keyConfigured);
       return m.pricing === v;
     },
@@ -109,7 +127,7 @@ function moduleSettings(data) {
     count(g, v) { return this.all.filter(m => this.matches(m, g) && this.test(m, g, v)).length; },
     enabledCount() { return this.all.filter(m => !m.disabled).length; },
     toggleFilter(g, v) { this.filters[g] = this.filters[g] === v ? '' : v; },
-    async setMany(list, enabled) {
+    async setMany(list, enabled, kind = 'disabled') {
       this.err = '';
       const ids = list.map(m => m.id);
       if (!ids.length) return;
@@ -117,12 +135,12 @@ function moduleSettings(data) {
         const r = await fetch('/api/modulestate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
-          body: JSON.stringify({ modules: ids, enabled }),
+          body: JSON.stringify({ modules: ids, enabled, kind }),
         });
         const d = await r.json();
         if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
         const off = new Set(d[1]);
-        this.all.forEach(m => { m.disabled = off.has(m.id); });
+        this.all.forEach(m => { if (kind === 'default_off') m.defaultOff = off.has(m.id); else m.disabled = off.has(m.id); });
       } catch (e) { this.err = 'Save failed: ' + (e.message || e); }
     },
   };

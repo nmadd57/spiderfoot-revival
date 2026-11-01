@@ -27,3 +27,12 @@ class TestModuleState(unittest.TestCase):
     def test_parse_ignores_blanks(self):
         self.assertEqual(module_state.parse(" a, ,b,"), {"a", "b"})
         self.assertEqual(module_state.parse(None), set())
+
+
+class TestDefaultOff(unittest.TestCase):
+    def test_lists_are_independent(self):
+        db = FakeDb()
+        module_state.set_names(db, {"sfp_a"}, module_state.DEFAULT_OFF_KEY)
+        self.assertEqual(module_state.get_names(db, module_state.DEFAULT_OFF_KEY), {"sfp_a"})
+        self.assertEqual(module_state.get_disabled(db), set())
+        self.assertEqual(set(module_state.KINDS), {"disabled", "default_off"})
