@@ -29,6 +29,7 @@ class sfp_dnsgrep(SpiderFootPlugin):
         'summary': "Obtain Passive DNS information from BufferOver.run (formerly DNSGrep/Rapid7 Sonar).",
         'flags': ["apikey"],
         'pricing': 'free_key',
+        'broken': True,
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Passive DNS"],
         'dataSource': {

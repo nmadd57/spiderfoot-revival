@@ -235,6 +235,7 @@ def _build_modules_data(include_disabled=False):
             'keyConfigured': key_configured,
             'isLocalTool': is_local_tool,
             'pricing': meta.get('pricing', 'local'),
+            'broken': bool(meta.get('broken', False)),
             'disabled': mod_name in disabled,
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }

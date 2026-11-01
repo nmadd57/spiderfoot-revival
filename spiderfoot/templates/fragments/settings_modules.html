@@ -59,6 +59,7 @@
             <span x-show="m.pricing === 'free_key'" class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/50 leading-none">FREE TIER</span>
             <span x-show="m.pricing === 'paid'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
             <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
+            <span x-show="m.broken" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none" title="Known broken: the upstream service no longer works">BROKEN</span>
             <span x-show="m.requiresKey && !m.keyConfigured" class="text-[10px] text-amber-500">no key</span>
             <span x-show="m.requiresKey && m.keyConfigured" class="text-[10px] text-sf-success">key set</span>
           </div>

@@ -445,6 +445,7 @@ def _build_api_card_data(sf_config: dict, group_by: str = 'category') -> list:
             'group': group,
             'website': website,
             'pricing': meta.get('pricing', 'local'),
+            'broken': bool(meta.get('broken', False)),
         })
 
     # Group cards

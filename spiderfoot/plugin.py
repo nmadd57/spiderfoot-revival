@@ -533,6 +533,7 @@ class SpiderFootPlugin():
             'group': self.meta.get('useCases', []),
             'labels': self.meta.get('flags', []),
             'pricing': self.meta.get('pricing', 'local'),
+            'broken': bool(self.meta.get('broken', False)),
             'provides': self.producedEvents(),
             'consumes': self.watchedEvents(),
             'meta': self.meta,
