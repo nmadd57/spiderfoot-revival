@@ -43,6 +43,8 @@ class sfp_sec_edgar(SpiderFootPlugin):
         'contact_email': '',
         'exact_match': True,
         'max_results': 3,
+        'parent_search': True,
+        'recent_filings': 10,
     }
 
     optdescs = {
@@ -52,6 +54,9 @@ class sfp_sec_edgar(SpiderFootPlugin):
                        "(Inc, Corp, LLC...) and punctuation are ignored. Turn off to report the closest "
                        "matches as well.",
         'max_results': "Maximum number of EDGAR filers to report per company name.",
+        'parent_search': "Find public companies that list the business as a subsidiary (Exhibit 21 of "
+                         "their 10-K), and report them as affiliates.",
+        'recent_filings': "Number of recent filings to list in each filer's record (0 to skip).",
     }
 
     results = None
@@ -69,7 +74,7 @@ class sfp_sec_edgar(SpiderFootPlugin):
 
     def producedEvents(self):
         return ["COMPANY_NAME", "PHYSICAL_ADDRESS", "PHONE_NUMBER", "AFFILIATE_INTERNET_NAME",
-                "RAW_RIR_DATA"]
+                "AFFILIATE_COMPANY_NAME", "RAW_RIR_DATA"]
 
     def _useragent(self) -> str:
         email = str(self.opts.get('contact_email') or '').strip()
@@ -112,6 +117,35 @@ class sfp_sec_edgar(SpiderFootPlugin):
             out.append((cik, entity))
         return out
 
+    def parentFilers(self, name: str, own_ciks: set) -> list:
+        """Public companies whose Exhibit 21 (list of subsidiaries) names the business.
+
+        Returns:
+            list: dicts with parent name, CIK, filing date and exhibit URL, newest first
+        """
+        data = self._get("https://efts.sec.gov/LATEST/search-index?"
+                         + urllib.parse.urlencode({'q': f'"{name}"', 'forms': "10-K"}))
+        parents = {}
+        for h in ((data or {}).get('hits') or {}).get('hits') or []:
+            src = h.get('_source') or {}
+            if not str(src.get('file_type') or '').upper().startswith("EX-21"):
+                continue
+            ciks = [str(c).lstrip("0") for c in src.get('ciks') or []]
+            names = src.get('display_names') or []
+            if not ciks or not names or ciks[0] in own_ciks:
+                continue
+            adsh, _, filename = str(h.get('_id') or '').partition(":")
+            entry = {
+                'parent': re.sub(r"\s*\((?:CIK\s*)?[^()]*\)", "", names[0]).strip(),
+                'cik': ciks[0],
+                'filed': src.get('file_date'),
+                'exhibit': (f"https://www.sec.gov/Archives/edgar/data/{ciks[0]}/{adsh.replace('-', '')}/{filename}"
+                            if adsh and filename else None),
+            }
+            if ciks[0] not in parents or str(entry['filed']) > str(parents[ciks[0]]['filed']):
+                parents[ciks[0]] = entry
+        return sorted(parents.values(), key=lambda e: str(e['filed']), reverse=True)
+
     def submissions(self, cik: str):
         return self._get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json")
 
@@ -151,7 +185,6 @@ class sfp_sec_edgar(SpiderFootPlugin):
 
         if not matches:
             self.debug(f"No EDGAR filer matches {eventData}")
-            return
 
         for cik, _entity in matches:
             if self.checkForStop() or self.errorState:
@@ -171,6 +204,19 @@ class sfp_sec_edgar(SpiderFootPlugin):
             if recent.get('filingDate'):
                 record['latestFilingDate'] = recent['filingDate'][0]
                 record['latestFilingForm'] = (recent.get('form') or [None])[0]
+            filings = []
+            for i in range(min(int(self.opts.get('recent_filings') or 0), len(recent.get('filingDate') or []))):
+                acc = (recent.get('accessionNumber') or [''] * (i + 1))[i]
+                doc = (recent.get('primaryDocument') or [''] * (i + 1))[i]
+                filings.append({
+                    'date': recent['filingDate'][i],
+                    'form': (recent.get('form') or [None] * (i + 1))[i],
+                    'description': (recent.get('primaryDocDescription') or [None] * (i + 1))[i] or None,
+                    'url': (f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc.replace('-', '')}/{doc}"
+                            if acc and doc else None),
+                })
+            if filings:
+                record['recentFilings'] = filings
 
             raw = SpiderFootEvent("RAW_RIR_DATA", json.dumps(record, ensure_ascii=False), self.__name__, event)
             self.notifyListeners(raw)
@@ -197,6 +243,20 @@ class sfp_sec_edgar(SpiderFootPlugin):
                 host = urllib.parse.urlparse(site if site and "://" in site else f"http://{site}").hostname if site else None
                 if host and self.sf.validHost(host, self.opts.get('_internettlds')):
                     self.notifyListeners(SpiderFootEvent("AFFILIATE_INTERNET_NAME", host.lower(),
+                                                         self.__name__, event))
+
+        if self.opts.get('parent_search') and not self.errorState and not self.checkForStop():
+            own = {str(c).lstrip("0") for c, _e in matches}
+            name = SpiderFootHelpers.stripTargetPrefix(eventData).strip().strip('"')
+            for parent in self.parentFilers(name, own)[:3]:
+                if f"parent:{parent['cik']}" in self.results:
+                    continue
+                self.results[f"parent:{parent['cik']}"] = True
+                record = {'source': "SEC EDGAR Exhibit 21 (subsidiaries)", 'subsidiary': name, **parent}
+                self.notifyListeners(SpiderFootEvent("RAW_RIR_DATA", json.dumps(record, ensure_ascii=False),
+                                                     self.__name__, event))
+                if SpiderFootHelpers.normalizeCompanyName(parent['parent']) != wanted:
+                    self.notifyListeners(SpiderFootEvent("AFFILIATE_COMPANY_NAME", parent['parent'],
                                                          self.__name__, event))
 
 # End of sfp_sec_edgar class

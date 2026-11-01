@@ -85,3 +85,47 @@ class TestModuleSecEdgar(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+EX21 = {"hits": {"hits": [
+    {"_id": "0001628280-26-003942:meta-ex211.htm", "_source": {
+        "ciks": ["0001326801"], "display_names": ["Meta Platforms, Inc.  (META)  (CIK 0001326801)"],
+        "file_type": "EX-21.1", "file_date": "2026-01-29"}},
+    {"_id": "0001326801-19-000009:fb-ex211.htm", "_source": {
+        "ciks": ["0001326801"], "display_names": ["Facebook Inc  (META)  (CIK 0001326801)"],
+        "file_type": "EX-21.1", "file_date": "2019-01-31"}},
+    {"_id": "0000000000-26-000001:other-10k.htm", "_source": {
+        "ciks": ["0000000002"], "display_names": ["Mentions It Corp  (CIK 0000000002)"],
+        "file_type": "10-K", "file_date": "2026-02-01"}},
+]}}
+
+
+@pytest.mark.usefixtures
+class TestModuleSecEdgarParents(unittest.TestCase):
+
+    def test_parent_from_exhibit_21(self):
+        sf = SpiderFoot(self.default_options)
+        module = sfp_sec_edgar()
+        module.setup(sf, dict(self.default_options))
+        module.setTarget(SpiderFootTarget("Instagram, LLC", 'COMPANY_NAME'))
+        calls = []
+
+        def fetch(url, **kwargs):
+            calls.append(url)
+            if "forms=10-K" in url:
+                return {'code': '200', 'content': json.dumps(EX21)}
+            return {'code': '200', 'content': json.dumps({"hits": {"hits": []}})}
+
+        sf.fetchUrl = fetch
+        events = []
+        module.notifyListeners = events.append
+        root = SpiderFootEvent('ROOT', "Instagram, LLC", '', '')
+        module.handleEvent(SpiderFootEvent('COMPANY_NAME', "Instagram, LLC", 'SpiderFoot UI', root))
+
+        self.assertIn("q=%22Instagram%2C+LLC%22", calls[-1])
+        self.assertEqual(["Meta Platforms, Inc."],
+                         [e.data for e in events if e.eventType == "AFFILIATE_COMPANY_NAME"])
+        raw = [json.loads(e.data) for e in events if e.eventType == "RAW_RIR_DATA"]
+        self.assertEqual(1, len(raw))  # newest exhibit per parent CIK only
+        self.assertEqual("2026-01-29", raw[0]['filed'])
+        self.assertTrue(raw[0]['exhibit'].endswith("/1326801/000162828026003942/meta-ex211.htm"))
