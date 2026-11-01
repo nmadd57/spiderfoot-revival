@@ -81,6 +81,17 @@ BUILTIN_PRESETS = [
          'sfp_github',
      ]},
 
+    {'id': 'builtin:business_osint', 'name': 'Business OSINT', 'sort_order': 95,
+     'description': 'For business targets: state registries, SEC, FCC and other federal records, '
+                    'LEI, sanctions, certificates',
+     'modules': [
+         'sfp_sec_edgar', 'sfp_fcc', 'sfp_us_state_registries', 'sfp_govfiles', 'sfp_usaspending',
+         'sfp_epa_echo', 'sfp_dol_enforcement', 'sfp_cfpb_complaints', 'sfp_fdic', 'sfp_openfda',
+         'sfp_irs_nonprofits',
+         'sfp_gleif', 'sfp_opensanctions',
+         'sfp_crt_org', 'sfp_ransomlook', 'sfp_ransomwarelive',
+     ]},
+
     {'id': 'builtin:quick_recon', 'name': 'Quick recon', 'sort_order': 100,
      'description': 'Fast, no API key required — finishes in minutes',
      'modules': [

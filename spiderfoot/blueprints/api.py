@@ -853,9 +853,17 @@ def startscan():
     if not typelist and not modulelist and not usecase:
         return jsonify(["ERROR", "Incorrect usage: no modules specified for scan."])
 
-    targetType = SpiderFootHelpers.targetTypeFromString(scantarget)
+    # Detect on the unescaped input: clean_user_input() turns quotes into &quot;
+    rawtarget = html.unescape(scantarget).strip()
+    targetType = SpiderFootHelpers.targetTypeFromString(rawtarget)
+    if targetType is None and ' ' in rawtarget and '"' not in rawtarget:
+        # The UI sends names unquoted ("John Smith", "Acme Widgets LLC")
+        targetType = SpiderFootHelpers.targetTypeFromString(f'"{rawtarget}"')
     if targetType is None:
         return jsonify(["ERROR", "Unrecognised target type."])
+    if targetType in ("COMPANY_NAME", "HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS"):
+        # Names are data for module queries; keep "&" and "'" (A&B LLC, O'Brien)
+        scantarget = SpiderFootHelpers.stripTargetPrefix(rawtarget)
 
     dbh = get_db()
     cfg = deepcopy(config)
@@ -917,8 +925,8 @@ def startscan():
             if not modlist or modlist == ['sfp__stor_db']:
                 return jsonify(["ERROR", "No modules available for private IP targets."])
 
-    if targetType in ["HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS"]:
-        scantarget = scantarget.replace("\"", "")
+    if targetType in ["HUMAN_NAME", "COMPANY_NAME", "USERNAME", "BITCOIN_ADDRESS"]:
+        scantarget = scantarget.replace("\"", "").strip()
     else:
         scantarget = scantarget.lower()
 
@@ -973,11 +981,11 @@ def rerunscan():
     if "sfp__stor_stdout" in modlist:
         modlist.remove("sfp__stor_stdout")
 
-    targetType = SpiderFootHelpers.targetTypeFromString(scantarget)
+    targetType = dbh.scanTargetType(id) or SpiderFootHelpers.targetTypeFromString(scantarget)
     if not targetType:
         targetType = SpiderFootHelpers.targetTypeFromString(f'"{scantarget}"')
 
-    if targetType not in ["HUMAN_NAME", "BITCOIN_ADDRESS"]:
+    if targetType not in ["HUMAN_NAME", "COMPANY_NAME", "USERNAME", "BITCOIN_ADDRESS"]:
         scantarget = scantarget.lower()
 
     scanId = SpiderFootHelpers.genScanInstanceId()
@@ -1032,7 +1040,9 @@ def rerunscanmulti():
         if "sfp__stor_stdout" in modlist:
             modlist.remove("sfp__stor_stdout")
 
-        targetType = SpiderFootHelpers.targetTypeFromString(scantarget)
+        targetType = dbh.scanTargetType(id) or SpiderFootHelpers.targetTypeFromString(scantarget)
+        if targetType is None:
+            targetType = SpiderFootHelpers.targetTypeFromString(f'"{scantarget}"')
         if targetType is None:
             return jsonify(["ERROR", "Invalid target type. Could not recognize it as a target SpiderFoot supports."])
 

@@ -307,7 +307,8 @@ def start_scan(sfConfig: dict, sfModules: dict, args, loggingQueue) -> None:
         log.error(f"Could not determine target type. Invalid target: {target}")
         sys.exit(-1)
 
-    target = target.strip('"')
+    # Only business targets can carry a "business:"/"company:" prefix
+    target = SpiderFootHelpers.stripTargetPrefix(target.strip('"'))
 
     modlist = list()
     if not args.t and not args.m and not args.u:
