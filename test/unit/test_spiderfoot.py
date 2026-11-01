@@ -1,6 +1,10 @@
 # test_spiderfoot.py
+import os
+import socket
+import tempfile
 import pytest
 import unittest
+from unittest import mock
 
 from sflib import SpiderFoot
 
@@ -71,10 +75,15 @@ class TestSpiderFoot(unittest.TestCase):
     def test_optValueToData_argument_val_filename_should_return_file_contents_as_string(self):
         sf = SpiderFoot(self.default_options)
 
-        test_string = "@VERSION"
-        opt_data = sf.optValueToData(test_string)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "option.txt")
+            with open(path, "w") as f:
+                f.write("SpiderFoot option data\n")
+            opt_data = sf.optValueToData(f"@{path}")
         self.assertIsInstance(opt_data, str)
-        self.assertTrue(opt_data.startswith("SpiderFoot"))
+        self.assertEqual("SpiderFoot option data\n", opt_data)
+
+        self.assertIsNone(sf.optValueToData("@/nonexistent/spiderfoot-option-file"))
 
     def test_optValueToData_argument_val_invalid_type_should_return_None(self):
         sf = SpiderFoot(self.default_options)
@@ -499,15 +508,26 @@ class TestSpiderFoot(unittest.TestCase):
     def test_resolve_ip_should_return_list(self):
         sf = SpiderFoot(self.default_options)
 
-        addrs = sf.resolveIP('1.1.1.1')
-        self.assertIsInstance(addrs, list)
-        self.assertTrue(addrs)
-        self.assertIn('one.one.one.one', addrs)
+        # socket.gethostbyaddr() -> (hostname, aliases, addresses); patched so the
+        # test doesn't depend on reverse DNS being available on the runner
+        ptr = {
+            '1.1.1.1': ('one.one.one.one.', [], ['1.1.1.1']),
+            '2606:4700:4700::1001': ('one.one.one.one', [], ['2606:4700:4700::1001']),
+        }
+        with mock.patch('spiderfoot.net.dns.socket.gethostbyaddr', side_effect=lambda ip: ptr[ip]) as lookup:
+            addrs = sf.resolveIP('1.1.1.1')
+            self.assertIsInstance(addrs, list)
+            self.assertTrue(addrs)
+            self.assertIn('one.one.one.one', addrs)  # trailing dot stripped
 
-        addrs = sf.resolveIP('2606:4700:4700::1001')
-        self.assertIsInstance(addrs, list)
-        self.assertTrue(addrs)
-        self.assertIn('one.one.one.one', addrs)
+            addrs = sf.resolveIP('2606:4700:4700::1001')
+            self.assertIsInstance(addrs, list)
+            self.assertTrue(addrs)
+            self.assertIn('one.one.one.one', addrs)
+            self.assertEqual(2, lookup.call_count)
+
+        with mock.patch('spiderfoot.net.dns.socket.gethostbyaddr', side_effect=socket.herror(1, "Unknown host")):
+            self.assertEqual([], sf.resolveIP('192.0.2.1'))
 
         addrs = sf.resolveIP(None)
         self.assertFalse(addrs)
@@ -524,13 +544,21 @@ class TestSpiderFoot(unittest.TestCase):
     def test_resolve_host6_should_return_a_list(self):
         sf = SpiderFoot(self.default_options)
 
-        addrs = sf.resolveHost6('one.one.one.one')
+        # socket.getaddrinfo() entries are (family, type, proto, canonname, sockaddr);
+        # patched so the test doesn't depend on AAAA lookups working on the runner
+        aaaa = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('2606:4700:4700::1001', 0, 0, 0)),
+            (socket.AF_INET6, socket.SOCK_DGRAM, 17, '', ('2606:4700:4700::1001', 0, 0, 0)),
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('2606:4700:4700::1111', 0, 0, 0)),
+        ]
+        with mock.patch('spiderfoot.net.dns.socket.getaddrinfo', return_value=aaaa) as lookup:
+            addrs = sf.resolveHost6('one.one.one.one')
+        lookup.assert_called_once_with('one.one.one.one', None, socket.AF_INET6)
         self.assertIsInstance(addrs, list)
-        self.assertTrue(addrs)
-        # TODO: Re-enable this once GitHub runners support IPv6
-        # https://github.com/actions/virtual-environments/issues/668
-        # self.assertIn('2606:4700:4700::1001', addrs)
-        # self.assertIn('2606:4700:4700::1111', addrs)
+        self.assertCountEqual(['2606:4700:4700::1001', '2606:4700:4700::1111'], addrs)  # deduplicated, unordered
+
+        with mock.patch('spiderfoot.net.dns.socket.getaddrinfo', side_effect=socket.gaierror(-2, "Name unknown")):
+            self.assertEqual([], sf.resolveHost6('nonexistent.example'))
 
         addrs = sf.resolveHost6(None)
         self.assertFalse(addrs)

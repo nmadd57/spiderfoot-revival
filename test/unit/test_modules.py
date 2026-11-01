@@ -113,9 +113,16 @@ class TestSpiderFootModuleLoading(unittest.TestCase):
         for module in sfModules:
             m = sfModules[module]
 
+            # Key-optional modules (the data source works without auth and a key only
+            # raises limits, e.g. sfp_hudsonrock, sfp_leakcheck) must not carry the
+            # apikey flag: it would auto-disable them when no key is set.
+            model = (m.get('meta') or {}).get('dataSource', {}).get('model', '')
+            if model.startswith("FREE_NOAUTH"):
+                continue
+
             for opt in m.get('opts'):
                 if "api_key" in opt:
-                    self.assertIn("apikey", m.get('labels'))
+                    self.assertIn("apikey", m.get('labels'), module)
 
     def test_modules_with_invasive_flag_are_not_in_passive_use_case(self):
         sf = SpiderFoot(self.default_options)
