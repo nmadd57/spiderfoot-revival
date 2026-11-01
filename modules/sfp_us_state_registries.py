@@ -168,15 +168,6 @@ REGISTRIES = {
                  'name_field': "taxpayer_name", 'parse': _tx, 'note': "active franchise taxpayers"},
 }
 
-# Registered-agent / filing-service domains: an address at one of these is the
-# agent's, not the business's, so it is kept in the raw record only.
-AGENT_EMAIL_DOMAINS = {
-    "cscglobal.com", "wolterskluwer.com", "ctcorporation.com", "corporatecreations.com",
-    "cogencyglobal.com", "registeredagentsinc.com", "northwestregisteredagent.com", "legalzoom.com",
-    "incfile.com", "zenbusiness.com", "harborcompliance.com", "nrai.com", "bizfilings.com",
-    "swyftfilings.com", "registeredagentservices.com", "unitedstatescorporationagents.com",
-}
-
 # Placeholder text some registries put in empty fields
 _EMPTY_RX = re.compile(r"^(?:no information provided|none|n/?a|unknown)[\s,]*$", re.IGNORECASE)
 
@@ -377,7 +368,7 @@ class sfp_us_state_registries(SpiderFootPlugin):
                     self.notifyListeners(SpiderFootEvent("HUMAN_NAME", who.title(), self.__name__, event))
 
                 for email in ent.get('emails', []):
-                    if email.split("@")[-1].lower() in AGENT_EMAIL_DOMAINS:
+                    if email.split("@")[-1].lower() in SpiderFootHelpers.REGISTERED_AGENT_EMAIL_DOMAINS:
                         continue
                     if SpiderFootHelpers.validEmail(email):
                         self.notifyListeners(SpiderFootEvent("EMAILADDR", email.lower(), self.__name__, event))

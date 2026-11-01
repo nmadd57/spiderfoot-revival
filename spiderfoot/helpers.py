@@ -284,6 +284,16 @@ class SpiderFootHelpers():
         "trust", "foundation", "holdings", "group", "partners", "partnership", "association",
     )
 
+    # Registered-agent / filing-service email domains. An email at one of these
+    # in a business filing is the agent's, not the business's.
+    REGISTERED_AGENT_EMAIL_DOMAINS = frozenset({
+        "cscglobal.com", "wolterskluwer.com", "ctcorporation.com", "corporatecreations.com",
+        "cogencyglobal.com", "registeredagentsinc.com", "northwestregisteredagent.com", "legalzoom.com",
+        "incfile.com", "zenbusiness.com", "harborcompliance.com", "nrai.com", "bizfilings.com",
+        "swyftfilings.com", "registeredagentservices.com", "unitedstatescorporationagents.com",
+        "usac.org", "none.com",
+    })
+
     # Explicit business target prefix: "business: Acme Widgets" or "company:Acme"
     _COMPANY_PREFIX_RX = re.compile(r"^\s*\"?\s*(?:business|company)\s*:\s*(.+?)\s*\"?\s*$", re.IGNORECASE)
 
