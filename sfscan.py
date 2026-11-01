@@ -419,6 +419,11 @@ class SpiderFootScanner():
             self.__setStatus("ERROR-FAILED", None, time.time() * 1000)
 
         finally:
+            # waitForThreads() shuts the pool down, but a scan that fails or is aborted
+            # before reaching it would otherwise leave the pool's non-daemon workers
+            # running, so the scan process never exits.
+            if not self.__sharedThreadPool.stop:
+                self.__sharedThreadPool.shutdown(wait=False)
             if not failed:
                 self.__setStatus("FINISHED", None, time.time() * 1000)
                 self.runCorrelations()

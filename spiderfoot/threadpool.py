@@ -52,6 +52,12 @@ class SpiderFootThreadPool:
         self._lock = threading.Lock()
 
     def start(self) -> None:
+        # Idempotent: map() calls start() itself, so a pool that was already started
+        # used to get a second set of workers. The first set was no longer in
+        # self.pool, so shutdown() never stopped them and, being non-daemon threads,
+        # they kept the process alive forever.
+        if any(t is not None and t.is_alive() for t in self.pool):
+            return
         self.log.debug(f'Starting thread pool "{self.name}" with {self.threads:,} threads')
         for i in range(self.threads):
             t = ThreadPoolWorker(pool=self, name=f"{self.name}_worker_{i + 1}")
@@ -193,7 +199,10 @@ class SpiderFootThreadPool:
                 while 1:
                     yield self.outputQueue(taskName).get_nowait()
                     result = True
-            if self.countQueuedTasks(taskName) == 0 or not wait:
+            # map() feeds the queue from a separate thread, so the queue can be
+            # momentarily empty before every item has been submitted
+            feeding = self.inputThread is not None and self.inputThread.is_alive()
+            if not wait or (self.countQueuedTasks(taskName) == 0 and not feeding):
                 break
             if not result:
                 # sleep briefly to save CPU
@@ -243,14 +252,17 @@ class ThreadPoolWorker(threading.Thread):
         while not self.stop:
             ran = False
             with self.pool._lock:
-                inputQueues = list(self.pool.inputQueues.values())
-            for q in inputQueues:
+                inputQueues = list(self.pool.inputQueues.items())
+            for queueName, q in inputQueues:
                 if self.stop:
                     break
                 try:
                     self.busy = True
+                    # Claim the task name before taking the item off the queue, so
+                    # countQueuedTasks() never sees it as neither queued nor running
+                    self.taskName = queueName
                     callback, args, kwargs = q.get_nowait()
-                    self.taskName = kwargs.pop("taskName", "default")
+                    self.taskName = kwargs.pop("taskName", queueName)
                     saveResult = kwargs.pop("saveResult", False)
                     try:
                         result = callback(*args, **kwargs)

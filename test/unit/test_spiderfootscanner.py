@@ -35,6 +35,25 @@ class TestSpiderFootScanner(unittest.TestCase):
         self.assertIsInstance(sfscan, SpiderFootScanner)
         self.assertEqual(sfscan.status, "ERROR-FAILED")
 
+    def test_failed_scan_stops_its_thread_pool(self):
+        """A scan that fails before waitForThreads() must still stop the shared
+        thread pool, or its non-daemon workers keep the process alive forever."""
+        import threading
+        import time
+
+        opts = self.default_options
+        opts['__modules__'] = dict()
+        sfscan = SpiderFootScanner("example scan name", str(uuid.uuid4()), "spiderfoot.net", "INTERNET_NAME",
+                                   ['invalid module'], opts, start=True)
+        self.assertEqual(sfscan.status, "ERROR-FAILED")
+
+        deadline = time.time() + 5
+        while time.time() < deadline and any(t.name.startswith("sharedThreadPool_worker") and t.is_alive()
+                                             for t in threading.enumerate()):
+            time.sleep(0.05)
+        self.assertEqual([], [t.name for t in threading.enumerate()
+                              if t.name.startswith("sharedThreadPool_worker") and t.is_alive()])
+
     def test_init_argument_scanName_of_invalid_type_should_raise_TypeError(self):
         """
         Test __init__(self, scanName, scanId, scanTarget, targetType, moduleList, globalOpts, start=True)

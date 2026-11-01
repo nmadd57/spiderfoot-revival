@@ -82,3 +82,23 @@ class TestSpiderFootThreadPool(unittest.TestCase):
         )
         self.assertEqual(map_results, expectedOutput)
         self.assertEqual(submit_results, expectedOutput2)
+
+    def test_start_then_map_does_not_leak_workers(self):
+        """map() calls start() itself; on a pool that was already started it used to
+        start a second set of workers that shutdown() never stopped."""
+        import threading
+        import time
+
+        pool = SpiderFootThreadPool(2, name="leakcheck")
+        pool.start()
+        pool.start()  # idempotent
+        self.assertEqual(2, len([t for t in threading.enumerate() if t.name.startswith("leakcheck_worker")]))
+        self.assertEqual([1, 2, 3], sorted(pool.map(lambda x: x, [1, 2, 3], saveResult=True)))
+        pool.shutdown()
+
+        deadline = time.time() + 5
+        while time.time() < deadline and any(t.name.startswith("leakcheck_worker") and t.is_alive()
+                                             for t in threading.enumerate()):
+            time.sleep(0.05)
+        self.assertEqual([], [t.name for t in threading.enumerate()
+                              if t.name.startswith("leakcheck_worker") and t.is_alive()])
