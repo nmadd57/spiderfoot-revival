@@ -13,6 +13,9 @@ All notable changes to the SpiderFoot Revival project.
 - `sfp_chainabuse` (free tier, API key): Chainabuse scam reports for Bitcoin/Ethereum addresses, replacing bitcoinwhoswho. Not tested against the live API (needs a key).
 - `sfp_crt_org` (free): crt.sh search by certificate Organization, finding domains a company owns from `COMPANY_NAME`.
 
+- `sfp_recordedfuture` (paid, API token): Recorded Future Connect API risk scores for IPs and domains; reports as malicious at or above a configurable score (default 65).
+- `sfp_triage` (free tier, API key): Tria.ge sandbox reports that contacted the target's IPs or domains; reports as malicious when a report scores at or above a threshold (default 7/10). Neither module has been tested against its live API (both need keys).
+
 ### Module cleanup and enable/disable
 
 - Removed dead modules: DNSDB, SpyOnWeb, Zonefiles.io, Abusix, ThreatJammer, BinaryEdge, EmailCrawlr (and their tests, presets and references).
