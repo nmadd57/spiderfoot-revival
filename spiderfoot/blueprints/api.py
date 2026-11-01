@@ -577,6 +577,33 @@ def stopscan():
     return jsonify("")
 
 
+# -- Module enable/disable ---------------------------------------------------
+
+@api_bp.route('/modulestate', methods=['POST'])
+def modulestate():
+    """Enable or disable modules globally.
+
+    JSON body: {"modules": ["sfp_x", ...], "enabled": true|false}
+    """
+    from spiderfoot.services import module_state
+
+    body = request.get_json(silent=True) or {}
+    names = body.get('modules')
+    if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+        return jsonify(["ERROR", "modules must be a list of module names"]), 400
+    known = set(get_config().get('__modules__', {}))
+    names = [n for n in names if n in known and not n.startswith('sfp__stor_')]
+
+    dbh = get_db()
+    disabled = module_state.get_disabled(dbh)
+    if body.get('enabled'):
+        disabled -= set(names)
+    else:
+        disabled |= set(names)
+    module_state.set_disabled(dbh, disabled)
+    return jsonify(["SUCCESS", sorted(disabled)])
+
+
 # -- Start scan --------------------------------------------------------------
 
 @api_bp.route('/startscan', methods=['POST'])
@@ -657,8 +684,12 @@ def startscan():
             if usecase == 'all' or usecase in config['__modules__'][mod].get('group', []):
                 modlist.append(mod)
 
+    from spiderfoot.services import module_state
+    disabled = module_state.get_disabled(dbh)
+    modlist = [m for m in modlist if m not in disabled]
+
     if not modlist:
-        return jsonify(["ERROR", "Incorrect usage: no modules specified for scan."])
+        return jsonify(["ERROR", "Incorrect usage: no enabled modules specified for scan."])
 
     # Add mandatory storage module
     if "sfp__stor_db" not in modlist:

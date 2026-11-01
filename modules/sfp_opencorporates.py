@@ -23,12 +23,12 @@ class sfp_opencorporates(SpiderFootPlugin):
         'name': "OpenCorporates",
         'summary': "Look up company information from OpenCorporates.",
         'flags': ["apikey"],
-        'pricing': 'free',
+        'pricing': 'paid',
         'useCases': ["Passive", "Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://opencorporates.com",
-            'model': "FREE_NOAUTH_LIMITED",
+            'model': "COMMERCIAL_ONLY",
             'references': [
                 "https://api.opencorporates.com/documentation/API-Reference"
             ],

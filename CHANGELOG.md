@@ -4,6 +4,13 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Module cleanup and enable/disable
+
+- Removed dead modules: DNSDB, SpyOnWeb, Zonefiles.io, Abusix, ThreatJammer, BinaryEdge, EmailCrawlr (and their tests, presets and references).
+- Retagged as `paid`: Zetalytics, Criminal IP, FraudGuard, MalwarePatrol, X-Force Exchange, C99, Focsec, FullContact, OpenCorporates, SecurityTrails, Whoisology. DNSGrep and bitcoinwhoswho are reported broken but are still present.
+- Badge colours: FREE green, FREE TIER blue, PAID red.
+- New Settings -> Modules page: per-module on/off switches, bulk enable/disable of the filtered set, and filters for enabled/disabled, active (no key needed or key set) / no key, and cost. Disabled modules are hidden from New Scan and stripped from scans started through the API (`POST /api/modulestate`; stored as `_disabled_modules`).
+
 ### Module pricing tags
 
 - Every module now declares `meta['pricing']`: `free` (no account/key), `free_key` (free tier with an account/API key, possibly rate limited), `paid` (commercial only) or `local` (no third-party service: analysis modules, direct DNS/HTTP checks, local tools). Derived from each module's `dataSource.model`; modules without a data source were reviewed by hand. A unit test enforces a valid tag on every module and consistency with `dataSource.model`.

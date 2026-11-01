@@ -26,12 +26,12 @@ class sfp_fraudguard(SpiderFootPlugin):
         'name': "Fraudguard",
         'summary': "Obtain threat information from Fraudguard.io",
         'flags': ["apikey"],
-        'pricing': 'free_key',
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {
             'website': "https://fraudguard.io/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "COMMERCIAL_ONLY",
             'references': [
                 "https://docs.fraudguard.io/",
                 "https://faq.fraudguard.io/"

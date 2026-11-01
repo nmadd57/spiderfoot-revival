@@ -22,12 +22,12 @@ class sfp_securitytrails(SpiderFootPlugin):
         'name': "SecurityTrails",
         'summary': "Obtain Passive DNS and other information from SecurityTrails",
         'flags': ["apikey"],
-        'pricing': 'free_key',
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://securitytrails.com/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "COMMERCIAL_ONLY",
             'references': [
                 "https://docs.securitytrails.com/docs",
                 "https://docs.securitytrails.com/reference#general"

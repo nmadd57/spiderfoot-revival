@@ -164,7 +164,7 @@ def dashboard():
     )
 
 
-def _build_modules_data():
+def _build_modules_data(include_disabled=False):
     """Build module metadata for the new-scan page.
 
     Returns:
@@ -185,9 +185,15 @@ def _build_modules_data():
     modules = {}
     category_set = set()
 
+    from spiderfoot.services import module_state
+    disabled = module_state.parse(saved_config.get(module_state.KEY, ''))
+
     for mod_name, mod_cfg in raw.items():
         # Skip internal storage modules
         if mod_name.startswith('sfp__stor_'):
+            continue
+        # Skip modules disabled in Settings > Modules
+        if mod_name in disabled and not include_disabled:
             continue
 
         meta = mod_cfg.get('meta', {})
@@ -229,6 +235,7 @@ def _build_modules_data():
             'keyConfigured': key_configured,
             'isLocalTool': is_local_tool,
             'pricing': meta.get('pricing', 'local'),
+            'disabled': mod_name in disabled,
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }
 

@@ -30,7 +30,7 @@ BUILTIN_PRESETS = [
      'modules': [
          'sfp_dnsbrute', 'sfp_crt', 'sfp_certspotter', 'sfp_dnscommonsrv',
          'sfp_dnsneighbor', 'sfp_dnsraw', 'sfp_dnsresolve', 'sfp_dnsdumpster',
-         'sfp_dnsdb', 'sfp_dnsgrep', 'sfp_dnszonexfer', 'sfp_subdomain_takeover',
+         'sfp_dnsgrep', 'sfp_dnszonexfer', 'sfp_subdomain_takeover',
          'sfp_hackertarget', 'sfp_virustotal', 'sfp_securitytrails', 'sfp_shodan',
          'sfp_bevigil', 'sfp_fullhunt',
      ]},
@@ -38,7 +38,7 @@ BUILTIN_PRESETS = [
     {'id': 'builtin:email_investigation', 'name': 'Email investigation', 'sort_order': 50,
      'description': 'Breaches, social profiles, format guess for an email address',
      'modules': [
-         'sfp_haveibeenpwned', 'sfp_emailrep', 'sfp_emailcrawlr', 'sfp_emailformat',
+         'sfp_haveibeenpwned', 'sfp_emailrep', 'sfp_emailformat',
          'sfp_hunter', 'sfp_dehashed', 'sfp_intelx', 'sfp_skymem', 'sfp_pgp',
          'sfp_gravatar', 'sfp_fullcontact', 'sfp_debounce', 'sfp_psbdmp',
      ]},
@@ -50,7 +50,7 @@ BUILTIN_PRESETS = [
          'sfp_greynoise', 'sfp_greynoise_community', 'sfp_emergingthreats',
          'sfp_blocklistde', 'sfp_botvrij', 'sfp_cinsscore', 'sfp_cybercrimetracker',
          'sfp_dronebl', 'sfp_malwarepatrol', 'sfp_phishtank', 'sfp_spamhaus',
-         'sfp_talosintel', 'sfp_threatfox', 'sfp_threatminer', 'sfp_threatjammer',
+         'sfp_talosintel', 'sfp_threatfox', 'sfp_threatminer',
          'sfp_xforce', 'sfp_pulsedive',
      ]},
 
@@ -58,7 +58,7 @@ BUILTIN_PRESETS = [
      'description': 'Public-facing assets — ports, services, fingerprints, exposures',
      'modules': [
          'sfp_portscan_tcp', 'sfp_tool_nmap', 'sfp_shodan', 'sfp_censys',
-         'sfp_zoomeye', 'sfp_fofa', 'sfp_binaryedge', 'sfp_tool_nuclei',
+         'sfp_zoomeye', 'sfp_fofa', 'sfp_tool_nuclei',
          'sfp_tool_whatweb', 'sfp_tool_wafw00f', 'sfp_tool_wappalyzer',
          'sfp_subdomain_takeover', 'sfp_sslcert', 'sfp_tool_testsslsh',
          'sfp_tool_retirejs', 'sfp_tool_snallygaster', 'sfp_builtwith',

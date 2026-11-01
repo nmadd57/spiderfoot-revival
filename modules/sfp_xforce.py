@@ -27,12 +27,12 @@ class sfp_xforce(SpiderFootPlugin):
         'name': "XForce Exchange",
         'summary': "Obtain IP reputation and passive DNS information from IBM X-Force Exchange.",
         'flags': ["apikey"],
-        'pricing': 'free_key',
+        'pricing': 'paid',
         'useCases': ["Investigate", "Passive"],
         'categories': ["Reputation Systems"],
         'dataSource': {
             'website': "https://exchange.xforce.ibmcloud.com/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "COMMERCIAL_ONLY",
             'references': [
                 "https://api.xforce.ibmcloud.com/doc/",
                 "https://exchange.xforce.ibmcloud.com/faq",

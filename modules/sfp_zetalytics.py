@@ -22,12 +22,12 @@ class sfp_zetalytics(SpiderFootPlugin):
         "name": "Zetalytics",
         "summary": "Query the Zetalytics database for hosts on your target domain(s).",
         'flags': ["apikey"],
-        "pricing": "free_key",
+        "pricing": "paid",
         "useCases": ["Passive"],
         "categories": ["Passive DNS"],
         "dataSource": {
             "website": "https://zetalytics.com/",
-            "model": "FREE_AUTH_LIMITED",
+            "model": "COMMERCIAL_ONLY",
             "references": ["https://zonecruncher.com/api-v1-docs/"],
             "apiKeyInstructions": [
                 "Visit https://mailchi.mp/zetalytics/trial-access-request",

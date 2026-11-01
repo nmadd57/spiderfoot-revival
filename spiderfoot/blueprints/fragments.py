@@ -508,6 +508,11 @@ def settings_section():
         groups = _build_api_card_data(sf_config, group_by=view)
         return render_template('fragments/settings_apikeys.html', groups=groups, current_view=view)
 
+    elif section == 'modules':
+        from spiderfoot.blueprints.ui import _build_modules_data
+        mods, _cats = _build_modules_data(include_disabled=True)
+        return render_template('fragments/settings_modules.html', modules=mods)
+
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)
 

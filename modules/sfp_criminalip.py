@@ -24,12 +24,12 @@ class sfp_criminalip(SpiderFootPlugin):
         "name": "Criminal IP",
         "summary": "Query Criminal IP for threat intelligence on IP addresses including open ports, vulnerabilities, VPN detection, and risk scoring.",
         "flags": ["apikey"],
-        "pricing": "free_key",
+        "pricing": "paid",
         "useCases": ["Footprint", "Investigate", "Passive"],
         "categories": ["Reputation Systems"],
         "dataSource": {
             "website": "https://www.criminalip.io/",
-            "model": "FREE_AUTH_LIMITED",
+            "model": "COMMERCIAL_ONLY",
             "references": [
                 "https://search.criminalip.io/developer/api/",
             ],

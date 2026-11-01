@@ -22,12 +22,12 @@ class sfp_fullcontact(SpiderFootPlugin):
         'name': "FullContact",
         'summary': "Gather domain and e-mail information from FullContact.com API.",
         'flags': ["apikey"],
-        'pricing': 'free_key',
+        'pricing': 'paid',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://www.fullcontact.com",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "COMMERCIAL_ONLY",
             'references': [
                 "https://dashboard.fullcontact.com/api-ref",
                 "https://www.fullcontact.com/developer-portal/",
