@@ -671,6 +671,7 @@ def usage_list():
         stored = usage.summarize(conn)
         limits = usage.load_limits(conn)
         rates = usage.load_ratelimits(conn)
+        issues = usage.load_issues(conn)
     finally:
         conn.close()
     providers = _provider_info()
@@ -707,6 +708,7 @@ def usage_list():
             'provider_opts': providers.get(name),
             'auto_check': name in providers and name not in costly,
             'quota': quotas.get(name),
+            'key_issue': issues.get(name) if (m['requiresKey'] and m['keyConfigured']) else None,
         })
     return jsonify({'today': today.isoformat(), 'modules': out})
 
@@ -739,6 +741,32 @@ def usage_set_limits():
         limits[module] = lim
     _save_limits(limits)
     return jsonify(["SUCCESS", limits.get(module)])
+
+
+@api_bp.route('/usage/issue/clear', methods=['POST'])
+def usage_clear_issue():
+    """Dismiss the recorded key problem for a module (or all with module='*')."""
+    from spiderfoot.services import usage
+
+    module = (request.get_json(silent=True) or {}).get('module', '')
+    conn = _usage_conn()
+    try:
+        usage.clear_issues(conn, None if module == '*' else [module])
+    finally:
+        conn.close()
+    return jsonify(["SUCCESS", ""])
+
+
+def _clear_key_issues(modules):
+    from spiderfoot.services import usage
+    try:
+        conn = _usage_conn()
+        try:
+            usage.clear_issues(conn, list(modules))
+        finally:
+            conn.close()
+    except Exception:
+        pass
 
 
 @api_bp.route('/usage/reset', methods=['POST'])
@@ -794,6 +822,8 @@ def usage_check():
 
     result = api_quota.check(module, values)
     result['saved'] = False
+    if result.get('ok') and result.get('valid') and not new:
+        _clear_key_issues([module])
     if not new:  # only remember results for the key that is actually in use
         _remember_quota(module, result)
 
@@ -805,6 +835,7 @@ def usage_check():
             get_db().configSet(sf.configSerialize(new_config))
             result['saved'] = True
             _remember_quota(module, result)
+            _clear_key_issues([module])
         except Exception as e:
             result['message'] = f"Key is valid but saving failed: {e}"
     return jsonify(result)
@@ -1352,6 +1383,9 @@ def savesettings():
         new_config = sf.configUnserialize(cleanopts, currentopts)
         current_app.config['SF_CONFIG'] = new_config
         dbh.configSet(sf.configSerialize(new_config))
+        # a changed key invalidates any recorded key problem for that module
+        _clear_key_issues({o.split(':', 1)[0] for o in cleanopts
+                           if ':' in o and any(t in o.lower() for t in ('api_key', 'apikey', 'api_id', 'accesstoken', 'secret'))})
     except Exception as e:
         return jsonify(["ERROR", f"Processing one or more of your inputs failed: {e}"])
 

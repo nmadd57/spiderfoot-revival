@@ -57,6 +57,7 @@
             <div x-show="m.quota && m.quota.ok" class="text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
                  x-text="m.quota && m.quota.ok ? ('quota: ' + quotaShort(m.quota)) : ''"></div>
             <div x-show="m.quota && m.quota.valid === false" class="text-[11px] text-red-500">key rejected</div>
+            <div x-show="m.key_issue" class="text-[11px] text-red-500" :title="m.key_issue ? m.key_issue.detail : ''" x-text="issueLabel(m)"></div>
             <div x-show="(!m.quota || (!m.quota.ok && m.quota.valid !== false)) && m.vendor_rate && m.vendor_rate.remaining !== null" class="text-[11px]"
                  x-text="'vendor: ' + (m.vendor_rate && m.vendor_rate.remaining) + ' left'"></div>
             <div class="mt-0.5 h-1 w-28 ml-auto rounded bg-slate-500/20 overflow-hidden" x-show="m.quota && m.quota.ok && m.quota.limit && m.quota.used !== null">
@@ -106,6 +107,14 @@
               <dt x-show="m.vendor_rate">Vendor header</dt>
               <dd class="font-mono" x-show="m.vendor_rate" x-text="vendorHeader(m)"></dd>
             </dl>
+
+            <div x-show="m.key_issue" class="mt-3 rounded border border-red-500/40 bg-red-500/10 p-2 text-xs">
+              <p class="font-semibold text-red-400" x-text="issueLabel(m)"></p>
+              <p class="text-slate-500 dark:text-slate-400 mt-0.5" x-text="m.key_issue ? m.key_issue.detail : ''"></p>
+              <p class="text-slate-400 mt-0.5" x-text="m.key_issue ? ('seen ' + m.key_issue.hits + '× in scans, last ' + new Date(m.key_issue.seen * 1000).toLocaleString()) : ''"></p>
+              <p class="text-slate-400 mt-0.5">Recorded from the module's own scan errors and HTTP replies. It clears when you change or successfully test the key.</p>
+              <button type="button" @click="dismissIssue(m)" class="mt-1 px-2 py-0.5 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Dismiss</button>
+            </div>
 
             <template x-if="m.provider_opts">
               <div class="mt-3">
@@ -252,6 +261,16 @@ function usagePanel() {
       const d = await r.json();
       if (Array.isArray(d) && d[0] === 'ERROR') throw new Error(d[1]);
       return d;
+    },
+    issueLabel(m) {
+      if (!m.key_issue) return '';
+      const k = m.key_issue.kind;
+      return 'Key problem: ' + (k === 'rejected' ? 'key rejected or not permitted' : k === 'quota' ? 'out of quota or credits' : 'rate limited by the vendor');
+    },
+    async dismissIssue(m) {
+      this.err = '';
+      try { await this.post('/api/usage/issue/clear', { module: m.id }); await this.reload(m.id); }
+      catch (e) { this.err = 'Dismiss failed: ' + e.message; }
     },
     async saveLimits(m) {
       this.err = '';

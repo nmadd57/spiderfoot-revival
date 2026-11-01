@@ -239,6 +239,12 @@ class SpiderFootPlugin():
             *kwargs: passed through to logging.error()
         """
         self.log.error(*args, extra={'scanId': self.__scanId__}, **kwargs)
+        try:
+            from spiderfoot.services import usage
+            usage.note_error((getattr(self.sf, 'opts', None) or {}).get('__database'), self.__name__,
+                             str(args[0]) if args else '')
+        except Exception:
+            pass
 
     def enrichTarget(self, target: str) -> None:
         """Find aliases for a target.

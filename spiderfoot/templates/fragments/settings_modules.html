@@ -82,10 +82,13 @@
             <span x-show="m.broken" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none" title="Known broken: the upstream service no longer works">BROKEN</span>
             <span x-show="m.autoReason && auto" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 leading-none"
                   :title="'Disabled automatically: ' + m.autoReason" x-text="'auto-disabled: ' + m.autoReason"></span>
+            <span x-show="m.keyIssue" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/40 leading-none"
+                  :title="m.keyIssue ? m.keyIssue.detail : ''" x-text="keyIssueLabel(m)"></span>
             <span x-show="m.requiresKey && !m.keyConfigured && !(m.autoReason && auto)" class="text-[10px] text-amber-500">no key</span>
             <span x-show="m.requiresKey && m.keyConfigured" class="text-[10px] text-sf-success">key set</span>
           </div>
           <p class="text-xs text-slate-400 dark:text-slate-500 truncate" x-text="m.summary"></p>
+          <p x-show="m.keyIssue" class="text-[11px] text-red-400 truncate" x-text="m.keyIssue ? m.keyIssue.detail : ''"></p>
         </div>
       </div>
     </template>
@@ -112,7 +115,8 @@ function moduleSettings(data, autoOn) {
         { id: 'off', label: 'Off by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
       { id: 'key', label: 'Key', options: [
         { id: 'active', label: 'Active (usable)', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
-        { id: 'nokey', label: 'No key', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
+        { id: 'nokey', label: 'No key', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
+        { id: 'issue', label: 'Key problem', on: 'border-red-500 text-red-400 bg-red-500/10' } ] },
       { id: 'cost', label: 'Cost', options: [
         { id: 'free', label: 'Free', on: 'border-green-500 text-green-400 bg-green-500/10' },
         { id: 'free_key', label: 'Free tier', on: 'border-blue-500 text-blue-400 bg-blue-500/10' },
@@ -120,11 +124,17 @@ function moduleSettings(data, autoOn) {
         { id: 'local', label: 'Local', on: 'border-slate-400 text-slate-300 bg-slate-500/10' } ] },
     ],
     init() {},
+    keyIssueLabel(m) {
+      if (!m.keyIssue) return '';
+      const k = m.keyIssue.kind;
+      return 'key problem: ' + (k === 'rejected' ? 'key rejected' : k === 'quota' ? 'out of quota/credits' : 'rate limited');
+    },
     // "Active" = needs no key, or its key is configured. "No key" = key needed but missing.
     test(m, g, v) {
       if (g === 'state') return v === 'enabled' ? !m.disabled : m.disabled;
       if (g === 'auto') return !!(m.autoReason && this.auto);
       if (g === 'default') return v === 'off' ? m.defaultOff : !m.defaultOff;
+      if (g === 'key' && v === 'issue') return !!m.keyIssue;
       if (g === 'key') return v === 'active' ? (!m.requiresKey || m.keyConfigured) : (m.requiresKey && !m.keyConfigured);
       return m.pricing === v;
     },

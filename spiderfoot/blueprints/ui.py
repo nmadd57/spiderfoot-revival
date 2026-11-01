@@ -252,14 +252,25 @@ def _build_modules_data(include_disabled=False):
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }
 
-    from spiderfoot.services import auto_disable
+    from spiderfoot.services import auto_disable, usage
     reasons = auto_disable.compute(
         sf_config.get('__database'), saved_config,
         {n: (True, False, 'tool not installed') if m['toolMissing']
          else (m['requiresKey'], m['keyConfigured']) if not m['needsUrl']
          else (True, m['urlConfigured'], 'no instance URL') for n, m in modules.items()})
+    issues = {}
+    try:
+        _conn = usage.connect(sf_config.get('__database'))
+        try:
+            issues = usage.load_issues(_conn)
+        finally:
+            _conn.close()
+    except Exception:
+        issues = {}
     for n, m in modules.items():
         m['autoReason'] = reasons.get(n, '')
+        # Failures caused by the operator's own key (rejected, out of credits, rate limited)
+        m['keyIssue'] = issues.get(n) if (m['requiresKey'] and m['keyConfigured']) else None
     if not include_disabled:
         modules = {n: m for n, m in modules.items() if not m['autoReason']}
 

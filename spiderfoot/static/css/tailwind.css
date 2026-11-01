@@ -724,10 +724,6 @@ video {
   order: 9999;
 }
 
-.col-span-2 {
-  grid-column: span 2 / span 2;
-}
-
 .mx-1 {
   margin-left: 0.25rem;
   margin-right: 0.25rem;
@@ -1553,6 +1549,10 @@ video {
 
 .border-red-500\/30 {
   border-color: rgb(239 68 68 / 0.3);
+}
+
+.border-red-500\/40 {
+  border-color: rgb(239 68 68 / 0.4);
 }
 
 .border-red-500\/50 {

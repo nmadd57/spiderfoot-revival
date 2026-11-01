@@ -4,6 +4,12 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Key and account problems on the settings pages
+
+- Failures caused by a module's own API key (HTTP 401/403 key rejected, 402 payment/credits, 429 rate limited, and error messages such as "invalid key", "out of credits", "quota exceeded", "plan limit reached", "zero balance") are now recorded per module and shown as a red "key problem" chip on Settings -> Modules (with a "Key problem" filter) and as a red line plus detail panel on Settings -> API Usage. Only modules with a configured key are flagged; missing keys are still handled by auto-disable.
+- A recorded problem clears when the key is changed, when a key test succeeds, or via the Dismiss button, and expires after 3 days.
+- `docs/INTEGRATIONS.md`: table of every integration (purpose, type, auth, cost/rate, project link, status).
+
 ### External tools in the image
 
 - The container now ships the tools the `sfp_tool_*` modules drive: BBOT 3.0.2 (built from source in a Python 3.13 venv, with the pip dependencies its modules declare and its first-run dependency step pre-seeded), nmap, nbtscan, onesixtyone, nuclei (+ templates), trufflehog, testssl.sh, WhatWeb (+ gems), CMSeeK, retire.js, wafw00f, snallygaster and dnstwist. Each module's path option now defaults to the install location, so they work without configuration. Wappalyzer is not included (its CLI is no longer distributed) and stays auto-disabled as "tool not installed".

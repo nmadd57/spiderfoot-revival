@@ -26,6 +26,7 @@ import calendar
 import datetime
 import json
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -45,6 +46,76 @@ def set_module(name):
 
 def current_module():
     return getattr(_local, 'module', None)
+
+
+# ------------------------------------------------------- key / account problems
+#
+# Failures caused by the operator's own API key (rejected, out of credits, over the
+# plan's quota, rate limited) are recorded per module so Settings can show them,
+# instead of leaving them buried in scan logs.
+
+ISSUE_TTL = 3 * 86400   # an issue is shown for this long unless the key is changed or tested OK
+
+_REJECTED = re.compile(
+    r"invalid[^.]{0,30}(key|token|credential)|(key|token|credential)s?[^.]{0,40}"
+    r"(invalid|rejected|revoked|expired|denied|not valid)|unauthori[sz]ed|forbidden|"
+    r"authentication (failed|required)|not authori[sz]ed|access denied", re.I)
+_QUOTA = re.compile(
+    r"quota|credits?\b|balance|(limit|plan)[^.]{0,30}(reached|exceeded|inactive)|exceeded|"
+    r"insufficient|payment required|subscription|upgrade your|out of requests", re.I)
+_RATE = re.compile(r"rate[ -]?limit|too many requests|throttl", re.I)
+_NOT_SET = re.compile(r"did not set|not set|defined no|no api key|missing (api )?key", re.I)
+
+
+def classify(message=None, code=None):
+    """Return (kind, detail) if a message/HTTP code looks like a key or account problem."""
+    try:
+        n = int(code) if code is not None else None
+    except (TypeError, ValueError):
+        n = None
+    if n in (401, 403):
+        return 'rejected', f"HTTP {n}: key rejected or not permitted"
+    if n == 402:
+        return 'quota', "HTTP 402: payment/credits required"
+    if n == 429:
+        return 'rate', "HTTP 429: rate limited"
+    msg = str(message or '')
+    if not msg or _NOT_SET.search(msg):
+        return None
+    detail = re.sub(r"\s+", " ", msg).strip()[:140]
+    if _RATE.search(msg):
+        return 'rate', detail
+    if _QUOTA.search(msg):
+        return 'quota', detail
+    if _REJECTED.search(msg):
+        return 'rejected', detail
+    return None
+
+
+def note_error(db_path, module, message):
+    """Record ``message`` against ``module`` if it describes a key/account problem."""
+    if not db_path or not module:
+        return
+    hit = classify(message)
+    if hit:
+        get_tracker(db_path).issue(module, *hit)
+
+
+def load_issues(conn, now=None) -> dict:
+    """{module: {'kind', 'detail', 'seen', 'hits'}} for recent issues."""
+    cutoff = (now or time.time()) - ISSUE_TTL
+    return {m: {'kind': k, 'detail': d, 'seen': seen, 'hits': h or 0}
+            for m, k, d, seen, h in conn.execute(
+                "SELECT module, kind, detail, seen, hits FROM tbl_module_keyissue WHERE seen >= ?", (cutoff,))}
+
+
+def clear_issues(conn, modules=None):
+    if modules is None:
+        conn.execute("DELETE FROM tbl_module_keyissue")
+    else:
+        for m in modules:
+            conn.execute("DELETE FROM tbl_module_keyissue WHERE module=?", (m,))
+    conn.commit()
 
 
 # ---------------------------------------------------------------- limits helpers
@@ -144,6 +215,8 @@ SCHEMA = (
     " PRIMARY KEY (module, day))",
     "CREATE TABLE IF NOT EXISTS tbl_module_ratelimit ("
     " module TEXT PRIMARY KEY, rl_limit INTEGER, rl_remaining INTEGER, rl_reset TEXT, seen INTEGER)",
+    "CREATE TABLE IF NOT EXISTS tbl_module_keyissue ("
+    " module TEXT PRIMARY KEY, kind TEXT, detail TEXT, seen INTEGER, hits INTEGER)",
 )
 
 
@@ -224,6 +297,7 @@ class Tracker:
         self._lock = threading.Lock()
         self._pending = {}      # (module, day) -> [calls, errors, limited, blocked]
         self._ratelimit = {}
+        self._issues = {}       # module -> [kind, detail, hits]
         self._next_slot = {}
         self._limits = {}
         self._limits_at = 0.0
@@ -252,7 +326,8 @@ class Tracker:
         with self._lock:
             pending, self._pending = self._pending, {}
             rl, self._ratelimit = self._ratelimit, {}
-        if not pending and not rl:
+            issues, self._issues = self._issues, {}
+        if not pending and not rl and not issues:
             return
         try:
             conn = connect(self.db_path)
@@ -265,6 +340,11 @@ class Tracker:
                 for m, d in rl.items():
                     conn.execute("REPLACE INTO tbl_module_ratelimit (module, rl_limit, rl_remaining, rl_reset, seen) VALUES (?,?,?,?,?)",
                                  (m, d['limit'], d['remaining'], d['reset'], int(time.time())))
+                for m, (kind, detail, hits) in issues.items():
+                    conn.execute(
+                        "INSERT INTO tbl_module_keyissue (module, kind, detail, seen, hits) VALUES (?,?,?,?,?) "
+                        "ON CONFLICT(module) DO UPDATE SET kind=excluded.kind, detail=excluded.detail, "
+                        "seen=excluded.seen, hits=hits+excluded.hits", (m, kind, detail, int(time.time()), hits))
                 conn.commit()
             finally:
                 conn.close()
@@ -353,10 +433,19 @@ class Tracker:
             self._bump(module, 2)
         elif n is None or (n >= 400 and n != 404):
             self._bump(module, 1)
+        hit = classify(code=n)
+        if hit:
+            self.issue(module, *hit)
         rl = parse_ratelimit_headers((res or {}).get('headers'))
         if rl:
             with self._lock:
                 self._ratelimit[module] = rl
+
+    def issue(self, module, kind, detail):
+        with self._lock:
+            cur = self._issues.get(module)
+            self._issues[module] = [kind, detail, (cur[2] if cur else 0) + 1]
+        self._ensure_flusher()
 
     def warn_once(self, module, reason):
         if (module, reason) not in self._warned:
