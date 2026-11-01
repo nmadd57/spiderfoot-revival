@@ -431,6 +431,10 @@ class SpiderFoot:
                 returnOpts[opt] = int(opts[opt])
                 continue
 
+            if isinstance(referencePoint[opt], float):
+                returnOpts[opt] = float(opts[opt])
+                continue
+
             if isinstance(referencePoint[opt], list):
                 if isinstance(referencePoint[opt][0], int):
                     returnOpts[opt] = list()
@@ -467,6 +471,10 @@ class SpiderFoot:
 
                     if isinstance(ref_mod, int):
                         returnOpts['__modules__'][modName]['opts'][opt] = int(opts[modName + ":" + opt])
+                        continue
+
+                    if isinstance(ref_mod, float):
+                        returnOpts['__modules__'][modName]['opts'][opt] = float(opts[modName + ":" + opt])
                         continue
 
                     if isinstance(ref_mod, list):

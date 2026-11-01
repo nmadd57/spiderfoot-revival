@@ -4,6 +4,15 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### One Modules page
+
+- Settings -> API Keys, Modules and API Usage are merged into a single Settings -> Modules page. Every module has an on/off switch and a status pill (working, errors this week, problem, not used yet, auto-disabled). Opening a module shows:
+  - its settings, if it has any: credentials (API keys and tokens are masked and never sent to the browser), binary/path settings for tool modules, and every other option, each saved per module; the key test and quota check use whatever you typed in the key field;
+  - status and errors passed through from past scans (last error with time, results produced, scan errors this week and all time) and any recorded key/account problem;
+  - usage counts and limits (calls/second, calls/day, total per period with a reset date) for modules that call a remote service.
+  Modules with no options just have the switch and a short description. Filters cover state, status, key, cost and whether a module has settings. Export/import of API keys moved to this page.
+- Float-valued module options (such as request delays) can now be saved; previously the settings loader ignored them.
+
 ### Key and account problems on the settings pages
 
 - Failures caused by a module's own API key (HTTP 401/403 key rejected, 402 payment/credits, 429 rate limited, and error messages such as "invalid key", "out of credits", "quota exceeded", "plan limit reached", "zero balance") are now recorded per module and shown as a red "key problem" chip on Settings -> Modules (with a "Key problem" filter) and as a red line plus detail panel on Settings -> API Usage. Only modules with a configured key are flagged; missing keys are still handled by auto-disable.

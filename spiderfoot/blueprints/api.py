@@ -743,6 +743,13 @@ def usage_set_limits():
     return jsonify(["SUCCESS", limits.get(module)])
 
 
+@api_bp.route('/modulesettings')
+def module_settings_data():
+    """All modules with options (secrets masked), status and key problems, for Settings -> Modules."""
+    from spiderfoot.blueprints.ui import _build_module_settings
+    return jsonify(_build_module_settings())
+
+
 @api_bp.route('/usage/issue/clear', methods=['POST'])
 def usage_clear_issue():
     """Dismiss the recorded key problem for a module (or all with module='*')."""

@@ -164,6 +164,32 @@ def dashboard():
     )
 
 
+def _build_module_settings():
+    """Everything the unified Settings -> Modules page needs, keyed by module id.
+
+    Extends the New Scan module data with the editable options (secrets masked),
+    scan-derived status (errors, results) and whether usage limits apply.
+    """
+    from spiderfoot.services import module_options, module_status
+
+    mods, _cats = _build_modules_data(include_disabled=True)
+    sf_config = current_app.config.get('SF_CONFIG', {})
+    raw = sf_config.get('__modules__', {})
+    try:
+        saved = _get_db().configGet()
+    except Exception:
+        saved = {}
+    stats = module_status.scan_stats(sf_config.get('__database')) if sf_config.get('__database') else {}
+    for name, m in mods.items():
+        fields = module_options.build_fields(name, raw.get(name, {}), saved)
+        m['fields'] = fields
+        m['configurable'] = bool(fields)
+        m['stats'] = {**module_status.blank(), **stats.get(name, {})}
+        # usage limits only make sense for modules that call a remote service
+        m['canLimit'] = not name.startswith('sfp_tool_') and (m['pricing'] != 'local' or m['requiresKey'] or m['needsUrl'])
+    return mods
+
+
 def _build_modules_data(include_disabled=False):
     """Build module metadata for the new-scan page.
 

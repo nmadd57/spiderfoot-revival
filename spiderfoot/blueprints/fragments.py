@@ -518,32 +518,11 @@ def settings_section():
     if section == 'general':
         return render_template('fragments/settings_general.html', config=config)
 
-    elif section == 'apikeys':
-        view = request.args.get('view', 'category')
-        if view not in ('category', 'usecase', 'flat'):
-            view = 'category'
-
-        # Merge saved per-module opts into the module defaults
-        modules_cfg = sf_config.get('__modules__', {})
-        for mod_name, mod_cfg in modules_cfg.items():
-            opts = mod_cfg.get('opts', {})
-            for opt_key in list(opts.keys()):
-                db_key = f"{mod_name}:{opt_key}"
-                if db_key in saved_config:
-                    opts[opt_key] = saved_config[db_key]
-
-        groups = _build_api_card_data(sf_config, group_by=view)
-        return render_template('fragments/settings_apikeys.html', groups=groups, current_view=view)
-
     elif section == 'modules':
-        from spiderfoot.blueprints.ui import _build_modules_data
-        mods, _cats = _build_modules_data(include_disabled=True)
+        from spiderfoot.blueprints.ui import _build_module_settings
         from spiderfoot.services import auto_disable
-        return render_template('fragments/settings_modules.html', modules=mods,
+        return render_template('fragments/settings_modules.html', modules=_build_module_settings(),
                                auto_disable=auto_disable.enabled(config))
-
-    elif section == 'usage':
-        return render_template('fragments/settings_usage.html')
 
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)

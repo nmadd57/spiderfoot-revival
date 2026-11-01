@@ -1,11 +1,14 @@
-{# Settings > Modules: globally enable/disable modules, with filters. #}
-<div x-data='moduleSettings({{ modules | tojson }}, {{ 'true' if auto_disable else 'false' }})'>
+{# Settings > Modules: one place for every module. Enable/disable, API keys and other options,
+   binary paths, usage limits and quota, plus status and errors from past scans. #}
+<div x-data='modulesPage({{ modules | tojson }}, {{ 'true' if auto_disable else 'false' }})' x-init="init()">
 
-  <div class="flex items-start justify-between mb-4 gap-4">
-    <div>
+  <div class="flex items-start justify-between mb-4 gap-4 flex-wrap">
+    <div class="min-w-0">
       <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Modules</h2>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-        Disabled modules are hidden from the New Scan page and are never run, even by API calls.
+        Every module in one list. Open a module to set its API key, binary path or other options, set usage limits,
+        and see its status and recent errors. Modules without settings only have the on/off switch.
+        Disabled modules are hidden from New Scan and never run, even from the API.
       </p>
     </div>
     <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap pt-1"
@@ -14,13 +17,21 @@
 
   <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3 cursor-pointer">
     <input type="checkbox" :checked="auto" @change="setAuto($event.target.checked)" class="rounded border-slate-300 dark:border-sf-border">
-    Automatically disable modules that need an API key but have none, or that are over their quota/limit
-    <span class="text-slate-400">(they come back by themselves once a key is added or the quota resets)</span>
+    Automatically disable modules that need an API key (or tool) but have none, or that are over their quota/limit
+    <span class="text-slate-400">(they come back by themselves once fixed)</span>
   </label>
 
-  <input type="search" x-model="q" placeholder="Search modules…"
-         class="w-full mb-3 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-surface
-                text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sf-accent">
+  <div class="flex gap-2 mb-3 items-center flex-wrap">
+    <input type="search" x-model="q" placeholder="Search modules…"
+           class="flex-1 min-w-[12rem] rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-surface
+                  text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sf-accent">
+    <button type="button" @click="checkAll()" :disabled="checking" class="btn" x-text="checking ? 'Checking quotas…' : 'Check all quotas'"
+            title="Ask every vendor with a configured key for its remaining quota (AbuseIPDB's check uses one request)"></button>
+    <button type="button" @click="refresh()" class="btn">Reload</button>
+    <button type="button" onclick="window.location='/api/optsexport?pattern=api_key'" class="btn" title="Download your API keys as a .cfg file">Export keys</button>
+    <input type="file" id="import-cfg-input" accept=".cfg,.txt,.conf" class="hidden" @change="importKeys($event.target)">
+    <button type="button" onclick="document.getElementById('import-cfg-input').click()" class="btn" title="Import a .cfg exported from SpiderFoot">Import keys</button>
+  </div>
 
   {# Filters #}
   <div class="space-y-2 mb-4 text-xs">
@@ -39,56 +50,189 @@
     </template>
   </div>
 
-  {# Bulk actions apply to whatever is currently shown #}
-  <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
-    The switch enables or disables a module everywhere. "Default" controls whether an enabled module is
-    pre-selected on New Scan (you can still tick it by hand).
-  </p>
   <div class="flex items-center gap-2 mb-3 flex-wrap">
     <span class="text-xs text-slate-500 dark:text-slate-400" x-text="shown().length + ' shown'"></span>
-    <button type="button" @click="setMany(shown(), true)"
-            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Enable shown</button>
-    <button type="button" @click="setMany(shown(), false)"
-            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Disable shown</button>
-    <button type="button" @click="setMany(shown(), true, 'default_off')"
-            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Default on (shown)</button>
-    <button type="button" @click="setMany(shown(), false, 'default_off')"
-            class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent">Default off (shown)</button>
+    <button type="button" @click="setMany(shown(), true)" class="btn">Enable shown</button>
+    <button type="button" @click="setMany(shown(), false)" class="btn">Disable shown</button>
+    <button type="button" @click="setMany(shown(), true, 'default_off')" class="btn" title="Pre-select on New Scan">Default on (shown)</button>
+    <button type="button" @click="setMany(shown(), false, 'default_off')" class="btn" title="Do not pre-select on New Scan">Default off (shown)</button>
     <span class="text-xs text-red-500" x-text="err"></span>
+    <span class="text-xs text-sf-success" x-text="note"></span>
   </div>
 
   <div class="divide-y divide-slate-200 dark:divide-sf-border border border-slate-200 dark:border-sf-border rounded-lg">
     <template x-for="m in shown()" :key="m.id">
-      <div class="flex items-center gap-3 px-3 py-2" :class="(m.disabled || (m.autoReason && auto)) ? 'opacity-60' : ''">
-        <button type="button" role="switch" :aria-checked="!m.disabled" @click="setMany([m], m.disabled)"
-                :class="m.disabled ? 'bg-slate-300 dark:bg-slate-600' : 'bg-sf-accent'"
-                class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors">
-          <span :class="m.disabled ? 'translate-x-0.5' : 'translate-x-4'"
-                class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white transition-transform"></span>
-        </button>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 shrink-0 cursor-pointer order-last"
-               :class="m.disabled ? 'pointer-events-none opacity-40' : ''" title="Pre-select this module on New Scan">
-          <input type="checkbox" :checked="!m.defaultOff" @change="setMany([m], $event.target.checked, 'default_off')"
-                 class="rounded border-slate-300 dark:border-sf-border">
-          Default
-        </label>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="text-sm font-medium text-slate-800 dark:text-slate-100" x-text="m.name"></span>
-            <span x-show="m.pricing === 'free'" class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/50 leading-none">FREE</span>
-            <span x-show="m.pricing === 'free_key'" class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/50 leading-none">FREE TIER</span>
-            <span x-show="m.pricing === 'paid'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
-            <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
-            <span x-show="m.broken" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none" title="Known broken: the upstream service no longer works">BROKEN</span>
-            <span x-show="m.autoReason && auto" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 leading-none"
-                  :title="'Disabled automatically: ' + m.autoReason" x-text="'auto-disabled: ' + m.autoReason"></span>
-            <span x-show="m.keyIssue" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/40 leading-none"
-                  :title="m.keyIssue ? m.keyIssue.detail : ''" x-text="keyIssueLabel(m)"></span>
-            <span x-show="m.requiresKey && !m.keyConfigured && !(m.autoReason && auto)" class="text-[10px] text-amber-500">no key</span>
-            <span x-show="m.requiresKey && m.keyConfigured" class="text-[10px] text-sf-success">key set</span>
+      <div class="px-3 py-2">
+
+        {# ---- row ---- #}
+        <div class="flex items-center gap-3" :class="(m.disabled || (m.autoReason && auto)) ? 'opacity-70' : ''">
+          <button type="button" role="switch" :aria-checked="!m.disabled" @click="setMany([m], m.disabled)" title="Enable / disable this module"
+                  :class="m.disabled ? 'bg-slate-300 dark:bg-slate-600' : 'bg-sf-accent'"
+                  class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors">
+            <span :class="m.disabled ? 'translate-x-0.5' : 'translate-x-4'"
+                  class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white transition-transform"></span>
+          </button>
+
+          <div class="min-w-0 flex-1 cursor-pointer" @click="toggle(m)">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-sm font-medium text-slate-800 dark:text-slate-100" x-text="m.name"></span>
+              <span x-show="m.pricing === 'free'" class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/50 leading-none">FREE</span>
+              <span x-show="m.pricing === 'free_key'" class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/50 leading-none">FREE TIER</span>
+              <span x-show="m.pricing === 'paid'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
+              <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded border leading-none" :class="pill(status(m).k)" x-text="status(m).label"></span>
+              <span x-show="m.requiresKey && m.keyConfigured && !m.keyIssue" class="text-[10px] text-sf-success">key set</span>
+              <span x-show="m.has_limits" class="text-[10px] text-sf-accent">limits</span>
+              <span x-show="overLimit(m)" class="text-[10px] text-red-500">limit reached</span>
+            </div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 truncate" x-text="m.summary"></p>
+            <p x-show="status(m).detail" class="text-[11px] truncate" :class="status(m).k === 'bad' ? 'text-red-400' : 'text-amber-500'"
+               x-text="status(m).detail"></p>
           </div>
-          <p class="text-xs text-slate-400 dark:text-slate-500 truncate" x-text="m.summary"></p>
-          <p x-show="m.keyIssue" class="text-[11px] text-red-400 truncate" x-text="m.keyIssue ? m.keyIssue.detail : ''"></p>
+
+          <div class="text-right text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono cursor-pointer hidden sm:block" @click="toggle(m)">
+            <div x-show="m.canLimit"><span x-text="m.calls_today || 0"></span><span x-show="m.limits && m.limits.per_day" x-text="' / ' + (m.limits && m.limits.per_day)"></span> today</div>
+            <div x-show="m.quota && m.quota.ok" class="text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
+                 x-text="m.quota && m.quota.ok ? ('quota: ' + quotaShort(m.quota)) : ''"></div>
+          </div>
+          <button type="button" @click="toggle(m)" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0" :title="open === m.id ? 'Close' : 'Open'">
+            <svg class="w-4 h-4 transition-transform" :class="open === m.id ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/>
+            </svg>
+          </button>
+        </div>
+
+        {# ---- details ---- #}
+        <div x-show="open === m.id" x-cloak class="mt-3 grid gap-4 md:grid-cols-2">
+
+          {# Left: settings #}
+          <div class="min-w-0">
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2" x-text="m.summary"></p>
+
+            <template x-if="m.configurable">
+              <div>
+                <template x-for="grp in fieldGroups(m)" :key="grp.id">
+                  <div class="mb-3">
+                    <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" x-text="grp.label"></p>
+                    <template x-for="f in grp.fields" :key="f.opt">
+                      <label class="block text-xs text-slate-500 dark:text-slate-400 mb-2">
+                        <span x-text="f.label" class="block mb-0.5"></span>
+                        <template x-if="f.kind === 'bool'">
+                          <select x-model="edit[f.opt]" class="inp">
+                            <option value="1">Yes</option><option value="0">No</option>
+                          </select>
+                        </template>
+                        <template x-if="f.kind === 'secret'">
+                          <input type="password" autocomplete="new-password" x-model="edit[f.opt]" class="inp font-mono"
+                                 :placeholder="f.required ? 'Paste API key / secret' : ''" @focus="if (edit[f.opt] === MASK) edit[f.opt] = ''"
+                                 @blur="if (!edit[f.opt] && f.value === MASK && !cleared[f.opt]) edit[f.opt] = MASK">
+                        </template>
+                        <template x-if="f.kind === 'number'">
+                          <input type="number" step="any" x-model="edit[f.opt]" class="inp">
+                        </template>
+                        <template x-if="f.kind === 'text' || f.kind === 'list'">
+                          <input type="text" autocomplete="off" x-model="edit[f.opt]" class="inp font-mono"
+                                 :placeholder="f.kind === 'list' ? 'comma separated' : (f.group === 'tool' ? 'e.g. /usr/local/bin/' : '')">
+                        </template>
+                        <span x-show="f.kind === 'secret' && f.value === MASK && edit[f.opt] === MASK" class="text-[11px] text-sf-success">Set. Click to replace.</span>
+                        <button type="button" x-show="f.kind === 'secret' && f.value === MASK && edit[f.opt] !== ''" @click.prevent="cleared[f.opt] = true; edit[f.opt] = ''"
+                                class="text-[11px] text-red-400 hover:underline">Remove this key</button>
+                        <span x-show="f.kind === 'secret' && cleared[f.opt] && edit[f.opt] === ''" class="text-[11px] text-amber-500">Will be removed when you save.</span>
+                      </label>
+                    </template>
+                  </div>
+                </template>
+
+                <div class="flex gap-2 flex-wrap items-center">
+                  <button type="button" @click="saveOptions(m)" :disabled="busy || !dirty(m)" class="btn">Save settings</button>
+                  <button type="button" x-show="m.provider_opts" @click="check(m, false)" :disabled="busy" class="btn"
+                          x-text="newKeyEntered(m) ? 'Test key' : 'Check quota'"></button>
+                  <button type="button" x-show="m.provider_opts && newKeyEntered(m)" @click="check(m, true)" :disabled="busy" class="btn">Test &amp; save key</button>
+                  <span class="text-xs text-sf-success" x-text="saved"></span>
+                </div>
+                <div x-show="result" class="mt-2 text-xs rounded border p-2"
+                     :class="result && result.valid === false ? 'border-red-500/50 text-red-400' : (result && result.ok ? 'border-green-500/50 text-green-400' : 'border-slate-500/40 text-slate-400')">
+                  <p x-text="result && result.message"></p>
+                  <p class="font-mono" x-show="result && quotaLine(result)" x-text="result && quotaLine(result)"></p>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2" x-show="m.requiresKey && !m.provider_opts">
+                  This vendor has no quota or key-test endpoint wired up; calls are counted locally and any rate-limit headers are shown.
+                </p>
+              </div>
+            </template>
+            <template x-if="!m.configurable">
+              <p class="text-xs text-slate-400">This module has no settings. Use the switch to enable or disable it.</p>
+            </template>
+
+            <label class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-3 cursor-pointer">
+              <input type="checkbox" :checked="!m.defaultOff" @change="setMany([m], !$event.target.checked, 'default_off')">
+              Pre-select on New Scan
+            </label>
+          </div>
+
+          {# Right: status and usage #}
+          <div class="min-w-0">
+            <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Status</p>
+            <div class="text-xs mb-2">
+              <span class="px-1.5 py-0.5 rounded border" :class="pill(status(m).k)" x-text="status(m).label"></span>
+            </div>
+            <div x-show="m.keyIssue" class="mb-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-xs">
+              <p class="font-semibold text-red-400" x-text="keyIssueLabel(m)"></p>
+              <p class="text-slate-500 dark:text-slate-400 mt-0.5" x-text="m.keyIssue ? m.keyIssue.detail : ''"></p>
+              <p class="text-slate-400 mt-0.5" x-text="m.keyIssue ? ('seen ' + m.keyIssue.hits + '× in scans, last ' + when(m.keyIssue.seen)) : ''"></p>
+              <p class="text-slate-400 mt-0.5">Clears when you change or successfully test the key.</p>
+              <button type="button" @click="dismissIssue(m)" class="btn mt-1">Dismiss</button>
+            </div>
+            <div x-show="m.stats.lastError" class="mb-2 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
+              <p class="font-semibold text-amber-500">Last error <span class="font-normal text-slate-400" x-text="'· ' + when(m.stats.lastErrorAt)"></span></p>
+              <p class="text-slate-500 dark:text-slate-400 mt-0.5 break-words" x-text="m.stats.lastError"></p>
+            </div>
+            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
+              <dt>Results produced</dt><dd class="font-mono" x-text="m.stats.events"></dd>
+              <dt>Last result</dt><dd class="font-mono" x-text="m.stats.lastEventAt ? when(m.stats.lastEventAt) : 'never'"></dd>
+              <dt>Scan errors (7 days)</dt><dd class="font-mono" x-text="m.stats.errors7d"></dd>
+              <dt>Scan errors (all time)</dt><dd class="font-mono" x-text="m.stats.errors"></dd>
+            </dl>
+
+            <template x-if="m.canLimit">
+              <div>
+                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Usage</p>
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  <dt>Calls today</dt><dd class="font-mono" x-text="m.calls_today || 0"></dd>
+                  <dt>This period</dt><dd class="font-mono" x-text="m.calls_period || 0"></dd>
+                  <dt>All time</dt><dd class="font-mono" x-text="m.calls_total || 0"></dd>
+                  <dt>HTTP errors</dt><dd class="font-mono" x-text="m.errors || 0"></dd>
+                  <dt>Rate limited (429)</dt><dd class="font-mono" x-text="m.limited || 0"></dd>
+                  <dt>Blocked by your limits</dt><dd class="font-mono" x-text="m.blocked || 0"></dd>
+                  <dt>Last used</dt><dd class="font-mono" x-text="m.last_day || 'never'"></dd>
+                  <dt x-show="m.vendor_rate">Vendor header</dt>
+                  <dd class="font-mono" x-show="m.vendor_rate" x-text="vendorHeader(m)"></dd>
+                </dl>
+
+                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Limits <span class="font-normal text-slate-400">(0 or empty = no limit)</span></p>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <label>Calls / second<input type="number" min="0" step="any" x-model="form.per_second" class="inp"></label>
+                  <label>Calls / day<input type="number" min="0" step="1" x-model="form.per_day" class="inp"></label>
+                  <label>Total calls / period<input type="number" min="0" step="1" x-model="form.total" class="inp"></label>
+                  <label>Period resets on<input type="date" x-model="form.reset_date" class="inp"></label>
+                  <label>Repeats
+                    <select x-model="form.reset_every" class="inp">
+                      <option value="none">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option><option value="yearly">Yearly</option>
+                    </select>
+                  </label>
+                  <label class="flex items-center gap-1.5 mt-5"><input type="checkbox" x-model="form.enforce"> Enforce (delay / block)</label>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Per-second delays calls; day and total limits block further calls.
+                  Period started <span x-text="(m.limits && m.limits.period_start) || 'at the first recorded call'"></span>.</p>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                  <button type="button" @click="saveLimits(m)" class="btn">Save limits</button>
+                  <button type="button" @click="clearLimits(m)" class="btn">Clear</button>
+                  <button type="button" @click="newPeriod(m)" class="btn">Start new period now</button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </template>
@@ -96,47 +240,118 @@
   </div>
 </div>
 
+<style>
+  .inp { display:block; width:100%; margin-top:2px; padding:4px 8px; border-radius:6px; border:1px solid rgb(148 163 184 / .5);
+         background:transparent; color:inherit; font-size:12px; }
+  .btn { font-size:12px; padding:4px 10px; border-radius:6px; border:1px solid rgb(148 163 184 / .5); white-space:nowrap; }
+  .btn:hover { border-color: var(--color-sf-accent, #22d3ee); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+</style>
+
 <script>
-function moduleSettings(data, autoOn) {
+function modulesPage(data, autoOn) {
+  const headers = () => ({ 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' });
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const on = 'border-sf-accent text-sf-accent bg-sf-accent/10';
   return {
+    MASK: '********',
     auto: autoOn,
-    all: Object.entries(data).map(([id, m]) => ({ id, ...m }))
-             .sort((a, b) => a.name.localeCompare(b.name)),
-    q: '', err: '',
-    filters: { state: '', auto: '', default: '', key: '', cost: '' },
+    all: Object.entries(data).map(([id, m]) => ({ id, ...m })).sort(byName),
+    q: '', err: '', note: '', saved: '', open: '', busy: false, checking: false,
+    form: {}, edit: {}, cleared: {}, result: null,
+    filters: { state: '', status: '', key: '', cost: '', kind: '' },
     filterGroups: [
       { id: 'state', label: 'State', options: [
-        { id: 'enabled', label: 'Enabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
-        { id: 'disabled', label: 'Disabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
-      { id: 'auto', label: 'Auto', options: [
-        { id: 'autooff', label: 'Auto-disabled', on: 'border-amber-500 text-amber-500 bg-amber-500/10' } ] },
-      { id: 'default', label: 'Default', options: [
-        { id: 'on', label: 'On by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
-        { id: 'off', label: 'Off by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
+        { id: 'enabled', label: 'Enabled', on }, { id: 'disabled', label: 'Disabled', on },
+        { id: 'auto', label: 'Auto-disabled', on: 'border-amber-500 text-amber-500 bg-amber-500/10' },
+        { id: 'defoff', label: 'Off by default', on } ] },
+      { id: 'status', label: 'Status', options: [
+        { id: 'ok', label: 'Working', on: 'border-green-500 text-green-400 bg-green-500/10' },
+        { id: 'warn', label: 'Errors', on: 'border-amber-500 text-amber-500 bg-amber-500/10' },
+        { id: 'bad', label: 'Problem', on: 'border-red-500 text-red-400 bg-red-500/10' },
+        { id: 'idle', label: 'Not used yet', on } ] },
       { id: 'key', label: 'Key', options: [
-        { id: 'active', label: 'Active (usable)', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
-        { id: 'nokey', label: 'No key', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
-        { id: 'issue', label: 'Key problem', on: 'border-red-500 text-red-400 bg-red-500/10' } ] },
+        { id: 'active', label: 'Usable', on }, { id: 'nokey', label: 'No key', on },
+        { id: 'issue', label: 'Key problem', on: 'border-red-500 text-red-400 bg-red-500/10' },
+        { id: 'limits', label: 'Limits set', on }, { id: 'over', label: 'Limit reached', on: 'border-red-500 text-red-400 bg-red-500/10' } ] },
       { id: 'cost', label: 'Cost', options: [
         { id: 'free', label: 'Free', on: 'border-green-500 text-green-400 bg-green-500/10' },
         { id: 'free_key', label: 'Free tier', on: 'border-blue-500 text-blue-400 bg-blue-500/10' },
         { id: 'paid', label: 'Paid', on: 'border-red-500 text-red-400 bg-red-500/10' },
         { id: 'local', label: 'Local', on: 'border-slate-400 text-slate-300 bg-slate-500/10' } ] },
+      { id: 'kind', label: 'Settings', options: [
+        { id: 'configurable', label: 'Has settings', on }, { id: 'plain', label: 'On/off only', on } ] },
     ],
-    init() {},
+
+    // ---- loading
+    async init() {
+      await this.loadUsage();
+      this.refreshStale();
+    },
+    async loadUsage() {
+      try {
+        const d = await (await fetch('/api/usage')).json();
+        const u = Object.fromEntries(d.modules.map(x => [x.id, x]));
+        this.all.forEach(m => this.mergeUsage(m, u[m.id]));
+      } catch (e) { this.err = 'Could not load usage: ' + (e.message || e); }
+    },
+    mergeUsage(m, u) {
+      if (!u) { m.limits = m.limits || {}; return; }
+      for (const k of ['calls_today', 'calls_period', 'calls_total', 'errors', 'limited', 'blocked', 'last_day',
+                       'vendor_rate', 'limits', 'has_limits', 'provider_opts', 'auto_check', 'quota']) m[k] = u[k];
+    },
+    async refresh() {
+      this.err = '';
+      try {
+        const [mods, usage] = await Promise.all([fetch('/api/modulesettings').then(r => r.json()), fetch('/api/usage').then(r => r.json())]);
+        const u = Object.fromEntries(usage.modules.map(x => [x.id, x]));
+        this.all = Object.entries(mods).map(([id, m]) => { const o = { id, ...m }; this.mergeUsage(o, u[id]); return o; }).sort(byName);
+        if (this.open) this.prepare(this.all.find(m => m.id === this.open), true);
+      } catch (e) { this.err = 'Reload failed: ' + (e.message || e); }
+    },
+
+    // ---- status
+    status(m) {
+      const s = m.stats || {};
+      if (m.disabled) return { k: 'idle', label: 'Disabled', detail: '' };
+      if (m.broken) return { k: 'bad', label: 'Broken upstream', detail: 'The upstream service no longer works' };
+      if (m.toolMissing) return { k: 'bad', label: 'Tool not installed', detail: 'The binary for this module is not installed' };
+      if (m.autoReason && this.auto) return { k: 'idle', label: m.autoReason, detail: '' };
+      if (m.keyIssue) return { k: 'bad', label: this.keyIssueLabel(m), detail: m.keyIssue.detail };
+      if (s.errors7d && s.lastErrorAt >= s.lastEventAt) return { k: 'warn', label: s.errors7d + ' error' + (s.errors7d > 1 ? 's' : '') + ' this week', detail: s.lastError };
+      if (s.events) return { k: 'ok', label: 'Working', detail: '' };
+      return { k: 'idle', label: 'Not used yet', detail: '' };
+    },
+    pill(k) {
+      return { ok: 'bg-green-500/10 text-green-400 border-green-500/40', warn: 'bg-amber-500/10 text-amber-500 border-amber-500/40',
+               bad: 'bg-red-500/10 text-red-400 border-red-500/40', idle: 'bg-slate-500/10 text-slate-400 border-slate-500/30' }[k];
+    },
     keyIssueLabel(m) {
       if (!m.keyIssue) return '';
       const k = m.keyIssue.kind;
       return 'key problem: ' + (k === 'rejected' ? 'key rejected' : k === 'quota' ? 'out of quota/credits' : 'rate limited');
     },
-    // "Active" = needs no key, or its key is configured. "No key" = key needed but missing.
+    when(ts) { return ts ? new Date(ts * 1000).toLocaleString() : 'never'; },
+
+    // ---- filtering
     test(m, g, v) {
-      if (g === 'state') return v === 'enabled' ? !m.disabled : m.disabled;
-      if (g === 'auto') return !!(m.autoReason && this.auto);
-      if (g === 'default') return v === 'off' ? m.defaultOff : !m.defaultOff;
-      if (g === 'key' && v === 'issue') return !!m.keyIssue;
-      if (g === 'key') return v === 'active' ? (!m.requiresKey || m.keyConfigured) : (m.requiresKey && !m.keyConfigured);
-      return m.pricing === v;
+      switch (g) {
+        case 'state':
+          if (v === 'enabled') return !m.disabled;
+          if (v === 'disabled') return m.disabled;
+          if (v === 'auto') return !!(m.autoReason && this.auto);
+          return m.defaultOff;
+        case 'status': return this.status(m).k === v && !m.disabled;
+        case 'key':
+          if (v === 'active') return !m.requiresKey || m.keyConfigured;
+          if (v === 'nokey') return m.requiresKey && !m.keyConfigured;
+          if (v === 'issue') return !!m.keyIssue;
+          if (v === 'limits') return !!m.has_limits;
+          return this.overLimit(m);
+        case 'cost': return m.pricing === v;
+        case 'kind': return v === 'configurable' ? m.configurable : !m.configurable;
+      }
+      return true;
     },
     matches(m, skip) {
       for (const g of Object.keys(this.filters)) {
@@ -149,15 +364,12 @@ function moduleSettings(data, autoOn) {
     count(g, v) { return this.all.filter(m => this.matches(m, g) && this.test(m, g, v)).length; },
     enabledCount() { return this.all.filter(m => !m.disabled).length; },
     toggleFilter(g, v) { this.filters[g] = this.filters[g] === v ? '' : v; },
+
+    // ---- enable / disable
     async setAuto(on) {
       this.err = '';
       try {
-        const r = await fetch('/api/modulestate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
-          body: JSON.stringify({ kind: 'auto_disable', enabled: on }),
-        });
-        const d = await r.json();
+        const d = await (await fetch('/api/modulestate', { method: 'POST', headers: headers(), body: JSON.stringify({ kind: 'auto_disable', enabled: on }) })).json();
         if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
         this.auto = on;
       } catch (e) { this.err = 'Save failed: ' + (e.message || e); this.auto = !on; }
@@ -167,16 +379,138 @@ function moduleSettings(data, autoOn) {
       const ids = list.map(m => m.id);
       if (!ids.length) return;
       try {
-        const r = await fetch('/api/modulestate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
-          body: JSON.stringify({ modules: ids, enabled, kind }),
-        });
-        const d = await r.json();
+        const d = await (await fetch('/api/modulestate', { method: 'POST', headers: headers(), body: JSON.stringify({ modules: ids, enabled, kind }) })).json();
         if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
         const off = new Set(d[1]);
         this.all.forEach(m => { if (kind === 'default_off') m.defaultOff = off.has(m.id); else m.disabled = off.has(m.id); });
       } catch (e) { this.err = 'Save failed: ' + (e.message || e); }
+    },
+
+    // ---- open / edit
+    toggle(m) {
+      if (this.open === m.id) { this.open = ''; return; }
+      this.open = m.id;
+      this.prepare(m);
+    },
+    prepare(m, keep) {
+      if (!m) return;
+      if (!keep) { this.result = null; this.saved = ''; this.err = ''; }
+      this.cleared = {};
+      this.edit = Object.fromEntries((m.fields || []).map(f => [f.opt, f.value]));
+      const l = m.limits || {};
+      this.form = { per_second: l.per_second || '', per_day: l.per_day || '', total: l.total || '',
+                    reset_date: l.reset_date || '', reset_every: l.reset_every || 'none', enforce: l.enforce !== false };
+    },
+    fieldGroups(m) {
+      const defs = [['credentials', 'Credentials'], ['tool', 'Binary / path'], ['options', 'Options']];
+      return defs.map(([id, label]) => ({ id, label, fields: (m.fields || []).filter(f => f.group === id) })).filter(g => g.fields.length);
+    },
+    changed(m) { return (m.fields || []).filter(f => this.edit[f.opt] !== undefined && String(this.edit[f.opt]) !== String(f.value)); },
+    dirty(m) { return this.changed(m).filter(f => !(f.kind === 'secret' && this.edit[f.opt] === this.MASK)).length > 0; },
+    newKeyEntered(m) { return (m.fields || []).some(f => f.kind === 'secret' && this.edit[f.opt] && this.edit[f.opt] !== this.MASK); },
+    async saveOptions(m) {
+      this.err = ''; this.saved = ''; this.busy = true;
+      const opts = {};
+      this.changed(m).forEach(f => {
+        if (f.kind === 'secret' && this.edit[f.opt] === this.MASK) return;
+        opts[m.id + ':' + f.opt] = this.edit[f.opt];
+      });
+      try {
+        const r = await fetch('/api/savesettings', { method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
+          body: new URLSearchParams({ allopts: JSON.stringify(opts) }).toString() });
+        const d = await r.json();
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
+        await this.refresh();
+        this.saved = 'Saved.';
+      } catch (e) { this.err = 'Save failed: ' + (e.message || e); }
+      this.busy = false;
+    },
+    async importKeys(input) {
+      const file = input.files[0]; if (!file) return;
+      this.err = ''; this.note = '';
+      try {
+        const text = await file.text();
+        const r = await fetch('/api/savesettings', { method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
+          body: new URLSearchParams({ configFile: text }).toString() });
+        const d = await r.json();
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
+        this.note = 'Imported.'; await this.refresh();
+      } catch (e) { this.err = 'Import failed: ' + (e.message || e); }
+      input.value = '';
+    },
+
+    // ---- usage, limits, quota
+    async post(url, body) {
+      const r = await fetch(url, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+      const d = await r.json();
+      if (Array.isArray(d) && d[0] === 'ERROR') throw new Error(d[1]);
+      return d;
+    },
+    async refreshStale() {
+      const cutoff = Date.now() / 1000 - 3600;
+      await this.checkMany(this.all.filter(m => m.provider_opts && m.keyConfigured && m.auto_check && (!m.quota || m.quota.at < cutoff)));
+    },
+    async checkAll() { await this.checkMany(this.all.filter(m => m.provider_opts && m.keyConfigured)); },
+    async checkMany(list) {
+      if (this.checking || !list.length) return;
+      this.checking = true;
+      for (const m of list) {
+        try { const r = await this.post('/api/usage/check', { module: m.id, values: {} }); m.quota = Object.assign({}, r, { at: Math.floor(Date.now() / 1000) }); }
+        catch (e) { /* keep the old value */ }
+      }
+      this.checking = false;
+    },
+    async check(m, save) {
+      this.busy = true; this.result = null; this.err = '';
+      const values = {};
+      (m.provider_opts || []).forEach(o => { const v = this.edit[o]; if (v && v !== this.MASK) values[o] = v; });
+      const fresh = Object.keys(values).length > 0;
+      try {
+        this.result = await this.post('/api/usage/check', { module: m.id, values, save });
+        if (!fresh) m.quota = Object.assign({}, this.result, { at: Math.floor(Date.now() / 1000) });
+        if (this.result.saved) await this.refresh();
+      } catch (e) { this.err = 'Check failed: ' + e.message; }
+      this.busy = false;
+    },
+    async saveLimits(m) { await this.limitCall(m, '/api/usage/limits', { module: m.id, limits: this.form }, 'Save failed'); },
+    async clearLimits(m) { await this.limitCall(m, '/api/usage/limits', { module: m.id, limits: {} }, 'Clear failed'); },
+    async newPeriod(m) { await this.limitCall(m, '/api/usage/reset', { module: m.id }, 'Reset failed'); },
+    async dismissIssue(m) { await this.limitCall(m, '/api/usage/issue/clear', { module: m.id }, 'Dismiss failed'); },
+    async limitCall(m, url, body, msg) {
+      this.err = '';
+      try { await this.post(url, body); await this.refresh(); }
+      catch (e) { this.err = msg + ': ' + e.message; }
+    },
+    overLimit(m) {
+      const l = m.limits || {};
+      return !!((l.per_day && m.calls_today >= l.per_day) || (l.total && m.calls_period >= l.total));
+    },
+    quotaShort(r) {
+      const unit = (r.unit || '').replace('requests', 'req');
+      if (r.remaining !== null && r.remaining !== undefined && r.limit) return r.remaining + ' / ' + r.limit + ' ' + unit + ' left';
+      if (r.remaining !== null && r.remaining !== undefined) return r.remaining + ' ' + unit + ' left';
+      if (r.limit) return r.limit + ' ' + unit;
+      return r.plan ? 'plan ' + r.plan : 'key valid';
+    },
+    quotaLow(m) {
+      const r = m.quota;
+      return !!(r && r.limit && r.remaining !== null && r.remaining !== undefined && r.remaining / r.limit < 0.1);
+    },
+    vendorHeader(m) {
+      const v = m.vendor_rate; if (!v) return '';
+      return (v.remaining !== null ? v.remaining + ' left' : '') + (v.limit !== null ? ' of ' + v.limit : '') + (v.reset ? ', reset ' + v.reset : '');
+    },
+    quotaLine(r) {
+      const p = [];
+      if (r.used !== null && r.used !== undefined) p.push('used ' + r.used);
+      if (r.limit !== null && r.limit !== undefined) p.push('limit ' + r.limit);
+      if (r.remaining !== null && r.remaining !== undefined) p.push('remaining ' + r.remaining);
+      let s = p.join(' · ') + (r.unit && p.length ? ' ' + r.unit : '');
+      if (r.resets) s += (s ? ' · ' : '') + 'resets ' + r.resets;
+      if (r.plan) s += (s ? ' · ' : '') + 'plan ' + r.plan;
+      return s;
     },
   };
 }
