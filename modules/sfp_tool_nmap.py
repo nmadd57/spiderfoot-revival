@@ -41,7 +41,7 @@ class sfp_tool_nmap(SpiderFootPlugin):
 
     # Default options
     opts = {
-        'nmappath': "",
+        'nmappath': "/usr/bin/",
         'netblockscan': True,
         'netblockscanmax': 24
     }

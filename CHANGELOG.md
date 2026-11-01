@@ -4,6 +4,10 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### External tools in the image
+
+- The container now ships the tools the `sfp_tool_*` modules drive: BBOT 3.0.2 (built from source in a Python 3.13 venv, with the pip dependencies its modules declare and its first-run dependency step pre-seeded), nmap, nbtscan, onesixtyone, nuclei (+ templates), trufflehog, testssl.sh, WhatWeb (+ gems), CMSeeK, retire.js, wafw00f, snallygaster and dnstwist. Each module's path option now defaults to the install location, so they work without configuration. Wappalyzer is not included (its CLI is no longer distributed) and stays auto-disabled as "tool not installed".
+
 ### Fixes from the first overnight scans
 
 - `sfp_stevenblack_hosts`: a hosts line with a single token (or a trailing comment) raised `IndexError` and killed the worker on every event.

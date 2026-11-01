@@ -42,7 +42,7 @@ class sfp_tool_snallygaster(SpiderFootPlugin):
     }
 
     opts = {
-        'snallygaster_path': ''
+        'snallygaster_path': "/opt/venv/bin/"
     }
 
     optdescs = {
