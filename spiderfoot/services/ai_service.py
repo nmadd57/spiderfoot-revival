@@ -15,9 +15,13 @@ correlations, prompts, or the database. Higher-level orchestration
 lives elsewhere in the AI service package.
 """
 
+import ipaddress
 import json
 import logging
+import re
+import threading
 from typing import Iterator, List, Mapping, Optional
+from urllib.parse import urlparse, urlunparse
 
 import requests
 
@@ -347,10 +351,6 @@ def fit_to_budget(rendered_events: list, ceiling_tokens: int) -> tuple:
 # PII redaction (run on assembled prompt string when _ai_redact_pii=True)
 # ----------------------------------------------------------------------------
 
-import ipaddress
-import re
-from urllib.parse import urlparse, urlunparse
-
 _EMAIL_RE = re.compile(r"\b[\w.+\-]+@[\w.\-]+\.[A-Za-z]{2,}\b")
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 # IPv6: rough match — colon-separated hex groups, with optional :: compression.
@@ -578,8 +578,6 @@ def build_correlation_prompt(
 # ----------------------------------------------------------------------------
 # Concurrency lock (process-local — multi-worker is documented as v2)
 # ----------------------------------------------------------------------------
-
-import threading
 
 _LOCKS_GUARD = threading.Lock()
 _HELD: set = set()

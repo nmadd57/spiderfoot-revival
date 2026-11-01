@@ -149,7 +149,6 @@ class sfp_leakcheck(SpiderFootPlugin):
             return None
 
     def handleEvent(self, event):
-        eventName = event.eventType
         eventData = event.data
 
         if self.errorState:
@@ -193,7 +192,7 @@ class sfp_leakcheck(SpiderFootPlugin):
                 descr += f" - Source: {source_name}\n"
                 descr += f" - Breach Date: {breach_date}\n"
                 descr += f" - Exposed Fields: {', '.join(fields)}\n"
-                descr += f"<SFURL>https://leakcheck.io/</SFURL>"
+                descr += "<SFURL>https://leakcheck.io/</SFURL>"
 
                 e = SpiderFootEvent("LEAKSITE_CONTENT", descr, self.__name__, event)
                 self.notifyListeners(e)
@@ -209,7 +208,7 @@ class sfp_leakcheck(SpiderFootPlugin):
                 descr += f" - Breach Date: {breach_date}\n"
                 if "fields" in data:
                     descr += f" - Exposed Fields: {', '.join(data['fields'])}\n"
-                descr += f"<SFURL>https://leakcheck.io/</SFURL>"
+                descr += "<SFURL>https://leakcheck.io/</SFURL>"
 
                 e = SpiderFootEvent("LEAKSITE_CONTENT", descr, self.__name__, event)
                 self.notifyListeners(e)

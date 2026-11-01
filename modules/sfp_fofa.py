@@ -174,7 +174,7 @@ class sfp_fofa(SpiderFootPlugin):
                 if len(row) < 6:
                     continue
 
-                domain, host, ip, port, title, server = row[0], row[1], row[2], row[3], row[4], row[5]
+                domain, ip, port, server = row[0], row[2], row[3], row[5]
 
                 # IP + port
                 if ip and port:

@@ -72,7 +72,6 @@ class sfp_tool_bbot_cloud(SpiderFootPlugin):
         ]
 
     def handleEvent(self, event):
-        eventName = event.eventType
         eventData = event.data
 
         if self.errorState:

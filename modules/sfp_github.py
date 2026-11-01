@@ -263,7 +263,7 @@ class sfp_github(SpiderFootPlugin):
                     continue
 
                 for item in repret:
-                    if type(item) != dict:
+                    if type(item) is not dict:
                         self.debug("Encountered an unexpected or empty response from Github.")
                         continue
 

@@ -74,7 +74,6 @@ class sfp_tool_bbot_vuln(SpiderFootPlugin):
         ]
 
     def handleEvent(self, event):
-        eventName = event.eventType
         eventData = event.data
 
         if self.errorState:

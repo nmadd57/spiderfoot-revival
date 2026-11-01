@@ -60,7 +60,7 @@ class sfp__stor_stdout(SpiderFootPlugin):
         else:
             data = event.data
 
-        if type(data) != str:
+        if type(data) is not str:
             data = str(event.data)
 
         if type(event.sourceEvent.data) in [list, dict]:
@@ -68,7 +68,7 @@ class sfp__stor_stdout(SpiderFootPlugin):
         else:
             srcdata = event.sourceEvent.data
 
-        if type(srcdata) != str:
+        if type(srcdata) is not str:
             srcdata = str(event.sourceEvent.data)
 
         if self.opts['_stripnewline']:

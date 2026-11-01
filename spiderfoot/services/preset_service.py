@@ -15,15 +15,15 @@ BUILTIN_PRESETS = [
     # Metadata-derived: module list computed at seed time from each module's
     # `useCases` metadata. Adding a new module with useCases:[Footprint] joins
     # the Footprint preset on next startup.
-    {'id': 'builtin:footprint',   'name': 'Footprint',
+    {'id': 'builtin:footprint', 'name': 'Footprint',
      'description': 'Discover public info about a target',
-     'derive_from_usecase': 'Footprint',   'sort_order': 10},
+     'derive_from_usecase': 'Footprint', 'sort_order': 10},
     {'id': 'builtin:investigate', 'name': 'Investigate',
      'description': 'Deep recon including history',
      'derive_from_usecase': 'Investigate', 'sort_order': 20},
-    {'id': 'builtin:passive',     'name': 'Passive',
+    {'id': 'builtin:passive', 'name': 'Passive',
      'description': 'Safe — no direct target contact',
-     'derive_from_usecase': 'Passive',     'sort_order': 30},
+     'derive_from_usecase': 'Passive', 'sort_order': 30},
 
     {'id': 'builtin:subdomain_enum', 'name': 'Subdomain enum', 'sort_order': 40,
      'description': 'Enumerate subdomains via DNS, certificate transparency, and search engines',

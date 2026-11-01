@@ -3,7 +3,6 @@ import hashlib
 import hmac as _hmac
 import logging
 import os
-import multiprocessing as mp
 from copy import deepcopy
 from datetime import datetime, timezone
 

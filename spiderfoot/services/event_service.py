@@ -148,20 +148,20 @@ def event_badge_color(type_code: str) -> str:
 
     # Cyan — network / attack surface (IPs, domains, ports, hostnames)
     if any(k in tc for k in ('IP_ADDRESS', 'INTERNET_NAME', 'DOMAIN_NAME',
-                              'TCP_PORT', 'UDP_PORT', 'NETBLOCK', 'BGP',
-                              'AFFILIATE_INTERNET', 'DNS_', 'PROVIDER_',
-                              'CO_HOSTED')):
+                             'TCP_PORT', 'UDP_PORT', 'NETBLOCK', 'BGP',
+                             'AFFILIATE_INTERNET', 'DNS_', 'PROVIDER_',
+                             'CO_HOSTED')):
         return 'bg-cyan-900/40 text-cyan-300 border border-cyan-500/30'
 
     # Violet — identity / people (emails, usernames, names, phones, accounts)
     if any(k in tc for k in ('EMAIL', 'USERNAME', 'HUMAN_NAME', 'PHONE_NUMBER',
-                              'ACCOUNT_', 'SOCIAL_MEDIA')):
+                             'ACCOUNT_', 'SOCIAL_MEDIA')):
         return 'bg-violet-900/40 text-violet-300 border border-violet-500/30'
 
     # Emerald — infrastructure / tech (web servers, SSL, software, hosting)
     if any(k in tc for k in ('WEBSERVER', 'SSL_CERTIFICATE', 'SOFTWARE',
-                              'OPERATING_SYSTEM', 'HTTP_CODE', 'LINKED_URL',
-                              'WEB_ANALYTICS', 'CLOUD_STORAGE')):
+                             'OPERATING_SYSTEM', 'HTTP_CODE', 'LINKED_URL',
+                             'WEB_ANALYTICS', 'CLOUD_STORAGE')):
         return 'bg-emerald-900/40 text-emerald-300 border border-emerald-500/30'
 
     # Amber — reputation / threat intel
@@ -170,7 +170,7 @@ def event_badge_color(type_code: str) -> str:
 
     # Muted slate — raw / bulk data
     if any(k in tc for k in ('TARGET_WEB_CONTENT', 'RAW_RIR_DATA', 'RAW_DNS',
-                              'RAW_FILE', 'ROOT', 'SEARCH_ENGINE_WEB_CONTENT')):
+                             'RAW_FILE', 'ROOT', 'SEARCH_ENGINE_WEB_CONTENT')):
         return 'bg-slate-700/40 text-slate-400 border border-slate-500/30'
 
     # Default — neutral

@@ -164,7 +164,6 @@ class sfp_ipinfo_lite(SpiderFootPlugin):
         # Emit geolocation
         country = data.get('country')
         continent = data.get('continent')
-        country_code = data.get('country_code', '')
 
         if country:
             geo_parts = [country]

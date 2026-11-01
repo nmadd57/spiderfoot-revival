@@ -958,7 +958,6 @@ def startscan():
 @api_bp.route('/rerunscan', methods=['POST'])
 def rerunscan():
     """Rerun a scan."""
-    from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
 
     id = request.values.get('id', '')
@@ -1015,7 +1014,6 @@ def rerunscan():
 @api_bp.route('/rerunscanmulti', methods=['POST'])
 def rerunscanmulti():
     """Rerun multiple scans."""
-    from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
 
     ids = request.values.get('ids', '')
