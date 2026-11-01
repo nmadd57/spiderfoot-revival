@@ -34,20 +34,20 @@
 #   sudo docker build -t spiderfoot-test --build-arg REQUIREMENTS=test/requirements.txt .
 #   sudo docker run --rm spiderfoot-test -m pytest --flake8 .
 
-FROM alpine:3.18 AS build
+FROM python:3.15-alpine AS build
 ARG REQUIREMENTS=requirements.txt
-RUN apk add --no-cache gcc git curl python3 python3-dev py3-pip swig tinyxml-dev \
- python3-dev musl-dev openssl-dev libffi-dev libxslt-dev libxml2-dev jpeg-dev \
+RUN apk add --no-cache gcc git curl swig tinyxml-dev \
+ musl-dev openssl-dev libffi-dev libxslt-dev libxml2-dev jpeg-dev \
  openjpeg-dev zlib-dev cargo rust
-RUN python3 -m venv /opt/venv
+RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin":$PATH
 COPY $REQUIREMENTS requirements.txt ./
-RUN pip3 install -U pip
-RUN pip3 install -r "$REQUIREMENTS"
+RUN pip install -U pip
+RUN pip install -r "$REQUIREMENTS"
 
 
 
-FROM alpine:3.18
+FROM python:3.15-alpine
 WORKDIR /home/spiderfoot
 
 # Place database and logs outside installation directory
@@ -56,7 +56,7 @@ ENV SPIDERFOOT_LOGS /var/lib/spiderfoot/log
 ENV SPIDERFOOT_CACHE /var/lib/spiderfoot/cache
 
 # Run everything as one command so that only one layer is created
-RUN apk --update --no-cache add python3 musl openssl libxslt tinyxml libxml2 jpeg zlib openjpeg \
+RUN apk --update --no-cache add musl openssl libxslt tinyxml libxml2 jpeg zlib openjpeg \
     && addgroup spiderfoot \
     && adduser -G spiderfoot -h /home/spiderfoot -s /sbin/nologin \
                -g "SpiderFoot User" -D spiderfoot \
