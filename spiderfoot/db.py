@@ -11,8 +11,6 @@
 # -------------------------------------------------------------------------------
 
 from pathlib import Path
-import hashlib
-import random
 import re
 import sqlite3
 import threading

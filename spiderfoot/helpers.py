@@ -4,22 +4,21 @@ import json
 import logging
 import os
 import os.path
-import random
 import re
 import ssl
 import sys
 import typing
 import urllib.parse
 import uuid
-
-log = logging.getLogger("spiderfoot.helpers")
-from pathlib import Path
 from importlib import resources
+from pathlib import Path
 
 import networkx as nx
+import phonenumbers
 from bs4 import BeautifulSoup, SoupStrainer
 from networkx.readwrite.gexf import GEXFWriter
-import phonenumbers
+
+log = logging.getLogger("spiderfoot.helpers")
 
 
 if sys.version_info >= (3, 8):  # PEP 589 support (TypedDict)

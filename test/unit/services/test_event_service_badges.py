@@ -1,6 +1,6 @@
 import unittest
 
-from spiderfoot.services.event_service import event_badge_color, EVENT_CATEGORIES
+from spiderfoot.services.event_service import event_badge_color
 
 
 class TestEventBadgeColor(unittest.TestCase):

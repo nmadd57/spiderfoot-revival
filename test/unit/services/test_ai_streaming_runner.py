@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch, MagicMock
 from spiderfoot.services.ai_service import StreamRunner, acquire_lock, release_lock
 
 
@@ -33,7 +32,7 @@ class TestStreamRunner(unittest.TestCase):
                               metadata={}, session_id="s")
         out = list(runner.run())
         token_events = [e for e in out if e["type"] == "token"]
-        done = [e for e in out if e["type"] == "done"][0]
+        self.assertTrue(any(e["type"] == "done" for e in out))
         self.assertEqual("".join(t["content"] for t in token_events), "Hello world")
         self.assertEqual(runner.assembled, "Hello world")
         self.assertEqual(runner.model_used, "z-ai/glm-5.1")

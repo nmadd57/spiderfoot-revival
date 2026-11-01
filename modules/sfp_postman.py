@@ -126,7 +126,6 @@ class sfp_postman(SpiderFootPlugin):
             return None
 
     def handleEvent(self, event):
-        eventName = event.eventType
         eventData = event.data
 
         if self.errorState:

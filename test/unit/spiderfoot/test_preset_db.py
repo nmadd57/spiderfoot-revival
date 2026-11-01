@@ -116,9 +116,9 @@ class TestPresetCRUD(unittest.TestCase):
 
     def test_presetList_returns_all_sorted_by_sort_order_then_name(self):
         now = int(time.time() * 1000)
-        self.db.presetCreate('builtin:b', 'Bravo',   None, 'builtin', 20, [], now)
-        self.db.presetCreate('builtin:a', 'Alpha',   None, 'builtin', 10, [], now)
-        self.db.presetCreate('user:z',    'Zulu',    None, 'user',     0, [], now)
+        self.db.presetCreate('builtin:b', 'Bravo', None, 'builtin', 20, [], now)
+        self.db.presetCreate('builtin:a', 'Alpha', None, 'builtin', 10, [], now)
+        self.db.presetCreate('user:z', 'Zulu', None, 'user', 0, [], now)
         rows = self.db.presetList()
         names = [r['name'] for r in rows]
         # sort_order ascending, then name ascending; user:z has sort_order=0 (default)
@@ -152,7 +152,6 @@ class TestPresetCRUD(unittest.TestCase):
             ('user:y',),
         ).fetchone()[0]
         self.assertEqual(leftover, 0)
-
 
 
 class TestPresetDefault(unittest.TestCase):
