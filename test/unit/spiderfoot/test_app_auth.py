@@ -109,11 +109,25 @@ class TestBasicAuth:
 
 class TestPasswdFileLoading:
     def test_load_multiple_users(self, tmp_path):
-        from spiderfoot.app import _load_passwd_file
+        from spiderfoot.app import _check_password, _is_hashed, _load_passwd_file
         pf = tmp_path / "passwd"
         pf.write_text("admin:pass1\nanalyst:pass2\n")
         users = _load_passwd_file(str(pf))
-        assert users == {'admin': 'pass1', 'analyst': 'pass2'}
+        assert set(users) == {'admin', 'analyst'}
+        # Plaintext passwords are upgraded to bcrypt on load
+        assert all(_is_hashed(h) for h in users.values())
+        assert _check_password('pass1', users['admin'])
+        assert _check_password('pass2', users['analyst'])
+        assert not _check_password('pass2', users['admin'])
+        # ...and the file is rewritten with the hashes
+        assert pf.read_text() == f"admin:{users['admin']}\nanalyst:{users['analyst']}\n"
+
+    def test_load_keeps_existing_hashes(self, tmp_path):
+        from spiderfoot.app import _hash_password, _load_passwd_file
+        hashed = _hash_password('pass1')
+        pf = tmp_path / "passwd"
+        pf.write_text(f"admin:{hashed}\n")
+        assert _load_passwd_file(str(pf)) == {'admin': hashed}
 
     def test_load_empty_file_returns_empty_dict(self, tmp_path):
         from spiderfoot.app import _load_passwd_file
@@ -123,11 +137,14 @@ class TestPasswdFileLoading:
         assert users == {}
 
     def test_load_skips_blank_lines_and_comments(self, tmp_path):
-        from spiderfoot.app import _load_passwd_file
+        from spiderfoot.app import _check_password, _load_passwd_file
         pf = tmp_path / "passwd"
         pf.write_text("# comment\n\nadmin:pass1\n\n")
         users = _load_passwd_file(str(pf))
-        assert users == {'admin': 'pass1'}
+        assert list(users) == ['admin']
+        assert _check_password('pass1', users['admin'])
+        # Comments and blank lines survive the upgrade rewrite
+        assert pf.read_text().startswith("# comment\n\nadmin:$2")
 
     def test_load_nonexistent_file_returns_empty_dict(self):
         from spiderfoot.app import _load_passwd_file
