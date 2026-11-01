@@ -4,6 +4,7 @@ A module is auto-disabled (hidden from New Scan, stripped from API-started
 scans) when, in this order of precedence:
 
 * ``no API key``    - it needs an API key and none is configured;
+* ``tool not installed`` - an sfp_tool_* module whose binary cannot be found;
 * ``over limit``    - a limit the user set in Settings > API Usage is reached
                       (calls/day or total calls for the period);
 * ``quota used up`` - the vendor itself reported 0 remaining within the last day.

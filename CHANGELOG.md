@@ -10,6 +10,7 @@ All notable changes to the SpiderFoot Revival project.
 - `sfp_netlas`, `sfp_opensanctions`, `sfp_alienvault`: tolerate non-dict/list values in API replies (`TypeError`/`AttributeError` crashes).
 - `sfp_shodan`: "No information available for that IP" is a normal reply, no longer logged as an error.
 - `sfp_psbdmp`, `sfp_duckduckgo`: an empty or non-JSON reply is reported as info instead of a JSON parse error (psbdmp.cc's API now redirects to its home page).
+- `sfp_tool_*` modules (bbot, nmap, nuclei, whatweb...) whose binary is not installed are now auto-disabled with the reason "tool not installed" instead of failing with `Unable to run BBOT: No such file or directory` on every scan. They return when the tool is installed or its path option is set.
 - Removed `sfp_c2tracker`: the upstream project is archived and its data file is gone (404).
 
 ### Automatic disabling

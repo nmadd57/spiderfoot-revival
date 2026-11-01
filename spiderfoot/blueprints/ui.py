@@ -230,7 +230,11 @@ def _build_modules_data(include_disabled=False):
         url_configured = bool(str(saved_config.get(f'{mod_name}:instance_url', '')
                                   or opts.get('instance_url', '')).strip())
 
+        from spiderfoot.services import tools
+        tool_missing = mod_name.startswith('sfp_tool_') and not tools.tool_installed(mod_name, opts, saved_config)
+
         modules[mod_name] = {
+            'toolMissing': tool_missing,
             'name': meta.get('name', mod_name),
             'summary': meta.get('summary', mod_cfg.get('descr', '')),
             'category': category,
@@ -251,7 +255,8 @@ def _build_modules_data(include_disabled=False):
     from spiderfoot.services import auto_disable
     reasons = auto_disable.compute(
         sf_config.get('__database'), saved_config,
-        {n: (m['requiresKey'], m['keyConfigured']) if not m['needsUrl']
+        {n: (True, False, 'tool not installed') if m['toolMissing']
+         else (m['requiresKey'], m['keyConfigured']) if not m['needsUrl']
          else (True, m['urlConfigured'], 'no instance URL') for n, m in modules.items()})
     for n, m in modules.items():
         m['autoReason'] = reasons.get(n, '')
