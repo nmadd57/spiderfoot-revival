@@ -4,6 +4,11 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Censys and ZoomEye fixes
+
+- `sfp_censys` now uses the Censys Platform API (`api.platform.censys.io/v3`, Personal Access Token as a Bearer token, optional organization ID); the legacy Search v2 API it used was decommissioned on 2026-09-30. Options changed: `censys_api_key_uid`/`censys_api_key_secret` are replaced by `censys_api_key` (the token) and `censys_organization_id`, so the old credentials must be replaced with a token. Parsing follows the published v3 host schema and is covered by unit tests with a synthetic response, not yet by a live call.
+- `sfp_zoomeye` now uses the v2 API (`POST https://api.zoomeye.ai/v2/search`, base64 `qbase64` query) instead of the geo-blocked `api.zoomeye.org` v1 host search; queries use `ip=`, `domain=` and `hostname=`; HTTP 402 (no search credits, which the Free plan lacks) is reported clearly. API Usage can now check a ZoomEye key via `/v2/userinfo`.
+
 ### API usage tracking, limits and key testing
 
 - New Settings -> API Usage page. Every HTTP request a module makes is counted per UTC day (`tbl_module_usage`), together with errors, 429s and calls blocked by limits; any `X-RateLimit-*`/`RateLimit-*` response headers are recorded as the vendor's own remaining-quota figure.

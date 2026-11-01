@@ -10,6 +10,7 @@
 # Licence:      MIT
 # -------------------------------------------------------------------------------
 
+import base64
 import json
 import time
 
@@ -30,10 +31,11 @@ class sfp_zoomeye(SpiderFootPlugin):
             "model": "COMMERCIAL_ONLY",
             "references": [
                 "https://www.zoomeye.ai/doc",
+                "https://api.zoomeye.ai/v2/search",
             ],
             "apiKeyInstructions": [
                 "Visit https://www.zoomeye.ai/ and sign up",
-                "Purchase a Personal plan ($19/mo minimum) for API access",
+                "Search needs a plan with search credits: the Free plan returns HTTP 402 credits_insufficient",
                 "The API key is in your account profile",
             ],
             "favIcon": "https://www.zoomeye.ai/favicon.ico",
@@ -47,12 +49,14 @@ class sfp_zoomeye(SpiderFootPlugin):
     opts = {
         "api_key": "",
         "max_pages": 3,
+        "pagesize": 20,
         "request_delay": 1.0,
     }
 
     optdescs = {
         "api_key": "ZoomEye API key.",
         "max_pages": "Maximum number of search result pages to retrieve.",
+        "pagesize": "Results per page (the plan's credits are charged per result).",
         "request_delay": "Delay between API requests in seconds.",
     }
 
@@ -78,26 +82,46 @@ class sfp_zoomeye(SpiderFootPlugin):
             "RAW_RIR_DATA",
         ]
 
-    def queryHost(self, query, page=1):
-        """Query ZoomEye host search."""
-        url = f"https://api.zoomeye.org/host/search?query={query}&page={page}"
+    API = "https://api.zoomeye.ai/v2/search"
 
-        headers = {"API-KEY": self.opts["api_key"]}
+    @staticmethod
+    def buildQuery(eventName, eventData):
+        """ZoomEye v2 query for an event: ip="x", domain="x" or hostname="x"."""
+        if eventName == "IP_ADDRESS":
+            return f'ip="{eventData}"'
+        if eventName == "DOMAIN_NAME":
+            return f'domain="{eventData}"'
+        return f'hostname="{eventData}"'
+
+    def queryHost(self, query, page=1):
+        """Query the ZoomEye v2 search API (POST, JSON body, base64 query)."""
+        body = json.dumps({
+            "qbase64": base64.b64encode(query.encode()).decode(),
+            "page": page,
+            "pagesize": self.opts["pagesize"],
+        })
+        headers = {"API-KEY": self.opts["api_key"], "Content-Type": "application/json"}
 
         res = self.sf.fetchUrl(
-            url,
+            self.API,
             timeout=self.opts["_fetchtimeout"],
             useragent=self.opts.get("_useragent", "SpiderFoot"),
             headers=headers,
+            postData=body,
         )
 
         time.sleep(self.opts["request_delay"])
 
-        if not res or not res.get("content"):
+        if not res or not res.get("code"):
+            return None
+
+        if res["code"] == "402":
+            self.error("ZoomEye: this plan has no search credits left (HTTP 402 credits_insufficient).")
+            self.errorState = True
             return None
 
         if res["code"] in ["401", "403"]:
-            self.error("ZoomEye API key is invalid or quota exhausted.")
+            self.error("ZoomEye API key is invalid, or the request was blocked.")
             self.errorState = True
             return None
 
@@ -106,15 +130,31 @@ class sfp_zoomeye(SpiderFootPlugin):
             self.errorState = True
             return None
 
-        if res["code"] != "200":
+        if res["code"] != "200" or not res.get("content"):
             self.debug(f"Unexpected response code {res['code']} from ZoomEye")
             return None
 
         try:
-            return json.loads(res["content"])
+            data = json.loads(res["content"])
         except (ValueError, TypeError) as e:
             self.error(f"Error parsing ZoomEye response: {e}")
             return None
+
+        # v2 reports failures in the body: {"code": 50000, "error": "...", "message": "..."}
+        if data.get("code") not in (None, 60000) and not data.get("data"):
+            self.debug(f"ZoomEye returned code {data.get('code')}: {data.get('message')}")
+            return None
+
+        return data
+
+    @staticmethod
+    def _text(value):
+        """Flatten a v2 field that may be a string, list or {'name': ...} object."""
+        if isinstance(value, dict):
+            value = value.get("name") or value.get("value")
+        if isinstance(value, list):
+            value = ", ".join(str(v) for v in value if v)
+        return str(value).strip() if value else ""
 
     def handleEvent(self, event):
         eventName = event.eventType
@@ -134,20 +174,17 @@ class sfp_zoomeye(SpiderFootPlugin):
 
         self.results[eventData] = True
 
-        if eventName == "IP_ADDRESS":
-            query = f"ip:{eventData}"
-        else:
-            query = f"hostname:{eventData}"
+        query = self.buildQuery(eventName, eventData)
 
         for page in range(1, self.opts["max_pages"] + 1):
-            if self.checkForStop():
+            if self.checkForStop() or self.errorState:
                 return
 
             data = self.queryHost(query, page)
             if not data:
                 break
 
-            matches = data.get("matches", [])
+            matches = data.get("data") or []
             if not matches:
                 break
 
@@ -155,9 +192,8 @@ class sfp_zoomeye(SpiderFootPlugin):
             self.notifyListeners(e)
 
             for match in matches:
-                ip = match.get("ip", "")
-                portinfo = match.get("portinfo", {})
-                port = portinfo.get("port", "")
+                ip = self._text(match.get("ip"))
+                port = self._text(match.get("port"))
 
                 if ip and port:
                     port_str = f"{ip}:{port}"
@@ -166,8 +202,9 @@ class sfp_zoomeye(SpiderFootPlugin):
                         e = SpiderFootEvent("TCP_PORT_OPEN", port_str, self.__name__, event)
                         self.notifyListeners(e)
 
-                hostname = portinfo.get("hostname", "")
-                if hostname and hostname not in self.results:
+                for hostname in {self._text(match.get("hostname")), self._text(match.get("domain"))}:
+                    if not hostname or hostname in self.results:
+                        continue
                     self.results[hostname] = True
                     if self.getTarget().matches(hostname):
                         e = SpiderFootEvent("INTERNET_NAME", hostname, self.__name__, event)
@@ -175,15 +212,18 @@ class sfp_zoomeye(SpiderFootPlugin):
                         e = SpiderFootEvent("INTERNET_NAME_UNRESOLVED", hostname, self.__name__, event)
                     self.notifyListeners(e)
 
-                os_name = portinfo.get("os", "")
+                os_name = self._text(match.get("os"))
                 if os_name:
                     e = SpiderFootEvent("OPERATING_SYSTEM", os_name, self.__name__, event)
                     self.notifyListeners(e)
 
-                banner = portinfo.get("banner", "")
+                banner = self._text(match.get("banner"))
                 if banner and len(banner) < 500:
                     e = SpiderFootEvent("WEBSERVER_BANNER", banner, self.__name__, event)
                     self.notifyListeners(e)
+
+            if len(matches) < int(self.opts["pagesize"]):
+                break
 
 
 # End of sfp_zoomeye class

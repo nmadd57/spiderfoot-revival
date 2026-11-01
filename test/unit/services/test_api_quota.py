@@ -133,3 +133,13 @@ class TestCheck(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestZoomeyeParse(unittest.TestCase):
+    def test_userinfo(self):
+        r = q._parse_zoomeye({"code": 60000, "data": {"subscription": {"plan": "Free", "points": 3000, "end_date": None}}})
+        self.assertTrue(r['ok'] and r['valid'])
+        self.assertEqual((r['plan'], r['remaining'], r['unit']), ("Free", 3000, "points"))
+
+    def test_error_body(self):
+        self.assertFalse(q._parse_zoomeye({"code": 50000, "message": "login required"})['ok'])

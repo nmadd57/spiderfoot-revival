@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------------
 # Name:        sfp_censys
-# Purpose:     Query Censys.io API
+# Purpose:     Query the Censys Platform API (v3). The legacy Search v2 API was
+#              decommissioned on 2026-09-30.
 #
 # Author:      Steve Micallef
 #
@@ -10,13 +11,10 @@
 # Licence:     MIT
 # -------------------------------------------------------------------------------
 
-import base64
 import json
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 from netaddr import IPNetwork
 
@@ -33,19 +31,18 @@ class sfp_censys(SpiderFootPlugin):
         'useCases': ["Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
-            'website': "https://censys.io/",
+            'website': "https://platform.censys.io/",
             'model': "FREE_AUTH_LIMITED",
             'references': [
-                "https://search.censys.io/api",
-                "https://search.censys.io/search/language",
-                "https://github.com/censys/censys-postman/blob/main/Censys_Search.postman_collection.json",
+                "https://docs.censys.com/reference/get-started",
+                "https://docs.censys.com/reference/v3-globaldata-asset-host",
+                "https://docs.censys.com/docs/platform-api-transition-guide",
             ],
             'apiKeyInstructions': [
-                "Visit https://censys.io/",
-                "Register a free account",
-                "Navigate to https://censys.io/account",
-                "Click on 'API'",
-                "The API key combination is listed under 'API ID' and 'Secret'"
+                "Visit https://platform.censys.io/ and register a free account",
+                "Open Account Management > Personal Access Tokens",
+                "Create a token and copy it into the API key field",
+                "Optionally set your Organization ID (needed to use an organization's credits instead of the free allowance)"
             ],
             'favIcon': "https://censys.io/assets/favicon.png",
             'logo': "https://censys.io/assets/logo.png",
@@ -57,8 +54,8 @@ class sfp_censys(SpiderFootPlugin):
     }
 
     opts = {
-        "censys_api_key_uid": "",
-        "censys_api_key_secret": "",
+        "censys_api_key": "",
+        "censys_organization_id": "",
         'delay': 3,
         'netblocklookup': True,
         'maxnetblock': 24,
@@ -67,8 +64,8 @@ class sfp_censys(SpiderFootPlugin):
     }
 
     optdescs = {
-        "censys_api_key_uid": "Censys.io API UID.",
-        "censys_api_key_secret": "Censys.io API Secret.",
+        "censys_api_key": "Censys Platform Personal Access Token.",
+        "censys_organization_id": "Optional Censys organization ID (UUID) to bill requests to. Leave empty to use the free allowance.",
         'delay': 'Delay between requests, in seconds.',
         'netblocklookup': "Look up all IPs on netblocks deemed to be owned by your target for possible blacklisted hosts on the same target subdomain/domain?",
         'maxnetblock': "If looking up owned netblocks, the maximum netblock size to look up all IPs within (CIDR value, 24 = /24, 16 = /16, etc.)",
@@ -109,48 +106,41 @@ class sfp_censys(SpiderFootPlugin):
         ]
 
     def queryHosts(self, qry):
-        secret = self.opts['censys_api_key_uid'] + ':' + self.opts['censys_api_key_secret']
-        auth = base64.b64encode(secret.encode('utf-8')).decode('utf-8')
-
         headers = {
-            'Authorization': f"Basic {auth}"
+            'Authorization': f"Bearer {self.opts['censys_api_key']}",
+            'Accept': "application/vnd.censys.api.v3.host.v1+json",
         }
+        if self.opts.get('censys_organization_id'):
+            headers['X-Organization-ID'] = self.opts['censys_organization_id']
 
         res = self.sf.fetchUrl(
-            f"https://search.censys.io/api/v2/hosts/{qry}",
+            f"https://api.platform.censys.io/v3/global/asset/host/{urllib.parse.quote(qry, safe=':')}",
             timeout=self.opts['_fetchtimeout'],
             useragent="SpiderFoot",
             headers=headers
         )
 
-        # API rate limit: 0.4 actions/second (120.0 per 5 minute interval)
         time.sleep(self.opts['delay'])
 
         return self.parseApiResponse(res)
 
-    def queryHostsSearch(self, qry):
-        secret = self.opts['censys_api_key_uid'] + ':' + self.opts['censys_api_key_secret']
-        auth = base64.b64encode(secret.encode('utf-8')).decode('utf-8')
+    @staticmethod
+    def parseTime(value: str) -> int:
+        """RFC 3339 timestamp (e.g. 2026-10-01T12:00:00Z) to a unix timestamp."""
+        return int(datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone(timezone.utc).timestamp())
 
-        headers = {
-            'Authorization': f"Basic {auth}"
-        }
-
-        params = urllib.parse.urlencode({
-            'q': qry,
-        })
-
-        res = self.sf.fetchUrl(
-            f"https://search.censys.io/api/v2/hosts/search/?{params}",
-            timeout=self.opts['_fetchtimeout'],
-            useragent="SpiderFoot",
-            headers=headers
-        )
-
-        # API rate limit: 0.4 actions/second (120.0 per 5 minute interval)
-        time.sleep(self.opts['delay'])
-
-        return self.parseApiResponse(res)
+    @staticmethod
+    def flattenHeaders(headers) -> dict:
+        """Platform headers are {name: {"headers": [values]}}; return {name: "value"}."""
+        out = {}
+        for name, val in (headers or {}).items():
+            if isinstance(val, dict):
+                val = val.get('headers', val.get('value'))
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val)
+            if val not in (None, ''):
+                out[name] = str(val)
+        return out
 
     def parseApiResponse(self, res: dict):
         if not res:
@@ -165,8 +155,13 @@ class sfp_censys(SpiderFootPlugin):
             self.info('Censys.io returned no results')
             return None
 
-        if res['code'] == "403":
-            self.error("Invalid API key.")
+        if res['code'] in ("401", "403"):
+            self.error("Censys rejected the request: invalid Personal Access Token, or no permission/credits for this data.")
+            self.errorState = True
+            return None
+
+        if res['code'] == "402":
+            self.error("Censys: out of credits.")
             self.errorState = True
             return None
 
@@ -191,9 +186,7 @@ class sfp_censys(SpiderFootPlugin):
             self.error(f"Error processing JSON response from Censys.io: {e}")
             return None
 
-        error_type = data.get('error_type')
-        if error_type:
-            self.error(f"Censys returned an unexpected error: {error_type}")
+        if not isinstance(data, dict):
             return None
 
         return data
@@ -206,8 +199,8 @@ class sfp_censys(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {event.module}")
 
-        if self.opts['censys_api_key_uid'] == "" or self.opts['censys_api_key_secret'] == "":
-            self.error(f"You enabled {self.__class__.__name__} but did not set an API uid/secret!")
+        if self.opts['censys_api_key'] == "":
+            self.error(f"You enabled {self.__class__.__name__} but did not set a Personal Access Token!")
             self.errorState = True
             return
 
@@ -249,7 +242,7 @@ class sfp_censys(SpiderFootPlugin):
             if not data:
                 continue
 
-            rec = data.get("result")
+            rec = (data.get("result") or {}).get("resource")
 
             if not rec:
                 self.info(f"Censys.io returned no results for {addr}")
@@ -271,16 +264,16 @@ class sfp_censys(SpiderFootPlugin):
             self.notifyListeners(e)
 
             try:
-                # Date format: 2021-09-22T16:46:47.623Z
-                created_dt = datetime.strptime(rec.get('last_updated_at', "1970-01-01T00:00:00.000Z"), '%Y-%m-%dT%H:%M:%S.%fZ')
-                created_ts = int(time.mktime(created_dt.timetuple()))
-                age_limit_ts = int(time.time()) - (86400 * self.opts['age_limit_days'])
-
-                if self.opts['age_limit_days'] > 0 and created_ts < age_limit_ts:
-                    self.debug(f"Record found but too old ({created_dt}), skipping.")
-                    continue
+                # Hosts have no single timestamp; use the newest service scan_time (RFC 3339).
+                scans = [x.get('scan_time') for x in (rec.get('services') or []) if x.get('scan_time')]
+                if scans and self.opts['age_limit_days'] > 0:
+                    newest = max(self.parseTime(t) for t in scans)
+                    age_limit_ts = int(time.time()) - (86400 * self.opts['age_limit_days'])
+                    if newest < age_limit_ts:
+                        self.debug(f"Record found but too old ({newest}), skipping.")
+                        continue
             except Exception as e:
-                self.error(f"Error encountered processing last_updated_at record for {addr}: {e}")
+                self.error(f"Error encountered processing scan_time records for {addr}: {e}")
 
             try:
                 location = rec.get('location')
@@ -311,7 +304,7 @@ class sfp_censys(SpiderFootPlugin):
                         port = service.get('port')
 
                         if port:
-                            transport_protocol = service.get('transport_protocol')
+                            transport_protocol = str(service.get('transport_protocol') or '').upper()
                             banner = service.get('banner')
 
                             if transport_protocol == "UDP":
@@ -339,20 +332,17 @@ class sfp_censys(SpiderFootPlugin):
                                 if s:
                                     softwares.append(s)
 
-                        http = service.get('http')
-                        if http:
-                            response = http.get('response')
-                            if response:
-                                headers = response.get('headers')
-                                if headers:
-                                    e = SpiderFootEvent(
-                                        "WEBSERVER_HTTPHEADERS",
-                                        json.dumps(headers, ensure_ascii=False),
-                                        self.__name__,
-                                        pevent
-                                    )
-                                    e.actualSource = addr
-                                    self.notifyListeners(e)
+                        for endpoint in service.get('endpoints') or []:
+                            headers = self.flattenHeaders(((endpoint or {}).get('http') or {}).get('headers'))
+                            if headers:
+                                e = SpiderFootEvent(
+                                    "WEBSERVER_HTTPHEADERS",
+                                    json.dumps(headers, ensure_ascii=False),
+                                    self.__name__,
+                                    pevent
+                                )
+                                e.actualSource = addr
+                                self.notifyListeners(e)
 
                     for software in set(softwares):
                         evt = SpiderFootEvent("SOFTWARE_USED", software, self.__name__, pevent)

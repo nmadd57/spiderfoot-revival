@@ -136,6 +136,16 @@ def _parse_abuseipdb(headers: Dict[str, str]) -> dict:
                    unit='requests/day', resets=resets)
 
 
+def _parse_zoomeye(j: dict) -> dict:
+    sub = (j.get('data') or {}).get('subscription') or {}
+    if j.get('code') not in (None, 60000):
+        return _result(False, None, 'ZoomEye: ' + (_str(j.get('message')) or 'request failed'))
+    plan = _str(sub.get('plan'))
+    return _result(True, True, 'ZoomEye key accepted. Searching also needs search credits, which the Free plan lacks',
+                   remaining=_int(sub.get('points')), unit='points',
+                   resets=_str(sub.get('end_date')), plan=plan)
+
+
 def _parse_greynoise(j: dict) -> dict:
     return _result(True, True, 'GreyNoise key accepted (no usage counters exposed)',
                    unit='requests', resets=_str(j.get('expiration')),
@@ -161,6 +171,11 @@ def _parse_alienvault(j: dict) -> dict:
 
 def _http(url: str, headers: Optional[Dict[str, str]] = None) -> requests.Response:
     return requests.get(url, headers=headers or {}, timeout=TIMEOUT)
+
+
+def _fetch_zoomeye(v):
+    return requests.post('https://api.zoomeye.ai/v2/userinfo', headers={'API-KEY': v['api_key']},
+                         json={}, timeout=TIMEOUT)
 
 
 def _fetch_shodan(v):
@@ -249,6 +264,7 @@ PROVIDERS: Dict[str, Provider] = {
     'sfp_abuseipdb': Provider(['api_key'], _runner(_fetch_abuseipdb, _parse_abuseipdb, True)),
     'sfp_greynoise': Provider(['api_key'], _runner(_fetch_greynoise, _parse_greynoise)),
     'sfp_ipinfo': Provider(['api_key'], _runner(_fetch_ipinfo, _parse_ipinfo)),
+    'sfp_zoomeye': Provider(['api_key'], _runner(_fetch_zoomeye, _parse_zoomeye)),
     'sfp_alienvault': Provider(['api_key'], _runner(_fetch_alienvault, _parse_alienvault)),
 }
 
