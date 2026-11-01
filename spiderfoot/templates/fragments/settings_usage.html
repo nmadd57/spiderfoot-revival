@@ -10,7 +10,12 @@
         and <em>Test key</em> to try a new key before saving it.
       </p>
     </div>
-    <button type="button" @click="load()" class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent whitespace-nowrap">Refresh</button>
+    <div class="flex gap-2 shrink-0">
+      <button type="button" @click="checkAll()" :disabled="busy" title="Ask every vendor with a configured key for its remaining quota (AbuseIPDB's check uses one request)"
+              class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent whitespace-nowrap disabled:opacity-50"
+              x-text="checking ? 'Checking quotas…' : 'Check all quotas'"></button>
+      <button type="button" @click="load()" class="text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:border-sf-accent whitespace-nowrap">Refresh</button>
+    </div>
   </div>
 
   <input type="search" x-model="q" placeholder="Search modules…"
@@ -49,8 +54,15 @@
           </div>
           <div class="text-right text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono">
             <div><span x-text="m.calls_today"></span><span x-show="m.limits.per_day" x-text="' / ' + m.limits.per_day"></span> today</div>
-            <div x-show="m.vendor_rate && m.vendor_rate.remaining !== null" class="text-[11px]"
+            <div x-show="m.quota && m.quota.ok" class="text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
+                 x-text="m.quota && m.quota.ok ? ('quota: ' + quotaShort(m.quota)) : ''"></div>
+            <div x-show="m.quota && m.quota.valid === false" class="text-[11px] text-red-500">key rejected</div>
+            <div x-show="(!m.quota || (!m.quota.ok && m.quota.valid !== false)) && m.vendor_rate && m.vendor_rate.remaining !== null" class="text-[11px]"
                  x-text="'vendor: ' + (m.vendor_rate && m.vendor_rate.remaining) + ' left'"></div>
+            <div class="mt-0.5 h-1 w-28 ml-auto rounded bg-slate-500/20 overflow-hidden" x-show="m.quota && m.quota.ok && m.quota.limit && m.quota.used !== null">
+              <div class="h-full" :class="quotaLow(m) ? 'bg-amber-500' : 'bg-sf-success'"
+                   :style="'width:' + Math.min(100, Math.round(100 * (m.quota ? m.quota.used : 0) / (m.quota && m.quota.limit || 1))) + '%'"></div>
+            </div>
           </div>
         </div>
 
@@ -137,12 +149,12 @@
 function usagePanel() {
   const headers = () => ({ 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' });
   return {
-    all: [], q: '', filter: '', open: '', loading: true, err: '', busy: false,
+    all: [], q: '', filter: '', open: '', loading: true, err: '', busy: false, checking: false,
     form: {}, keys: {}, result: null,
     filterDefs: [
       { id: 'key', label: 'Has key' }, { id: 'nokey', label: 'Needs key (missing)' },
       { id: 'used', label: 'Used' }, { id: 'limits', label: 'Limits set' }, { id: 'over', label: 'Limit reached' },
-      { id: 'checkable', label: 'Quota checkable' },
+      { id: 'checkable', label: 'Quota checkable' }, { id: 'quota', label: 'Quota known' },
     ],
     async load() {
       this.loading = true; this.err = '';
@@ -151,6 +163,38 @@ function usagePanel() {
         this.all = d.modules.sort((a, b) => a.name.localeCompare(b.name));
       } catch (e) { this.err = 'Could not load usage: ' + (e.message || e); }
       this.loading = false;
+      this.refreshStale();
+    },
+    // Re-read vendor quotas older than an hour (never the ones that cost a request).
+    async refreshStale() {
+      const cutoff = Date.now() / 1000 - 3600;
+      const todo = this.all.filter(m => m.provider_opts && m.keyConfigured && m.auto_check && (!m.quota || m.quota.at < cutoff));
+      await this.checkMany(todo);
+    },
+    async checkAll() {
+      await this.checkMany(this.all.filter(m => m.provider_opts && m.keyConfigured));
+    },
+    async checkMany(list) {
+      if (this.checking || !list.length) return;
+      this.checking = true;
+      for (const m of list) {
+        try {
+          const r = await this.post('/api/usage/check', { module: m.id, values: {} });
+          m.quota = Object.assign({}, r, { at: Math.floor(Date.now() / 1000) });
+        } catch (e) { /* leave the old value */ }
+      }
+      this.checking = false;
+    },
+    quotaShort(r) {
+      const unit = (r.unit || '').replace('requests', 'req');
+      if (r.remaining !== null && r.remaining !== undefined && r.limit) return r.remaining + ' / ' + r.limit + ' ' + unit + ' left';
+      if (r.remaining !== null && r.remaining !== undefined) return r.remaining + ' ' + unit + ' left';
+      if (r.limit) return r.limit + ' ' + unit;
+      return r.plan ? 'plan ' + r.plan : 'key valid';
+    },
+    quotaLow(m) {
+      const r = m.quota;
+      return !!(r && r.limit && r.remaining !== null && r.remaining !== undefined && r.remaining / r.limit < 0.1);
     },
     test(m, f) {
       switch (f) {
@@ -160,6 +204,7 @@ function usagePanel() {
         case 'limits': return m.has_limits;
         case 'over': return this.overLimit(m);
         case 'checkable': return !!m.provider_opts;
+        case 'quota': return !!(m.quota && m.quota.ok);
       }
       return true;
     },
@@ -228,8 +273,10 @@ function usagePanel() {
                     reset_every: l.reset_every || 'none', enforce: l.enforce !== false }; } },
     async check(m, save) {
       this.busy = true; this.result = null; this.err = '';
+      const fresh = this.hasNewKey();
       try {
         this.result = await this.post('/api/usage/check', { module: m.id, values: this.keys, save });
+        if (!fresh) m.quota = Object.assign({}, this.result, { at: Math.floor(Date.now() / 1000) });
         if (this.result.saved) { this.keys = {}; await this.reload(m.id); }
       } catch (e) { this.err = 'Check failed: ' + e.message; }
       this.busy = false;

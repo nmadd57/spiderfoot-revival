@@ -627,6 +627,26 @@ def _provider_info():
         return {}
 
 
+QUOTA_CACHE_KEY = '_module_quota_cache'
+QUOTA_FIELDS = ('ok', 'valid', 'message', 'used', 'limit', 'remaining', 'unit', 'resets', 'plan')
+
+
+def _quota_cache():
+    try:
+        data = json.loads(get_db().configGet().get(QUOTA_CACHE_KEY) or '{}')
+    except (ValueError, TypeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _remember_quota(module, result):
+    """Keep the last vendor quota result so the usage list can show it without re-querying."""
+    cache = _quota_cache()
+    cache[module] = {k: result.get(k) for k in QUOTA_FIELDS}
+    cache[module]['at'] = int(time.time())
+    get_db().configSet({QUOTA_CACHE_KEY: json.dumps(cache, sort_keys=True)})
+
+
 def _save_limits(limits):
     dbh = get_db()
     from spiderfoot.services import usage
@@ -649,6 +669,12 @@ def usage_list():
     finally:
         conn.close()
     providers = _provider_info()
+    quotas = _quota_cache()
+    try:
+        from spiderfoot.services import api_quota
+        costly = api_quota.COSTS_CALL
+    except Exception:
+        costly = set()
 
     out = []
     for name, m in mods.items():
@@ -674,6 +700,8 @@ def usage_list():
             'limits': lim,
             'has_limits': name in limits,
             'provider_opts': providers.get(name),
+            'auto_check': name in providers and name not in costly,
+            'quota': quotas.get(name),
         })
     return jsonify({'today': today.isoformat(), 'modules': out})
 
@@ -761,6 +789,8 @@ def usage_check():
 
     result = api_quota.check(module, values)
     result['saved'] = False
+    if not new:  # only remember results for the key that is actually in use
+        _remember_quota(module, result)
 
     if body.get('save') and new and result.get('ok') and result.get('valid'):
         try:
@@ -769,6 +799,7 @@ def usage_check():
             current_app.config['SF_CONFIG'] = new_config
             get_db().configSet(sf.configSerialize(new_config))
             result['saved'] = True
+            _remember_quota(module, result)
         except Exception as e:
             result['message'] = f"Key is valid but saving failed: {e}"
     return jsonify(result)

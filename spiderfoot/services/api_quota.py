@@ -253,6 +253,9 @@ def _runner(fetch: Callable, parse: Callable, use_headers: bool = False) -> Call
     return run
 
 
+# Checkers that spend one of the vendor's own API calls, so they are never run automatically.
+COSTS_CALL = {'sfp_abuseipdb'}
+
 PROVIDERS: Dict[str, Provider] = {
     'sfp_shodan': Provider(['api_key'], _runner(_fetch_shodan, _parse_shodan)),
     'sfp_virustotal': Provider(['api_key'], _runner(_fetch_virustotal, _parse_virustotal)),

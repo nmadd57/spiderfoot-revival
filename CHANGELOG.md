@@ -4,6 +4,11 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Quotas in the usage list; Tailwind rebuild
+
+- API Usage rows now show the vendor-reported quota (remaining/limit with a bar, or "key rejected"), cached in `_module_quota_cache`. Quotas older than an hour are refreshed automatically when the page opens (never AbuseIPDB's, whose check costs a request), and there is a "Check all quotas" button and a "Quota known" filter.
+- Rebuilt `static/css/tailwind.css` with the repo's `tailwind.config.js`: the price badges (blue/green/red) and the new settings pages use classes that the committed stylesheet did not contain, so they rendered unstyled. The rebuild drops no existing classes.
+
 ### Censys and ZoomEye fixes
 
 - `sfp_censys` now uses the Censys Platform API (`api.platform.censys.io/v3`, Personal Access Token as a Bearer token, optional organization ID); the legacy Search v2 API it used was decommissioned on 2026-09-30. Options changed: `censys_api_key_uid`/`censys_api_key_secret` are replaced by `censys_api_key` (the token) and `censys_organization_id`, so the old credentials must be replaced with a token. Parsing follows the published v3 host schema and is covered by unit tests with a synthetic response, not yet by a live call.
