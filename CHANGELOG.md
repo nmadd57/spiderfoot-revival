@@ -4,6 +4,15 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### New modules
+
+- `sfp_rapiddns` (free): subdomains from RapidDNS, replacing DNSDB/DNSGrep (Anubis was evaluated but sits behind a Cloudflare challenge).
+- `sfp_firehol` (free): FireHOL Level 1 IP/netblock blocklist.
+- `sfp_spamhaus_drop` (free): Spamhaus DROP hijacked-netblock list (distinct from the existing DNSBL module).
+- `sfp_whoisds` (free): lookalike detection against the WhoisDS newly-registered-domain daily feed.
+- `sfp_chainabuse` (free tier, API key): Chainabuse scam reports for Bitcoin/Ethereum addresses, replacing bitcoinwhoswho. Not tested against the live API (needs a key).
+- `sfp_crt_org` (free): crt.sh search by certificate Organization, finding domains a company owns from `COMPANY_NAME`.
+
 ### Module cleanup and enable/disable
 
 - Removed dead modules: DNSDB, SpyOnWeb, Zonefiles.io, Abusix, ThreatJammer, BinaryEdge, EmailCrawlr (and their tests, presets and references).
