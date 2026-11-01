@@ -9,6 +9,7 @@
 import csv
 import html
 import json
+import threading
 import logging
 import multiprocessing as mp
 import re
@@ -748,6 +749,61 @@ def module_settings_data():
     """All modules with options (secrets masked), status and key problems, for Settings -> Modules."""
     from spiderfoot.blueprints.ui import _build_module_settings
     return jsonify(_build_module_settings())
+
+
+@api_bp.route('/ai/test', methods=['POST'])
+def ai_test():
+    """Test the AI endpoint with the values on the form: list models and send a tiny chat request.
+
+    JSON body: {"base_url": "", "key": "", "model": ""}. A masked/empty key falls back to the saved one.
+    """
+    from spiderfoot.services import ai_service
+
+    body = request.get_json(silent=True) or {}
+    cfg = get_config()
+    key = str(body.get('key') or '').strip()
+    if not key or key == '********':
+        key = cfg.get('_ai_openrouter_key', '') or ''
+    base = str(body.get('base_url') if body.get('base_url') is not None else cfg.get('_ai_base_url', '') or '').strip()
+    if base and not re.match(r'^https?://', base, re.I):
+        return jsonify({"ok": False, "message": "The base URL must start with http:// or https://", "models": [], "modelCount": 0, "chat": None})
+    return jsonify(ai_service.test_connection(base, key, str(body.get('model') or '')))
+
+
+_test_locks = {}
+_test_sem = threading.BoundedSemaphore(3)
+
+
+@api_bp.route('/moduletest', methods=['POST'])
+def module_test():
+    """Run one module against a sample (or the given target) and report what happened.
+
+    JSON body: {"module": "sfp_x", "target": "optional"}
+    """
+    from sflib import SpiderFoot
+    from spiderfoot.services import module_test as mt
+
+    body = request.get_json(silent=True) or {}
+    name = str(body.get('module', ''))
+    target = clean_user_input([str(body.get('target', '') or '')])[0].strip() or None
+    config = get_config()
+    if name not in (config.get('__modules__') or {}):
+        return jsonify(["ERROR", "Unknown module"]), 404
+    lock = _test_locks.setdefault(name, threading.Lock())
+    if not lock.acquire(blocking=False):
+        return jsonify(["ERROR", "A test of this module is already running"]), 409
+    if not _test_sem.acquire(blocking=False):
+        lock.release()
+        return jsonify(["ERROR", "Too many module tests are running; try again in a moment"]), 429
+    try:
+        try:
+            saved = get_db().configGet()
+        except Exception:
+            saved = {}
+        return jsonify(mt.run_module(name, config, SpiderFoot, target=target, saved=saved, db=get_db()))
+    finally:
+        _test_sem.release()
+        lock.release()
 
 
 @api_bp.route('/usage/issue/clear', methods=['POST'])

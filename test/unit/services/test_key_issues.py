@@ -17,7 +17,7 @@ class TestClassify(unittest.TestCase):
 
     def test_messages(self):
         cases = {
-            'Greynoise API key seems to have been rejected or you have exceeded usage limits.': 'quota',
+            'Greynoise API key seems to have been rejected or you have exceeded usage limits.': 'rejected',
             "API error: {'code': 101, 'type': 'invalid_access_key'}": 'rejected',
             'Error querying Whoxy: Zero Account Balance': 'quota',
             'ZoomEye: this plan has no search credits left (HTTP 402 credits_insufficient)': 'quota',

@@ -82,6 +82,8 @@
               <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
               <span class="text-[10px] px-1.5 py-0.5 rounded border leading-none" :class="pill(status(m).k)" x-text="status(m).label"></span>
               <span x-show="m.requiresKey && m.keyConfigured && !m.keyIssue" class="text-[10px] text-sf-success">key set</span>
+              <span x-show="tests[m.id]" class="text-[10px] px-1.5 py-0.5 rounded border leading-none"
+                    :class="tests[m.id] ? testPill(tests[m.id].status) : ''" x-text="tests[m.id] ? ('test ' + testWord(tests[m.id].status)) : ''"></span>
               <span x-show="m.has_limits" class="text-[10px] text-sf-accent">limits</span>
               <span x-show="overLimit(m)" class="text-[10px] text-red-500">limit reached</span>
             </div>
@@ -95,6 +97,9 @@
             <div x-show="m.quota && m.quota.ok" class="text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
                  x-text="m.quota && m.quota.ok ? ('quota: ' + quotaShort(m.quota)) : ''"></div>
           </div>
+          <button type="button" @click="runTest(m, true)" :disabled="testing === m.id" class="btn shrink-0"
+                  :title="m.id.startsWith('sfp_tool_') ? 'Start the tool with a version flag to check it works' : 'Run this module against a sample and show what it returns'"
+                  x-text="testing === m.id ? 'Testing…' : 'Test'"></button>
           <button type="button" @click="toggle(m)" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0" :title="open === m.id ? 'Close' : 'Open'">
             <svg class="w-4 h-4 transition-transform" :class="open === m.id ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/>
@@ -172,6 +177,42 @@
 
           {# Right: status and usage #}
           <div class="min-w-0">
+            <div class="mb-3 rounded border border-slate-300 dark:border-sf-border p-2 text-xs">
+              <p class="font-semibold text-slate-600 dark:text-slate-300 mb-1">Test</p>
+              <div class="flex gap-2 items-center flex-wrap">
+                <input type="text" x-model="testTarget" :placeholder="m.id.startsWith('sfp_tool_') ? 'Tool modules only start the binary' : 'Target (optional): domain, IP, email…'"
+                       :disabled="m.id.startsWith('sfp_tool_')" class="inp flex-1 min-w-[10rem] font-mono" style="margin-top:0" @keydown.enter="runTest(m, false)">
+                <button type="button" @click="runTest(m, false)" :disabled="testing === m.id" class="btn" x-text="testing === m.id ? 'Testing…' : 'Run test'"></button>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1" x-show="!tests[m.id] && testing !== m.id">
+                Leave the target empty to use a harmless sample. A test makes real calls with your key (usually 1–3) and counts toward your limits. Nothing is saved.
+              </p>
+              <template x-if="tests[m.id]">
+                <div class="mt-2">
+                  <p class="font-semibold" :class="tests[m.id].status === 'pass' ? 'text-sf-success' : (tests[m.id].status === 'fail' ? 'text-red-400' : 'text-slate-400')"
+                     x-text="testWord(tests[m.id].status) + ': ' + tests[m.id].summary"></p>
+                  <p class="text-slate-400" x-show="tests[m.id].target" x-text="'Sample: ' + tests[m.id].eventType + ' ' + tests[m.id].target + ' · ' + tests[m.id].ms + ' ms'"></p>
+                  <template x-for="e in tests[m.id].errors" :key="e">
+                    <p class="text-red-400 break-words" x-text="'Error: ' + e"></p>
+                  </template>
+                  <template x-for="e in tests[m.id].warnings" :key="e">
+                    <p class="text-amber-500 break-words" x-text="'Warning: ' + e"></p>
+                  </template>
+                  <div x-show="tests[m.id].requests.length" class="mt-1 font-mono text-slate-400">
+                    <template x-for="(r, i) in tests[m.id].requests" :key="i">
+                      <p class="truncate" x-text="'HTTP ' + (r.code || 'no reply') + '  ' + r.host + r.path"></p>
+                    </template>
+                  </div>
+                  <div x-show="tests[m.id].events.length" class="mt-1 font-mono text-slate-500 dark:text-slate-400">
+                    <template x-for="(e, i) in tests[m.id].events" :key="i">
+                      <p class="truncate" x-text="e.type + '  ' + e.data"></p>
+                    </template>
+                    <p x-show="tests[m.id].eventCount > tests[m.id].events.length" x-text="'… and ' + (tests[m.id].eventCount - tests[m.id].events.length) + ' more'"></p>
+                  </div>
+                </div>
+              </template>
+            </div>
+
             <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Status</p>
             <div class="text-xs mb-2">
               <span class="px-1.5 py-0.5 rounded border" :class="pill(status(m).k)" x-text="status(m).label"></span>
@@ -258,7 +299,7 @@ function modulesPage(data, autoOn) {
     auto: autoOn,
     all: Object.entries(data).map(([id, m]) => ({ id, ...m })).sort(byName),
     q: '', err: '', note: '', saved: '', open: '', busy: false, checking: false,
-    form: {}, edit: {}, cleared: {}, result: null,
+    form: {}, edit: {}, cleared: {}, result: null, tests: {}, testing: '', testTarget: '',
     filters: { state: '', status: '', key: '', cost: '', kind: '' },
     filterGroups: [
       { id: 'state', label: 'State', options: [
@@ -396,6 +437,7 @@ function modulesPage(data, autoOn) {
       if (!m) return;
       if (!keep) { this.result = null; this.saved = ''; this.err = ''; }
       this.cleared = {};
+      if (!keep) this.testTarget = '';
       this.edit = Object.fromEntries((m.fields || []).map(f => [f.opt, f.value]));
       const l = m.limits || {};
       this.form = { per_second: l.per_second || '', per_day: l.per_day || '', total: l.total || '',
@@ -439,6 +481,28 @@ function modulesPage(data, autoOn) {
         this.note = 'Imported.'; await this.refresh();
       } catch (e) { this.err = 'Import failed: ' + (e.message || e); }
       input.value = '';
+    },
+
+    // ---- module test
+    testWord(s) { return s === 'pass' ? 'passed' : (s === 'fail' ? 'failed' : 'skipped'); },
+    testPill(s) {
+      return s === 'pass' ? 'bg-green-500/10 text-green-400 border-green-500/40'
+           : s === 'fail' ? 'bg-red-500/10 text-red-400 border-red-500/40' : 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+    },
+    async runTest(m, fromRow) {
+      if (this.testing) return;
+      if (fromRow && this.open !== m.id) { this.open = m.id; this.prepare(m); }
+      this.testing = m.id; this.err = '';
+      try {
+        const r = await fetch('/api/moduletest', { method: 'POST', headers: headers(),
+          body: JSON.stringify({ module: m.id, target: m.id.startsWith('sfp_tool_') ? '' : this.testTarget }) });
+        const d = await r.json();
+        if (Array.isArray(d)) throw new Error(d[1] || 'test failed');
+        this.tests[m.id] = d;
+        // a test can reveal (or clear) a key problem and updates usage counts
+        await this.refresh();
+      } catch (e) { this.err = 'Test failed: ' + (e.message || e); }
+      this.testing = '';
     },
 
     // ---- usage, limits, quota

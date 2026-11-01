@@ -81,6 +81,103 @@ OPENROUTER_MODELS = [
 ]
 
 
+def _models_url(base_url: str) -> str:
+    """The OpenAI-compatible model list for a base URL (OpenRouter when empty)."""
+    url = (base_url or "").strip().rstrip("/")
+    if not url:
+        return "https://openrouter.ai/api/v1/models"
+    for suffix in ("/chat/completions", "/completions"):
+        if url.endswith(suffix):
+            url = url[: -len(suffix)]
+    return url + "/models"
+
+
+def parse_models(payload) -> List[dict]:
+    """Model ids from an OpenAI-style ``{"data": [{"id": ...}]}`` list.
+
+    Also accepts the shapes llama.cpp/Ollama use (``{"models": [{"name"|"model"|"id": ...}]}``)
+    and a bare list. Returns ``[{"id", "label"}]`` sorted by id, without duplicates.
+    """
+    items = []
+    if isinstance(payload, dict):
+        items = payload.get("data") or payload.get("models") or []
+    elif isinstance(payload, list):
+        items = payload
+    seen, out = set(), []
+    for it in items:
+        mid = it if isinstance(it, str) else (it.get("id") or it.get("name") or it.get("model") or "") if isinstance(it, dict) else ""
+        mid = str(mid).strip()
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        label = it.get("name") if isinstance(it, dict) and it.get("name") and it.get("name") != mid else mid
+        out.append({"id": mid, "label": str(label)})
+    return sorted(out, key=lambda m: m["id"].lower())
+
+
+def test_connection(base_url: str, api_key: str, model: str = "", timeout: int = 20) -> dict:
+    """Check an AI endpoint: list its models, then (if ``model`` is set) send a tiny chat request.
+
+    Never raises. Returns {ok, message, models, modelCount, chat}; the API key is not echoed.
+    """
+    import time as _time
+
+    custom = bool((base_url or "").strip())
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    if not custom:
+        headers["HTTP-Referer"] = ATTRIBUTION_REFERER
+        headers["X-Title"] = ATTRIBUTION_TITLE
+    where = "AI endpoint" if custom else "OpenRouter"
+    out = {"ok": False, "message": "", "models": [], "modelCount": 0, "chat": None}
+
+    t0 = _time.time()
+    try:
+        resp = requests.get(_models_url(base_url), headers=headers, timeout=timeout)
+    except requests.exceptions.RequestException as e:
+        out["message"] = f"Could not reach the {where}: {type(e).__name__}. Check the base URL."
+        return out
+    out["modelsMs"] = int((_time.time() - t0) * 1000)
+    if resp.status_code in (401, 403):
+        out["message"] = f"The {where} rejected the API key (HTTP {resp.status_code})."
+        return out
+    if resp.status_code != 200:
+        out["message"] = f"The {where} answered the model list with HTTP {resp.status_code}."
+        return out
+    try:
+        models = parse_models(resp.json())
+    except ValueError:
+        out["message"] = f"The {where} did not return a JSON model list."
+        return out
+    out["models"], out["modelCount"] = models, len(models)
+    out["ok"] = True
+    out["message"] = f"Connected to the {where}: {len(models)} model{'s' if len(models) != 1 else ''} available."
+
+    model = (model or "").strip()
+    if model:
+        known = any(m["id"] == model for m in models)
+        t1 = _time.time()
+        try:
+            chat_url = _chat_completions_url(base_url) if custom else OPENROUTER_URL
+            r = requests.post(chat_url, headers=headers, timeout=max(timeout, 40), json={
+                "model": model, "max_tokens": 8, "temperature": 0,
+                "messages": [{"role": "user", "content": "Reply with the word OK."}]})
+            ms = int((_time.time() - t1) * 1000)
+            if r.status_code == 200:
+                out["chat"] = {"ok": True, "model": model, "ms": ms, "known": known,
+                               "message": f"Model {model} answered in {ms} ms."}
+            else:
+                msg = f"Model {model} returned HTTP {r.status_code}."
+                if r.status_code in (404, 400, 422) and not known:
+                    msg += " It is not in the model list; pick one from the list."
+                out["chat"] = {"ok": False, "model": model, "ms": ms, "known": known, "message": msg}
+        except requests.exceptions.RequestException as e:
+            out["chat"] = {"ok": False, "model": model, "known": known,
+                           "message": f"The chat request failed: {type(e).__name__}."}
+    return out
+
+
 def model_choices(config) -> List[dict]:
     """Models offered in the UI pickers.
 

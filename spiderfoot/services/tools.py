@@ -4,7 +4,8 @@ import os
 import shutil
 
 _NOT_BINARY = ('template', 'python', 'node', 'ruby')
-_ALIASES = {'testsslsh': ('testssl.sh', 'testssl'), 'retirejs': ('retire',), 'dnstwist': ('dnstwist', 'dnstwist.py')}
+_ALIASES = {'testsslsh': ('testssl.sh', 'testssl'), 'retirejs': ('retire',), 'dnstwist': ('dnstwist', 'dnstwist.py'),
+            'wappalyzer': ('cli.js',)}
 
 
 def _tool_opt(opts: dict):
@@ -26,8 +27,10 @@ def tool_installed(mod_name: str, opts: dict, saved_config: dict) -> bool:
     if not opt:
         return True
     val = str(saved_config.get(f'{mod_name}:{opt}', '') or opts.get(opt, '') or '').strip()
-    if val:
-        return os.path.isdir(val) if val.endswith('/') else os.path.isfile(val)
     base = opt.lower().replace('_', '')[:-4]
     names = _ALIASES.get(base, (base, base + '.py'))
+    if val:
+        if val.endswith('/'):
+            return any(os.path.isfile(os.path.join(val, n)) for n in names)
+        return os.path.isfile(val)
     return any(shutil.which(n) for n in names)

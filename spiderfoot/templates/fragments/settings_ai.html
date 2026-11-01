@@ -89,13 +89,19 @@
       <span class="font-mono">${{ '%.4f'|format(monthly_cost) }}</span>
     </p>
 
-    <div class="flex items-center gap-3 pt-2">
+    <div class="flex items-center gap-3 pt-2 flex-wrap">
       <button type="submit"
               class="px-4 py-2 rounded bg-sf-accent text-white text-sm hover:opacity-90">
         Save
       </button>
+      <button type="button" id="ai-test-btn"
+              class="px-4 py-2 rounded border border-slate-300 dark:border-sf-border text-slate-700 dark:text-slate-200 text-sm hover:border-sf-accent disabled:opacity-50"
+              title="Uses the values above, saved or not: lists the endpoint's models and sends a tiny chat request">
+        Test connection
+      </button>
       <span id="ai-settings-msg" class="text-sm text-slate-400 dark:text-slate-500 hidden"></span>
     </div>
+    <div id="ai-test-result" class="hidden rounded border p-3 text-sm space-y-1"></div>
   </form>
 </div>
 
@@ -103,6 +109,50 @@
 (function() {
   const form = document.getElementById('ai-settings-form');
   if (!form) return;
+  const testBtn = document.getElementById('ai-test-btn');
+  const box = document.getElementById('ai-test-result');
+  const show = (ok, lines) => {
+    box.className = 'rounded border p-3 text-sm space-y-1 ' + (ok
+      ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400'
+      : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400');
+    box.innerHTML = '';
+    lines.forEach(t => { const p = document.createElement('p'); p.textContent = t; box.appendChild(p); });
+  };
+  testBtn.addEventListener('click', async () => {
+    const fd = new FormData(form);
+    testBtn.disabled = true;
+    testBtn.textContent = 'Testing…';
+    try {
+      const r = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
+        body: JSON.stringify({
+          base_url: fd.get('_ai_base_url') || '',
+          key: fd.get('_ai_openrouter_key') || '',
+          model: fd.get('_ai_default_model') || '',
+        }),
+      });
+      const d = await r.json();
+      const lines = [d.message || (d.ok ? 'Connected.' : 'Test failed.')];
+      let ok = !!d.ok;
+      if (d.chat) { lines.push(d.chat.message); if (!d.chat.ok) ok = false; }
+      if (d.ok && d.models && d.models.length) {
+        // Fill the model pickers from the endpoint's /models list
+        const list = document.getElementById('ai-model-list');
+        list.innerHTML = '';
+        d.models.forEach(m => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; list.appendChild(o); });
+        const def = form.querySelector('[name=_ai_default_model]');
+        if (def && !def.value.trim()) { def.value = d.models[0].id; lines.push('Default model was empty, so it was set to ' + d.models[0].id + '. Press Save to keep it.'); }
+        lines.push('The model fields now suggest the ' + d.models.length + ' models this endpoint serves.');
+      }
+      show(ok, lines);
+    } catch (err) {
+      show(false, ['Test failed: ' + (err.message || err)]);
+    }
+    testBtn.disabled = false;
+    testBtn.textContent = 'Test connection';
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);

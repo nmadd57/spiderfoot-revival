@@ -85,10 +85,11 @@ def classify(message=None, code=None):
     detail = re.sub(r"\s+", " ", msg).strip()[:140]
     if _RATE.search(msg):
         return 'rate', detail
-    if _QUOTA.search(msg):
-        return 'quota', detail
+    # "key rejected or you have exceeded usage limits" is ambiguous: report the key first
     if _REJECTED.search(msg):
         return 'rejected', detail
+    if _QUOTA.search(msg):
+        return 'quota', detail
     return None
 
 

@@ -19,6 +19,9 @@ class TestTools(unittest.TestCase):
 
     def test_dir_path_and_path_lookup(self):
         with tempfile.TemporaryDirectory() as d:
+            # a directory without the binary in it does not count
+            self.assertFalse(tools.tool_installed('sfp_tool_nuclei', {'nuclei_path': d + '/'}, {}))
+            open(f'{d}/nuclei', 'w').close()
             self.assertTrue(tools.tool_installed('sfp_tool_nuclei', {'nuclei_path': d + '/'}, {}))
         self.assertEqual(tools.tool_installed('sfp_tool_bbot_enum', {'bbot_path': ''}, {}), bool(shutil.which('bbot')))
 
