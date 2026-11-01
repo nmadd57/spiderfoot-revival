@@ -31,6 +31,15 @@ class TestApiCardData(unittest.TestCase):
         mods['sfp_s']['opts']['auth_header'] = ''
         self.assertTrue(self.cards(mods)['sfp_s']['configured'])  # optional fields don't count
 
+    def test_connection_opts_own_their_api_key_fields(self):
+        mods = {'sfp_s': _mod({'instance_url': 'http://s', 'embeddings_apikey': '', 'min_similarity': 0},
+                              {'connectionOpts': ['instance_url', 'embeddings_apikey', 'min_similarity']})}
+        c = self.cards(mods)['sfp_s']
+        self.assertEqual([('instance_url', 'text', True), ('embeddings_apikey', 'secret', False),
+                          ('min_similarity', 'text', False)],
+                         [(f['opt_key'], f['kind'], f['required']) for f in c['fields']])
+        self.assertTrue(c['configured'])  # an empty optional key doesn't make the card unconfigured
+
     def test_modules_without_credentials_have_no_card(self):
         self.assertEqual({}, self.cards({'sfp_none': _mod({'pages': 3})}))
 

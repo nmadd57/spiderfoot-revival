@@ -211,6 +211,18 @@ class sfp_vane(SpiderFootPlugin):
             'stream': False,
         }, timeout=max(60, int(self.opts.get('timeout') or 300)))
 
+    def isTargetHost(self, fqdn: str) -> bool:
+        """Whether a host belongs to the scan target.
+
+        SpiderFootTarget.matches() is True for anything when the target is a name
+        (person, business, username, phone), so only trust it for host-like targets.
+        """
+        target = self.getTarget()
+        host_types = ("INTERNET_NAME", "EMAILADDR", "IP_ADDRESS", "IPV6_ADDRESS", "NETBLOCK_OWNER", "NETBLOCKV6_OWNER")
+        if not fqdn or target.targetType not in host_types:
+            return False
+        return target.matches(fqdn, includeChildren=True)
+
     # ---------------------------------------------------------------- event
 
     def handleEvent(self, event):
@@ -265,8 +277,7 @@ class sfp_vane(SpiderFootPlugin):
 
         for s in sources:
             fqdn = (self.sf.urlFQDN(s['url']) or "").lower()
-            etype = "LINKED_URL_INTERNAL" if fqdn and self.getTarget().matches(fqdn, includeChildren=True) \
-                else "LINKED_URL_EXTERNAL"
+            etype = "LINKED_URL_INTERNAL" if self.isTargetHost(fqdn) else "LINKED_URL_EXTERNAL"
             if f"{etype}:{s['url']}" not in self.results:
                 self.results[f"{etype}:{s['url']}"] = True
                 self.notifyListeners(SpiderFootEvent(etype, s['url'], self.__name__, event))

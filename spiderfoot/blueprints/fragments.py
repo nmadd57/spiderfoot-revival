@@ -423,8 +423,11 @@ def _build_api_card_data(sf_config: dict, group_by: str = 'category') -> list:
         # (modules with two or more credential fields, e.g. username + key,
         # used to render as multiple cards with the same service name).
         fields = []
+        connection_opts = meta.get('connectionOpts') or []
         for opt_key, opt_val in opts.items():
             key_lower = opt_key.lower()
+            if opt_key in connection_opts:
+                continue  # rendered below, in the module's own order and required-ness
             if 'api_key' in key_lower or 'apikey' in key_lower:
                 value = str(opt_val) if opt_val is not None else ''
                 fields.append({
@@ -438,7 +441,7 @@ def _build_api_card_data(sf_config: dict, group_by: str = 'category') -> list:
 
         # Self-hosted services (SearXNG, Vane...) list the options needed to connect
         # to the user's instance in meta['connectionOpts']; instance_url is required.
-        for opt_key in meta.get('connectionOpts') or []:
+        for opt_key in connection_opts:
             if opt_key not in opts or any(f['opt_key'] == opt_key for f in fields):
                 continue
             opt_val = opts[opt_key]
@@ -446,8 +449,8 @@ def _build_api_card_data(sf_config: dict, group_by: str = 'category') -> list:
                 kind, value = 'bool', '1' if opt_val else '0'
             else:
                 value = str(opt_val) if opt_val is not None else ''
-                kind = 'secret' if any(t in opt_key.lower() for t in ('auth', 'token', 'password', 'secret')) \
-                    else 'text'
+                kind = 'secret' if any(t in opt_key.lower() for t in
+                                       ('auth', 'token', 'password', 'secret', 'apikey', 'api_key')) else 'text'
             fields.append({
                 'opt_key': opt_key,
                 'label': optdescs.get(opt_key, opt_key),

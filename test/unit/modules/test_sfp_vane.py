@@ -88,6 +88,13 @@ class TestModuleVane(unittest.TestCase):
         raw = json.loads(next(d for t, d in types if t == "RAW_RIR_DATA"))
         self.assertEqual(2, len(raw['sources']))
 
+    def test_name_target_sources_are_external(self):
+        _m, events, _c = self._run({'/api/providers': ('200', PROVIDERS), '/api/search': ('200', ANSWER)},
+                                   target="Acme Widgets Inc", ttype="COMPANY_NAME")
+        links = [(e.eventType, e.data) for e in events if e.eventType.startswith("LINKED_URL")]
+        self.assertEqual([("LINKED_URL_EXTERNAL", "https://acme.com/about"),
+                          ("LINKED_URL_EXTERNAL", "https://news.example.org/acme")], links)
+
     def test_only_scan_target_by_default(self):
         _m, events, calls = self._run({'/api/providers': ('200', PROVIDERS)}, module_name="sfp_company")
         self.assertEqual([], calls)
