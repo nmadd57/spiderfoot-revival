@@ -225,6 +225,11 @@ def _build_modules_data(include_disabled=False):
                     key_configured = True
                     break
 
+        # Self-hosted service modules (SearXNG, Vane...) need an instance URL instead of a key
+        needs_url = 'instance_url' in opts
+        url_configured = bool(str(saved_config.get(f'{mod_name}:instance_url', '')
+                                  or opts.get('instance_url', '')).strip())
+
         modules[mod_name] = {
             'name': meta.get('name', mod_name),
             'summary': meta.get('summary', mod_cfg.get('descr', '')),
@@ -233,6 +238,8 @@ def _build_modules_data(include_disabled=False):
             'enabled': enabled,
             'requiresKey': requires_key,
             'keyConfigured': key_configured,
+            'needsUrl': needs_url,
+            'urlConfigured': url_configured,
             'isLocalTool': is_local_tool,
             'pricing': meta.get('pricing', 'local'),
             'broken': bool(meta.get('broken', False)),
@@ -244,7 +251,8 @@ def _build_modules_data(include_disabled=False):
     from spiderfoot.services import auto_disable
     reasons = auto_disable.compute(
         sf_config.get('__database'), saved_config,
-        {n: (m['requiresKey'], m['keyConfigured']) for n, m in modules.items()})
+        {n: (m['requiresKey'], m['keyConfigured']) if not m['needsUrl']
+         else (True, m['urlConfigured'], 'no instance URL') for n, m in modules.items()})
     for n, m in modules.items():
         m['autoReason'] = reasons.get(n, '')
     if not include_disabled:

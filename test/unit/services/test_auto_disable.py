@@ -68,6 +68,12 @@ class TestCompute(unittest.TestCase):
         self.assertNotIn('sfp_haskey', r)
         self.assertNotIn('sfp_free', r)
 
+    def test_custom_reason_for_self_hosted_modules(self):
+        keyinfo = {'sfp_selfhosted': (True, False, 'no instance URL'), 'sfp_selfhosted_set': (True, True, 'x')}
+        r = auto_disable.compute(self.db, self.cfg, keyinfo)
+        self.assertEqual(r['sfp_selfhosted'], 'no instance URL')
+        self.assertNotIn('sfp_selfhosted_set', r)
+
     def test_can_be_switched_off(self):
         cfg = dict(self.cfg, **{auto_disable.KEY: '0'})
         self.assertEqual(auto_disable.compute(self.db, cfg, self.keyinfo), {})

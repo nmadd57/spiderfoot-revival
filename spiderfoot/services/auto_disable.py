@@ -52,7 +52,9 @@ def quota_exhausted(quota: dict, now=None) -> bool:
 def compute(db_path: str, saved_config: dict, keyinfo: dict) -> dict:
     """Return {module: reason} for every module that should be auto-disabled.
 
-    ``keyinfo`` maps module name -> (needs_key, key_configured).
+    ``keyinfo`` maps module name -> (needs_key, key_configured), optionally with a
+    third element giving the reason to report when it is not configured (default
+    'no API key'; self-hosted modules use 'no instance URL').
     """
     if not enabled(saved_config):
         return {}
@@ -73,9 +75,10 @@ def compute(db_path: str, saved_config: dict, keyinfo: dict) -> dict:
         quotas = {}
 
     out = {}
-    for name, (needs_key, configured) in keyinfo.items():
+    for name, info in keyinfo.items():
+        needs_key, configured = info[0], info[1]
         if needs_key and not configured:
-            out[name] = 'no API key'
+            out[name] = info[2] if len(info) > 2 else 'no API key'
             continue
         if name in limits:
             why = over_limit(limits[name], stored.get(name, {}), today)

@@ -5,7 +5,8 @@ import unittest
 
 VALID = {"free", "free_key", "paid", "local"}
 MODEL_TO_TAG = {
-    "FREE_NOAUTH_UNLIMITED": {"free"},
+    # Self-hosted services (SearXNG, Vane) are tagged local: no third-party account at all
+    "FREE_NOAUTH_UNLIMITED": {"free", "local"},
     "FREE_NOAUTH_LIMITED": {"free", "free_key"},
     "FREE_AUTH_UNLIMITED": {"free", "free_key"},
     "FREE_AUTH_LIMITED": {"free", "free_key"},
