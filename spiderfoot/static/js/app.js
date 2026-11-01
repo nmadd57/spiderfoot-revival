@@ -73,7 +73,20 @@ window.scanForm = (initialModules, presets) => ({
     get parsedTargets() {
       const raw = (this.target || '').trim();
       if (!raw) return [];
-      const items = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      // Split on newlines and commas, but keep "Acme Widgets, Inc." together:
+      // a piece that is only a legal-form word belongs to the previous name.
+      const items = [];
+      for (const line of raw.split('\n')) {
+        const lineItems = [];
+        for (const piece of line.split(',').map(s => s.trim()).filter(Boolean)) {
+          if (lineItems.length && this.isCompanySuffix(piece)) {
+            lineItems[lineItems.length - 1] += ', ' + piece;
+          } else {
+            lineItems.push(piece);
+          }
+        }
+        items.push(...lineItems);
+      }
       const seen = new Set();
       const results = [];
       for (const item of items) {
@@ -82,6 +95,24 @@ window.scanForm = (initialModules, presets) => ({
         results.push({ value: item, type: this.detectTargetType(item) });
       }
       return results;
+    },
+
+    // --------------------------------------------------------- business names
+    /** Legal-form words; keep in sync with SpiderFootHelpers.COMPANY_SUFFIXES/COMPANY_WORDS. */
+    companySuffixes: [
+      'inc', 'incorporated', 'llc', 'l.l.c', 'ltd', 'limited', 'corp', 'corporation',
+      'co', 'company', 'plc', 'llp', 'lllp', 'lp', 'l.p', 'pllc', 'pc', 'p.c', 'gmbh', 'ag',
+      'sa', 's.a', 'sas', 'srl', 'bv', 'nv', 'pty', 'oy', 'ab', 'kk',
+      'trust', 'foundation', 'holdings', 'group', 'partners', 'partnership', 'association',
+    ],
+
+    isCompanySuffix(word) {
+      return this.companySuffixes.includes((word || '').trim().toLowerCase().replace(/\.+$/, ''));
+    },
+
+    looksLikeCompany(value) {
+      const words = (value || '').trim().replace(/^"|"$/g, '').split(/[\s,]+/).filter(Boolean);
+      return words.length >= 2 && this.isCompanySuffix(words[words.length - 1]);
     },
 
     // --------------------------------------------------------- target detection
@@ -113,6 +144,10 @@ window.scanForm = (initialModules, presets) => ({
 
       // Domain — has at least one dot, no spaces, no @ symbol
       if (/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+$/.test(v)) return 'Domain';
+
+      // Business — explicit "business:"/"company:" prefix, or a name ending in Inc/LLC/Ltd...
+      if (/^"?\s*(business|company)\s*:\s*\S/i.test(v)) return 'Business';
+      if (this.looksLikeCompany(v) && !/[@\/]/.test(v)) return 'Business';
 
       // Fallback — treat multi-word values as a name
       if (/\s/.test(v) && !/[@\/]/.test(v)) return 'Name';

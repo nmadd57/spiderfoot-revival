@@ -33,7 +33,7 @@
         <span class="relative group inline-block ml-1 cursor-help">
           <span class="text-slate-400 dark:text-slate-500 text-xs">&#9432;</span>
           <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1.5 text-xs text-slate-200 bg-slate-800 dark:bg-slate-700 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-            Domain, IP, subnet, email, phone, username, or person name
+            Domain, IP, subnet, email, phone, username, person or business name
           </span>
         </span>
       </label>
@@ -115,11 +115,16 @@
           <span class="text-xs text-slate-400">e.g. John Doe — name-based OSINT across public records</span>
         </div>
         <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0">{{ icons.building_office(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Business</span>
+          <span class="text-xs text-slate-400">e.g. Acme Widgets LLC or business: Acme — SEC, state registries, LEI</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
           <span class="text-cyan-400/70 shrink-0">{{ icons.chart_bar(class="w-3.5 h-3.5") }}</span>
           <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">ASN</span>
           <span class="text-xs text-slate-400">e.g. AS13335 — map all prefixes and domains for an ASN</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50 col-span-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
           <span class="text-cyan-400/70 shrink-0">{{ icons.link(class="w-3.5 h-3.5") }}</span>
           <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Bitcoin</span>
           <span class="text-xs text-slate-400">e.g. 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa — blockchain address tracing</span>

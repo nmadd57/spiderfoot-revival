@@ -270,6 +270,78 @@ class SpiderFootHelpers():
         except Exception:
             return False
 
+    # Legal-form words that mark a name as a business rather than a person,
+    # e.g. "Acme Widgets, Inc.". normalizeCompanyName() ignores these.
+    COMPANY_SUFFIXES = (
+        "inc", "incorporated", "llc", "l.l.c", "ltd", "limited", "corp", "corporation",
+        "co", "company", "plc", "llp", "lllp", "lp", "l.p", "pllc", "pc", "p.c", "gmbh", "ag",
+        "sa", "s.a", "sas", "srl", "bv", "nv", "pty", "oy", "ab", "kk",
+    )
+
+    # Words that also mark a business name ("Acme Holdings") but are part of
+    # the name itself, so "Acme Holdings" and "Acme" stay different businesses.
+    COMPANY_WORDS = (
+        "trust", "foundation", "holdings", "group", "partners", "partnership", "association",
+    )
+
+    # Explicit business target prefix: "business: Acme Widgets" or "company:Acme"
+    _COMPANY_PREFIX_RX = re.compile(r"^\s*\"?\s*(?:business|company)\s*:\s*(.+?)\s*\"?\s*$", re.IGNORECASE)
+
+    @staticmethod
+    def stripTargetPrefix(target: str) -> str:
+        """Remove an explicit "business:"/"company:" prefix from a scan target.
+
+        Args:
+            target (str): scan target seed input
+
+        Returns:
+            str: the target without the prefix (unchanged if it has none)
+        """
+        if not target:
+            return target
+        m = SpiderFootHelpers._COMPANY_PREFIX_RX.match(target)
+        return m.group(1).strip().strip('"').strip() if m else target
+
+    @staticmethod
+    def looksLikeCompanyName(name: str) -> bool:
+        """Whether a name ends in a legal-form word (Inc, LLC, Ltd, GmbH...).
+
+        Args:
+            name (str): name, with or without surrounding quotes
+
+        Returns:
+            bool: name looks like a business
+        """
+        words = re.split(r"[\s,]+", (name or "").strip().strip('"').strip())
+        if len(words) < 2:
+            return False
+        last = words[-1].lower().rstrip(".")
+        return last in SpiderFootHelpers.COMPANY_SUFFIXES or last in SpiderFootHelpers.COMPANY_WORDS
+
+    @staticmethod
+    def normalizeCompanyName(name: str) -> str:
+        """Reduce a business name to a comparable core.
+
+        Upper-cases, turns "&" into "AND", drops punctuation and trailing
+        legal-form words, so "Acme Widgets, Inc." and "ACME WIDGETS INC"
+        compare equal.
+
+        Args:
+            name (str): business name
+
+        Returns:
+            str: normalized name
+        """
+        s = (name or "").upper().replace("&", " AND ")
+        s = re.sub(r"[^\w\s]", " ", s.replace(".", ""))
+        words = s.split()
+        suffixes = {x.replace(".", "").upper() for x in SpiderFootHelpers.COMPANY_SUFFIXES}
+        while len(words) > 1 and words[-1] in suffixes:
+            words.pop()
+        if words and words[0] == "THE" and len(words) > 1:
+            words.pop(0)
+        return " ".join(words)
+
     @staticmethod
     def targetTypeFromString(target: str) -> typing.Optional[str]:
         """Return the scan target seed data type for the specified scan target input.
@@ -282,6 +354,12 @@ class SpiderFootHelpers():
         """
         if not target:
             return None
+
+        # Explicit business prefix, or a quoted name ending in a legal form
+        if SpiderFootHelpers._COMPANY_PREFIX_RX.match(target):
+            return "COMPANY_NAME"
+        if re.match(r"^\".+\"$", target) and SpiderFootHelpers.looksLikeCompanyName(target):
+            return "COMPANY_NAME"
 
         # NOTE: the regex order is important
         regexToType = [

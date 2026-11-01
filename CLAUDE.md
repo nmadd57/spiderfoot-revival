@@ -26,7 +26,7 @@ spiderfoot/
   sflib.py                       # Core library facade (delegates to net/*)
   sfscan.py                      # Scan engine and module orchestration
   sfcli.py                       # CLI client
-  modules/                       # 244 OSINT modules (sfp_*.py)
+  modules/                       # 247 OSINT modules (sfp_*.py)
   tailwind.config.js             # Tailwind PostCSS build config + safelist
   spiderfoot/
     app.py                       # Flask app factory, auth (bcrypt), CSRF
@@ -115,3 +115,5 @@ spiderfoot/
 - **New event types need the `eventDetails` sync**: `db.py:eventDetails` is now imported into `tbl_event_types` on every startup (not just init), so adding a new event type to that list is enough — existing DBs get migrated. The `tbl_scan_results.type` foreign key requires the row to exist before any module can emit the type.
 - **Zombie scans on boot**: `start_web_server` calls `SpiderFootDb.scanInstanceReconcileZombies()` once at startup, rewriting any RUNNING/STARTING/ABORT-REQUESTED rows to ABORTED. Don't call it from `SpiderFootDb.__init__` — scan workers spawn their own DB handles and would mark their own just-started scan as a zombie.
 - **API keys card builder collapses by module**: `fragments.py:_build_api_card_data` returns one card per module, with a `fields` list of every credential opt (any opt name containing `api_key`/`apikey`). Modules that need username + key (Dehashed, Censys, Twilio, IBM X-Force, etc.) render as a single card with stacked labeled inputs — never one card per opt.
+- **Business targets (`COMPANY_NAME`)**: A scan target is a business when it has a `business:`/`company:` prefix or ends in a legal form (Inc, LLC, Ltd, GmbH... see `SpiderFootHelpers.COMPANY_SUFFIXES`/`COMPANY_WORDS`, mirrored in `app.js` `companySuffixes`). The prefix is stripped before the scan starts. Use `SpiderFootHelpers.normalizeCompanyName()` to compare business names: it ignores legal forms and punctuation but keeps words like Holdings/Foundation, so "Tesla, Inc." does not match "Tesla Holdings LLC". Reruns take the original type from `SpiderFootDb.scanTargetType()` because a business name without a suffix would re-detect as a person.
+- **State business registries**: `sfp_us_state_registries` only covers states that publish their registry as Socrata open data (NY, CO, CT, OR, TX). Massachusetts (`corp.sec.state.ma.us`) and most other states only have a search website, and MA's is behind Incapsula bot protection that blocks automated clients, so there is no module for them.

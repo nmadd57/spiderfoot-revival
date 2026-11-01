@@ -81,6 +81,13 @@ BUILTIN_PRESETS = [
          'sfp_github',
      ]},
 
+    {'id': 'builtin:business_osint', 'name': 'Business OSINT', 'sort_order': 95,
+     'description': 'For business targets: SEC, state registries, LEI, sanctions, certificates',
+     'modules': [
+         'sfp_sec_edgar', 'sfp_us_state_registries', 'sfp_gleif', 'sfp_opensanctions',
+         'sfp_crt_org', 'sfp_ransomlook', 'sfp_ransomwarelive',
+     ]},
+
     {'id': 'builtin:quick_recon', 'name': 'Quick recon', 'sort_order': 100,
      'description': 'Fast, no API key required — finishes in minutes',
      'modules': [

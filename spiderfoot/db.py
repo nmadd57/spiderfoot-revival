@@ -933,6 +933,30 @@ class SpiderFootDb:
             except sqlite3.Error:
                 raise IOError("Unable to set information for the scan instance.") from None
 
+    def scanTargetType(self, instanceId: str) -> typing.Optional[str]:
+        """Return the target type a scan was started with.
+
+        The scanner emits the target as the first event under ROOT, so its
+        type is the seed type. Lets reruns keep e.g. COMPANY_NAME for a
+        target that would otherwise re-detect as something else.
+
+        Args:
+            instanceId (str): scan instance ID
+
+        Returns:
+            str: event type of the scan target, or None if unknown
+        """
+        qry = "SELECT type FROM tbl_scan_results WHERE scan_instance_id = ? \
+            AND source_event_hash = 'ROOT' AND type <> 'ROOT' AND module = 'SpiderFoot UI' \
+            ORDER BY generated LIMIT 1"
+        with self.dbhLock:
+            try:
+                self.dbh.execute(qry, [instanceId])
+                row = self.dbh.fetchone()
+                return row[0] if row else None
+            except sqlite3.Error:
+                return None
+
     def scanInstanceReconcileZombies(self) -> list:
         """Mark scans whose worker process is no longer alive as ABORTED.
 

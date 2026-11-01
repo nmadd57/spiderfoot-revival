@@ -308,6 +308,8 @@ def start_scan(sfConfig: dict, sfModules: dict, args, loggingQueue) -> None:
         sys.exit(-1)
 
     target = target.strip('"')
+    if targetType == "COMPANY_NAME":
+        target = SpiderFootHelpers.stripTargetPrefix(target)
 
     modlist = list()
     if not args.t and not args.m and not args.u:
