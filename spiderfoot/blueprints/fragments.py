@@ -512,7 +512,9 @@ def settings_section():
     elif section == 'modules':
         from spiderfoot.blueprints.ui import _build_modules_data
         mods, _cats = _build_modules_data(include_disabled=True)
-        return render_template('fragments/settings_modules.html', modules=mods)
+        from spiderfoot.services import auto_disable
+        return render_template('fragments/settings_modules.html', modules=mods,
+                               auto_disable=auto_disable.enabled(config))
 
     elif section == 'usage':
         return render_template('fragments/settings_usage.html')

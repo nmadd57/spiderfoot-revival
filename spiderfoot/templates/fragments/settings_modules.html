@@ -1,5 +1,5 @@
 {# Settings > Modules: globally enable/disable modules, with filters. #}
-<div x-data='moduleSettings({{ modules | tojson }})'>
+<div x-data='moduleSettings({{ modules | tojson }}, {{ 'true' if auto_disable else 'false' }})'>
 
   <div class="flex items-start justify-between mb-4 gap-4">
     <div>
@@ -11,6 +11,12 @@
     <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap pt-1"
           x-text="enabledCount() + ' of ' + all.length + ' enabled'"></span>
   </div>
+
+  <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3 cursor-pointer">
+    <input type="checkbox" :checked="auto" @change="setAuto($event.target.checked)" class="rounded border-slate-300 dark:border-sf-border">
+    Automatically disable modules that need an API key but have none, or that are over their quota/limit
+    <span class="text-slate-400">(they come back by themselves once a key is added or the quota resets)</span>
+  </label>
 
   <input type="search" x-model="q" placeholder="Search modules…"
          class="w-full mb-3 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-surface
@@ -53,7 +59,7 @@
 
   <div class="divide-y divide-slate-200 dark:divide-sf-border border border-slate-200 dark:border-sf-border rounded-lg">
     <template x-for="m in shown()" :key="m.id">
-      <div class="flex items-center gap-3 px-3 py-2" :class="m.disabled ? 'opacity-60' : ''">
+      <div class="flex items-center gap-3 px-3 py-2" :class="(m.disabled || (m.autoReason && auto)) ? 'opacity-60' : ''">
         <button type="button" role="switch" :aria-checked="!m.disabled" @click="setMany([m], m.disabled)"
                 :class="m.disabled ? 'bg-slate-300 dark:bg-slate-600' : 'bg-sf-accent'"
                 class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors">
@@ -74,7 +80,9 @@
             <span x-show="m.pricing === 'paid'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
             <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
             <span x-show="m.broken" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none" title="Known broken: the upstream service no longer works">BROKEN</span>
-            <span x-show="m.requiresKey && !m.keyConfigured" class="text-[10px] text-amber-500">no key</span>
+            <span x-show="m.autoReason && auto" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 leading-none"
+                  :title="'Disabled automatically: ' + m.autoReason" x-text="'auto-disabled: ' + m.autoReason"></span>
+            <span x-show="m.requiresKey && !m.keyConfigured && !(m.autoReason && auto)" class="text-[10px] text-amber-500">no key</span>
             <span x-show="m.requiresKey && m.keyConfigured" class="text-[10px] text-sf-success">key set</span>
           </div>
           <p class="text-xs text-slate-400 dark:text-slate-500 truncate" x-text="m.summary"></p>
@@ -86,16 +94,19 @@
 </div>
 
 <script>
-function moduleSettings(data) {
+function moduleSettings(data, autoOn) {
   return {
+    auto: autoOn,
     all: Object.entries(data).map(([id, m]) => ({ id, ...m }))
              .sort((a, b) => a.name.localeCompare(b.name)),
     q: '', err: '',
-    filters: { state: '', default: '', key: '', cost: '' },
+    filters: { state: '', auto: '', default: '', key: '', cost: '' },
     filterGroups: [
       { id: 'state', label: 'State', options: [
         { id: 'enabled', label: 'Enabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
         { id: 'disabled', label: 'Disabled', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
+      { id: 'auto', label: 'Auto', options: [
+        { id: 'autooff', label: 'Auto-disabled', on: 'border-amber-500 text-amber-500 bg-amber-500/10' } ] },
       { id: 'default', label: 'Default', options: [
         { id: 'on', label: 'On by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' },
         { id: 'off', label: 'Off by default', on: 'border-sf-accent text-sf-accent bg-sf-accent/10' } ] },
@@ -112,6 +123,7 @@ function moduleSettings(data) {
     // "Active" = needs no key, or its key is configured. "No key" = key needed but missing.
     test(m, g, v) {
       if (g === 'state') return v === 'enabled' ? !m.disabled : m.disabled;
+      if (g === 'auto') return !!(m.autoReason && this.auto);
       if (g === 'default') return v === 'off' ? m.defaultOff : !m.defaultOff;
       if (g === 'key') return v === 'active' ? (!m.requiresKey || m.keyConfigured) : (m.requiresKey && !m.keyConfigured);
       return m.pricing === v;
@@ -127,6 +139,19 @@ function moduleSettings(data) {
     count(g, v) { return this.all.filter(m => this.matches(m, g) && this.test(m, g, v)).length; },
     enabledCount() { return this.all.filter(m => !m.disabled).length; },
     toggleFilter(g, v) { this.filters[g] = this.filters[g] === v ? '' : v; },
+    async setAuto(on) {
+      this.err = '';
+      try {
+        const r = await fetch('/api/modulestate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.__SF_CSRF_TOKEN__ || '' },
+          body: JSON.stringify({ kind: 'auto_disable', enabled: on }),
+        });
+        const d = await r.json();
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'failed');
+        this.auto = on;
+      } catch (e) { this.err = 'Save failed: ' + (e.message || e); this.auto = !on; }
+    },
     async setMany(list, enabled, kind = 'disabled') {
       this.err = '';
       const ids = list.map(m => m.id);

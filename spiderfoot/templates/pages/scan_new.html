@@ -419,6 +419,13 @@
       </div>
     </div>
 
+    {% if auto_hidden %}
+    <p class="text-xs text-slate-400 dark:text-slate-500 mb-3">
+      {{ auto_hidden }} module{{ '' if auto_hidden == 1 else 's' }} hidden automatically (no API key set, or over quota/limit).
+      <a href="/opts" class="text-sf-accent hover:underline" onclick="localStorage.setItem('sf_settings_section','modules')">See Settings &rarr; Modules</a>.
+    </p>
+    {% endif %}
+
     {# Pricing filter (module meta "pricing") #}
     <div class="flex flex-wrap items-center gap-2 mb-3">
       <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">Show:</span>

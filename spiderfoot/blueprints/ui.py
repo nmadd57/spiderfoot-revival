@@ -183,7 +183,6 @@ def _build_modules_data(include_disabled=False):
         saved_config = {}
 
     modules = {}
-    category_set = set()
 
     from spiderfoot.services import module_state
     disabled = module_state.parse(saved_config.get(module_state.KEY, ''))
@@ -202,7 +201,6 @@ def _build_modules_data(include_disabled=False):
         cats = meta.get('categories', [])
         flags = meta.get('flags', [])
         category = cats[0] if cats else 'Uncategorised'
-        category_set.add(category)
 
         # Default enabled state: module is in 'Footprint' use case
         enabled = 'Footprint' in use_cases and mod_name not in default_off
@@ -215,7 +213,8 @@ def _build_modules_data(include_disabled=False):
         api_key_opts = [k for k in opts if any(
             term in k.lower() for term in ('api_key', 'apikey', 'api_id', 'accesstoken')
         )]
-        requires_key = len(api_key_opts) > 0
+        # Key-optional modules (e.g. hudsonrock, leakcheck) have key options but no 'apikey' flag.
+        requires_key = len(api_key_opts) > 0 and 'apikey' in flags
         key_configured = False
         if requires_key:
             # Check saved config for any of the API key options
@@ -242,13 +241,24 @@ def _build_modules_data(include_disabled=False):
             'privateIpOk': mod_name in SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES,
         }
 
-    categories = sorted(category_set)
+    from spiderfoot.services import auto_disable
+    reasons = auto_disable.compute(
+        sf_config.get('__database'), saved_config,
+        {n: (m['requiresKey'], m['keyConfigured']) for n, m in modules.items()})
+    for n, m in modules.items():
+        m['autoReason'] = reasons.get(n, '')
+    if not include_disabled:
+        modules = {n: m for n, m in modules.items() if not m['autoReason']}
+
+    categories = sorted({m['category'] for m in modules.values()})
     return modules, categories
 
 
 @ui_bp.route('/newscan')
 def newscan():
     modules, categories = _build_modules_data()
+    all_modules, _ = _build_modules_data(include_disabled=True)
+    auto_hidden = sum(1 for m in all_modules.values() if m['autoReason'] and not m['disabled'])
     dbh = _get_db()
     presets = [serialize_preset(r) for r in dbh.presetList()]
     return render_template(
@@ -258,6 +268,7 @@ def newscan():
         modules=modules,
         categories=categories,
         presets=presets,
+        auto_hidden=auto_hidden,
     )
 
 

@@ -592,6 +592,11 @@ def modulestate():
     from spiderfoot.services import module_state
 
     body = request.get_json(silent=True) or {}
+    if body.get('kind') == 'auto_disable':
+        from spiderfoot.services import auto_disable
+        get_db().configSet({auto_disable.KEY: '1' if body.get('enabled') else '0'})
+        return jsonify(["SUCCESS", bool(body.get('enabled'))])
+
     names = body.get('modules')
     if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
         return jsonify(["ERROR", "modules must be a list of module names"]), 400
@@ -885,9 +890,12 @@ def startscan():
             if usecase == 'all' or usecase in config['__modules__'][mod].get('group', []):
                 modlist.append(mod)
 
+    from spiderfoot.blueprints.ui import _build_modules_data
     from spiderfoot.services import module_state
     disabled = module_state.get_disabled(dbh)
-    modlist = [m for m in modlist if m not in disabled]
+    all_modules, _cats = _build_modules_data(include_disabled=True)
+    auto = {n for n, m in all_modules.items() if m['autoReason']}
+    modlist = [m for m in modlist if m not in disabled and m not in auto]
 
     if not modlist:
         return jsonify(["ERROR", "Incorrect usage: no enabled modules specified for scan."])

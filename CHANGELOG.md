@@ -4,6 +4,11 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Automatic disabling
+
+- Modules that need an API key (`apikey` flag) but have none configured are disabled automatically, as are modules whose user-set limit (calls/day or total calls per period, Settings -> API Usage) is reached, or for which the vendor reported 0 remaining within the last day. They are hidden from New Scan (with a notice and link), stripped from API-started scans and labelled "auto-disabled: <reason>" in Settings -> Modules, where an "Auto-disabled" filter and a master switch (`_auto_disable`) live. Nothing is stored per module, so a module returns by itself when a key is added or the quota/period resets.
+- "Needs a key" now requires the `apikey` flag as well as an API-key option, so key-optional modules (Hudson Rock, LeakCheck) are no longer treated as missing a key.
+
 ### Quotas in the usage list; Tailwind rebuild
 
 - API Usage rows now show the vendor-reported quota (remaining/limit with a bar, or "key rejected"), cached in `_module_quota_cache`. Quotas older than an hour are refreshed automatically when the page opens (never AbuseIPDB's, whose check costs a request), and there is a "Check all quotas" button and a "Quota known" filter.
