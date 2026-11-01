@@ -86,7 +86,8 @@ BUILTIN_PRESETS = [
                     'LEI, sanctions, certificates',
      'modules': [
          'sfp_sec_edgar', 'sfp_fcc', 'sfp_us_state_registries', 'sfp_govfiles', 'sfp_usaspending',
-         'sfp_epa_echo', 'sfp_cfpb_complaints', 'sfp_fdic', 'sfp_openfda', 'sfp_irs_nonprofits',
+         'sfp_epa_echo', 'sfp_dol_enforcement', 'sfp_cfpb_complaints', 'sfp_fdic', 'sfp_openfda',
+         'sfp_irs_nonprofits',
          'sfp_gleif', 'sfp_opensanctions',
          'sfp_crt_org', 'sfp_ransomlook', 'sfp_ransomwarelive',
      ]},

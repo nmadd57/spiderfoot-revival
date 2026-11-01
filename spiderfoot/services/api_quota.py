@@ -175,6 +175,12 @@ def _parse_govfiles(j: dict) -> dict:
                    remaining=_int(j.get('balance')), unit='credits')
 
 
+def _parse_dol(j: dict) -> dict:
+    if 'data' not in j:
+        return _result(False, None, 'unexpected response format')
+    return _result(True, True, 'DOL API key accepted (the API does not report usage or limits)')
+
+
 # ---------------------------------------------------------------- fetchers
 
 def _http(url: str, headers: Optional[Dict[str, str]] = None) -> requests.Response:
@@ -240,6 +246,12 @@ def _fetch_govfiles(v):
     return _http('https://api.govfiles.dev/v2/credits', {'X-API-Key': v['api_key']})
 
 
+def _fetch_dol(v):
+    # The DOL v4 API only accepts the key as the X-API-KEY query parameter
+    return _http('https://apiprod.dol.gov/v4/get/OSHA/inspection/json?'
+                 + urlencode({'X-API-KEY': v['api_key'], 'limit': 1}))
+
+
 def _runner(fetch: Callable, parse: Callable, use_headers: bool = False) -> Callable:
     def run(values: Dict[str, str]) -> dict:
         try:
@@ -282,6 +294,7 @@ PROVIDERS: Dict[str, Provider] = {
     'sfp_zoomeye': Provider(['api_key'], _runner(_fetch_zoomeye, _parse_zoomeye)),
     'sfp_alienvault': Provider(['api_key'], _runner(_fetch_alienvault, _parse_alienvault)),
     'sfp_govfiles': Provider(['api_key'], _runner(_fetch_govfiles, _parse_govfiles)),
+    'sfp_dol_enforcement': Provider(['api_key'], _runner(_fetch_dol, _parse_dol)),
 }
 
 

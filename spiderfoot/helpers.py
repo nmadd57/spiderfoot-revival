@@ -329,6 +329,39 @@ class SpiderFootHelpers():
         return last in SpiderFootHelpers.COMPANY_SUFFIXES or last in SpiderFootHelpers.COMPANY_WORDS
 
     @staticmethod
+    def facilityNameMatches(name: str, wanted: str, prefix: bool = True) -> bool:
+        """Whether a site/establishment name belongs to a business.
+
+        Regulators record sites as "ACME CORP - PLANT 2" or "ACME CORP., WESTCOTT
+        PLANT". With prefix=True those match "Acme Corp"; "ACME HOLDINGS" (another
+        company) does not.
+
+        Args:
+            name (str): establishment or facility name
+            wanted (str): target name, already passed through normalizeCompanyName()
+            prefix (bool): allow a site name after the business name
+
+        Returns:
+            bool: name belongs to the business
+        """
+        norm = SpiderFootHelpers.normalizeCompanyName(name)
+        if not wanted or not norm:
+            return False
+        if norm == wanted:
+            return True
+        if not prefix or not norm.startswith(wanted + " "):
+            return False
+        rest = norm[len(wanted):].split()
+        suffixes = {x.replace(".", "").upper() for x in SpiderFootHelpers.COMPANY_SUFFIXES}
+        if rest[0] in suffixes:
+            return True
+        # Otherwise a separator must follow the business name itself: "ACME, BRIDGEPORT"
+        # or "ACME - PLANT 2", but not "ACME HOLDINGS, LLC"
+        words = [re.escape(w) for w in wanted.split()]
+        upper = str(name).upper().replace("&", " AND ")
+        return bool(re.match(r"^\W*(?:THE\W+)?" + r"\W+".join(words) + r"\s*(?:,|\s[-\u2013/]\s)", upper))
+
+    @staticmethod
     def normalizeCompanyName(name: str) -> str:
         """Reduce a business name to a comparable core.
 

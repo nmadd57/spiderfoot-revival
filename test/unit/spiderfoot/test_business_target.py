@@ -35,6 +35,16 @@ class TestBusinessTargetDetection(unittest.TestCase):
         self.assertNotEqual(n('Tesla, Inc.'), n('Tesla Holdings LLC'))
         self.assertNotEqual(n('Tesla'), n('Tesla Foundation'))
 
+    def test_facility_name_matches(self):
+        wanted = SpiderFootHelpers.normalizeCompanyName("Acme United Corporation")
+        m = SpiderFootHelpers.facilityNameMatches
+        for name in ["ACME UNITED CORP., WESTCOTT PLANT", "ACME UNITED CORPORATION - MED NAP DIVISION",
+                     "ACME UNITED, BRIDGEPORT", "Acme United"]:
+            self.assertTrue(m(name, wanted), name)
+        for name in ["ACME UNITED HOLDINGS", "ACME UNITED HOLDINGS, LLC", "ACME UNITEDWAY"]:
+            self.assertFalse(m(name, wanted), name)
+        self.assertFalse(m("ACME UNITED CORP - PLANT 2", wanted, prefix=False))
+
     def test_company_target_accepts_aliases(self):
         target = SpiderFootTarget('Acme Widgets', 'COMPANY_NAME')
         self.assertTrue(target.setAlias('Acme Widgets Inc', 'COMPANY_NAME') is not False)

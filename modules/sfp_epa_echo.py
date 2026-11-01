@@ -110,17 +110,8 @@ class sfp_epa_echo(SpiderFootPlugin):
         return re.sub(r"^\s*[\w-]*\d[\w-]*\s+-\s+", "", str(name or "")).strip()
 
     def nameMatches(self, facility: str, wanted: str) -> bool:
-        norm = SpiderFootHelpers.normalizeCompanyName(self.cleanName(facility))
-        if norm == wanted:
-            return True
-        if self.opts.get('name_match') == "exact":
-            return False
-        if not norm.startswith(wanted + " "):
-            return False
-        # "ACME CORP - PLANT 2" is a facility of Acme; "ACME HOLDINGS" is a different company
-        rest = norm[len(wanted):].split()
-        suffixes = {s.replace(".", "").upper() for s in SpiderFootHelpers.COMPANY_SUFFIXES}
-        return not rest or rest[0] in suffixes or "-" in self.cleanName(facility)
+        return SpiderFootHelpers.facilityNameMatches(self.cleanName(facility), wanted,
+                                                     prefix=self.opts.get('name_match') != "exact")
 
     def handleEvent(self, event):
         eventData = event.data
