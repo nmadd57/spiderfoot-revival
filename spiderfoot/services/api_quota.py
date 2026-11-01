@@ -167,6 +167,14 @@ def _parse_alienvault(j: dict) -> dict:
                    unit='requests')
 
 
+def _parse_govfiles(j: dict) -> dict:
+    if 'balance' not in j:
+        return _result(False, None, 'unexpected response format')
+    extra = ' (overage allowed)' if j.get('overage_enabled') else ''
+    return _result(True, True, 'GovFiles credit balance' + extra,
+                   remaining=_int(j.get('balance')), unit='credits')
+
+
 # ---------------------------------------------------------------- fetchers
 
 def _http(url: str, headers: Optional[Dict[str, str]] = None) -> requests.Response:
@@ -228,6 +236,10 @@ def _fetch_alienvault(v):
                  {'X-OTX-API-KEY': v['api_key']})
 
 
+def _fetch_govfiles(v):
+    return _http('https://api.govfiles.dev/v2/credits', {'X-API-Key': v['api_key']})
+
+
 def _runner(fetch: Callable, parse: Callable, use_headers: bool = False) -> Callable:
     def run(values: Dict[str, str]) -> dict:
         try:
@@ -269,6 +281,7 @@ PROVIDERS: Dict[str, Provider] = {
     'sfp_ipinfo': Provider(['api_key'], _runner(_fetch_ipinfo, _parse_ipinfo)),
     'sfp_zoomeye': Provider(['api_key'], _runner(_fetch_zoomeye, _parse_zoomeye)),
     'sfp_alienvault': Provider(['api_key'], _runner(_fetch_alienvault, _parse_alienvault)),
+    'sfp_govfiles': Provider(['api_key'], _runner(_fetch_govfiles, _parse_govfiles)),
 }
 
 
