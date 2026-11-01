@@ -514,6 +514,9 @@ def settings_section():
         mods, _cats = _build_modules_data(include_disabled=True)
         return render_template('fragments/settings_modules.html', modules=mods)
 
+    elif section == 'usage':
+        return render_template('fragments/settings_usage.html')
+
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)
 

@@ -616,7 +616,20 @@ class SpiderFootPlugin():
         if self.__name__.startswith('sfp__stor_'):
             callback(*args, **kwargs)
         else:
-            self.sharedThreadPool.submit(callback, *args, taskName=f"{self.__name__}_threadWorker", maxThreads=self.maxThreads, **kwargs)
+            self.sharedThreadPool.submit(self._attributed(callback), *args, taskName=f"{self.__name__}_threadWorker", maxThreads=self.maxThreads, **kwargs)
+
+    def _attributed(self, callback):
+        """Wrap ``callback`` so HTTP calls it makes are counted against this module."""
+        from spiderfoot.services import usage
+        name = self.__name__
+
+        def run(*args, **kwargs):
+            usage.set_module(name)
+            try:
+                return callback(*args, **kwargs)
+            finally:
+                usage.set_module(None)
+        return run
 
     def threadPool(self, *args, **kwargs):
         return SpiderFootThreadPool(*args, **kwargs)

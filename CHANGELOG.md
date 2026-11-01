@@ -4,6 +4,13 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### API usage tracking, limits and key testing
+
+- New Settings -> API Usage page. Every HTTP request a module makes is counted per UTC day (`tbl_module_usage`), together with errors, 429s and calls blocked by limits; any `X-RateLimit-*`/`RateLimit-*` response headers are recorded as the vendor's own remaining-quota figure.
+- Per-module limits (`_module_limits`): calls/second (calls are delayed), calls/day and total calls per period (further calls are blocked, and the module sees a failed fetch), a reset date with optional daily/weekly/monthly/yearly repeat, and an enforce switch for display-only limits. Limits apply across concurrent scans.
+- "Check quota" asks the vendor for the real used/limit/remaining where it has an account or usage endpoint, and "Test key" / "Test & save key" validates a new API key before it is stored (`POST /api/usage/check`).
+- Quota checks / key tests exist for Shodan, VirusTotal, Hunter, FullHunt, WhoisXML API, Hybrid Analysis, Netlas, AbuseIPDB, GreyNoise, ipinfo and AlienVault OTX (some only confirm the key is valid). Calls made on threads a module spawns itself are not attributed to it.
+
 ### New modules
 
 - `sfp_rapiddns` (free): subdomains from RapidDNS, replacing DNSDB/DNSGrep (Anubis was evaluated but sits behind a Cloudflare challenge).

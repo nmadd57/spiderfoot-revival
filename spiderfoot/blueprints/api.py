@@ -612,6 +612,168 @@ def modulestate():
     return jsonify(["SUCCESS", sorted(current)])
 
 
+# -- API usage tracking, limits and key tests --------------------------------
+
+def _usage_conn():
+    from spiderfoot.services import usage
+    return usage.connect(get_config()['__database'])
+
+
+def _provider_info():
+    try:
+        from spiderfoot.services import api_quota
+        return {m: p.opts for m, p in api_quota.PROVIDERS.items()}
+    except Exception:
+        return {}
+
+
+def _save_limits(limits):
+    dbh = get_db()
+    from spiderfoot.services import usage
+    dbh.configSet({usage.LIMITS_KEY: json.dumps(limits, sort_keys=True)})
+
+
+@api_bp.route('/usage')
+def usage_list():
+    """Per-module API usage, limits and vendor rate-limit info."""
+    from spiderfoot.blueprints.ui import _build_modules_data
+    from spiderfoot.services import usage
+
+    today = usage.today_utc()
+    mods, _cats = _build_modules_data(include_disabled=True)
+    conn = _usage_conn()
+    try:
+        stored = usage.summarize(conn)
+        limits = usage.load_limits(conn)
+        rates = usage.load_ratelimits(conn)
+    finally:
+        conn.close()
+    providers = _provider_info()
+
+    out = []
+    for name, m in mods.items():
+        days = stored.get(name, {})
+        lim = usage.roll_period(usage.normalize_limits(limits.get(name, {})), today)
+        start = lim.get('period_start') or ''
+        total = sum(v[0] for v in days.values())
+        out.append({
+            'id': name,
+            'name': m['name'],
+            'pricing': m['pricing'],
+            'broken': m.get('broken', False),
+            'requiresKey': m['requiresKey'],
+            'keyConfigured': m['keyConfigured'],
+            'calls_today': days.get(today.isoformat(), (0, 0, 0, 0))[0],
+            'calls_period': sum(v[0] for d, v in days.items() if not start or d >= start),
+            'calls_total': total,
+            'errors': sum(v[1] for v in days.values()),
+            'limited': sum(v[2] for v in days.values()),
+            'blocked': sum(v[3] for v in days.values()),
+            'last_day': max(days) if days else '',
+            'vendor_rate': rates.get(name),
+            'limits': lim,
+            'has_limits': name in limits,
+            'provider_opts': providers.get(name),
+        })
+    return jsonify({'today': today.isoformat(), 'modules': out})
+
+
+@api_bp.route('/usage/limits', methods=['POST'])
+def usage_set_limits():
+    """Set (or clear) the limits for one module."""
+    from spiderfoot.services import usage
+
+    body = request.get_json(silent=True) or {}
+    module = body.get('module', '')
+    if module not in get_config().get('__modules__', {}):
+        return jsonify(["ERROR", "unknown module"]), 400
+    try:
+        lim = usage.normalize_limits(body.get('limits') or {})
+    except ValueError as e:
+        return jsonify(["ERROR", str(e)]), 400
+
+    conn = _usage_conn()
+    try:
+        limits = usage.load_limits(conn)
+    finally:
+        conn.close()
+
+    if not (lim['per_second'] or lim['per_day'] or lim['total'] or lim['reset_date']):
+        limits.pop(module, None)
+    else:
+        if (lim['total'] or lim['reset_date']) and not lim['period_start']:
+            lim['period_start'] = usage.today_utc().isoformat()
+        limits[module] = lim
+    _save_limits(limits)
+    return jsonify(["SUCCESS", limits.get(module)])
+
+
+@api_bp.route('/usage/reset', methods=['POST'])
+def usage_reset_period():
+    """Start a new counting period for a module now."""
+    from spiderfoot.services import usage
+
+    module = (request.get_json(silent=True) or {}).get('module', '')
+    if module not in get_config().get('__modules__', {}):
+        return jsonify(["ERROR", "unknown module"]), 400
+    conn = _usage_conn()
+    try:
+        limits = usage.load_limits(conn)
+    finally:
+        conn.close()
+    lim = usage.normalize_limits(limits.get(module, {}))
+    lim['period_start'] = usage.today_utc().isoformat()
+    limits[module] = lim
+    _save_limits(limits)
+    return jsonify(["SUCCESS", lim])
+
+
+@api_bp.route('/usage/check', methods=['POST'])
+def usage_check():
+    """Ask the vendor for quota/key validity; optionally test (and save) new keys.
+
+    JSON body: {"module": "sfp_x", "values": {"api_key": "..."}, "save": false}
+    Option values that are omitted or "********" fall back to the saved key.
+    """
+    from spiderfoot.services import api_quota
+    from sflib import SpiderFoot
+
+    body = request.get_json(silent=True) or {}
+    module = body.get('module', '')
+    provider = api_quota.PROVIDERS.get(module)
+    if not provider:
+        return jsonify(["ERROR", "No quota checker for this module"]), 400
+
+    config = get_config()
+    try:
+        saved = get_db().configGet()
+    except Exception:
+        saved = {}
+    defaults = config.get('__modules__', {}).get(module, {}).get('opts', {})
+    supplied = body.get('values') or {}
+    values, new = {}, {}
+    for opt in provider.opts:
+        v = supplied.get(opt)
+        if isinstance(v, str) and v.strip() and v != '********':
+            values[opt] = new[f"{module}:{opt}"] = v.strip()
+        else:
+            values[opt] = saved.get(f"{module}:{opt}") or defaults.get(opt) or ''
+
+    result = api_quota.check(module, values)
+    result['saved'] = False
+
+    if body.get('save') and new and result.get('ok') and result.get('valid'):
+        try:
+            sf = SpiderFoot(config)
+            new_config = sf.configUnserialize(new, deepcopy(config))
+            current_app.config['SF_CONFIG'] = new_config
+            get_db().configSet(sf.configSerialize(new_config))
+            result['saved'] = True
+        except Exception as e:
+            result['message'] = f"Key is valid but saving failed: {e}"
+    return jsonify(result)
+
+
 # -- Start scan --------------------------------------------------------------
 
 @api_bp.route('/startscan', methods=['POST'])

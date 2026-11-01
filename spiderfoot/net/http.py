@@ -151,7 +151,31 @@ class SpiderFootHttp:
 
         return True
 
-    def fetchUrl(
+    def fetchUrl(self, url: str, *args, **kwargs) -> dict:
+        """Fetch a URL (see ``_fetchUrl``), recording the call against the calling module.
+
+        Calls made on a module's worker thread are counted and, if the user set
+        limits for that module (Settings > API Usage), delayed or blocked.
+        """
+        from spiderfoot.services import usage
+
+        module = usage.current_module()
+        db_path = (self.opts or {}).get('__database')
+        if not module or not db_path or not url:
+            return self._fetchUrl(url, *args, **kwargs)
+
+        tracker = usage.get_tracker(db_path)
+        allowed, reason = tracker.before(module)
+        if not allowed:
+            tracker.warn_once(module, reason)
+            return {'code': None, 'status': f"API usage limit: {reason}", 'content': None,
+                    'headers': None, 'realurl': url}
+
+        res = self._fetchUrl(url, *args, **kwargs)
+        tracker.after(module, res)
+        return res
+
+    def _fetchUrl(
         self,
         url: str,
         cookies: str = None,
@@ -374,7 +398,7 @@ class SpiderFootHttp:
                     self.log.debug("Max refresh redirects (10) reached, stopping")
                     return result
 
-                return self.fetchUrl(
+                return self._fetchUrl(
                     newurl,
                     cookies,
                     timeout,
