@@ -70,6 +70,10 @@ class sfp_psbdmp(SpiderFootPlugin):
             self.info("Unable to fetch data from psbdmp.cc right now.")
             return None
 
+        if res['code'] != "200" or not res['content'] or not res['content'].lstrip().startswith(('{', '[')):
+            self.info("psbdmp.cc returned no JSON (service may be down).")
+            return None
+
         try:
             ret = json.loads(res['content'])
         except Exception as e:

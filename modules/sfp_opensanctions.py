@@ -166,7 +166,10 @@ class sfp_opensanctions(SpiderFootPlugin):
                 continue
 
             name = result.get("caption", "Unknown")
-            datasets = [d.get("name", d.get("label", "")) for d in result.get("datasets", [])]
+            datasets = [
+                (d.get("name", d.get("label", "")) if isinstance(d, dict) else str(d))
+                for d in result.get("datasets") or []
+            ]
             properties = result.get("properties", {})
             countries = properties.get("country", [])
 

@@ -23,7 +23,7 @@ Events are typed strings. Key event types:
 1. **API modules** (e.g., `sfp_shodan.py`): Query external REST APIs
 2. **Tool wrappers** (e.g., `sfp_tool_nmap.py`): Shell out to CLI tools, parse output
 3. **Internal modules** (e.g., `sfp_dnsresolve.py`): Local analysis, no external calls
-4. **Feed modules** (e.g., `sfp_c2tracker.py`): Download and cross-reference threat feeds
+4. **Feed modules** (e.g., `sfp_firehol.py`): Download and cross-reference threat feeds
 
 ### Database
 SQLite via `spiderfoot/db.py`. Key tables:

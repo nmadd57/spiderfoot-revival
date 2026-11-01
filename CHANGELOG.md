@@ -4,6 +4,14 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Fixes from the first overnight scans
+
+- `sfp_stevenblack_hosts`: a hosts line with a single token (or a trailing comment) raised `IndexError` and killed the worker on every event.
+- `sfp_netlas`, `sfp_opensanctions`, `sfp_alienvault`: tolerate non-dict/list values in API replies (`TypeError`/`AttributeError` crashes).
+- `sfp_shodan`: "No information available for that IP" is a normal reply, no longer logged as an error.
+- `sfp_psbdmp`, `sfp_duckduckgo`: an empty or non-JSON reply is reported as info instead of a JSON parse error (psbdmp.cc's API now redirects to its home page).
+- Removed `sfp_c2tracker`: the upstream project is archived and its data file is gone (404).
+
 ### Automatic disabling
 
 - Modules that need an API key (`apikey` flag) but have none configured are disabled automatically, as are modules whose user-set limit (calls/day or total calls per period, Settings -> API Usage) is reached, or for which the vendor reported 0 remaining within the last day. They are hidden from New Scan (with a notice and link), stripped from API-started scans and labelled "auto-disabled: <reason>" in Settings -> Modules, where an "Auto-disabled" filter and a master switch (`_auto_disable`) live. Nothing is stored per module, so a module returns by itself when a key is added or the quota/period resets.

@@ -109,7 +109,10 @@ class sfp_shodan(SpiderFootPlugin):
         try:
             r = json.loads(res['content'])
             if "error" in r:
-                self.error(f"Error returned from SHODAN: {r['error']}")
+                if "no information available" in str(r['error']).lower():
+                    self.debug(f"SHODAN has no information for {qry}")
+                else:
+                    self.error(f"Error returned from SHODAN: {r['error']}")
                 return None
             return r
         except Exception as e:
@@ -143,7 +146,10 @@ class sfp_shodan(SpiderFootPlugin):
         try:
             r = json.loads(res['content'])
             if "error" in r:
-                self.error(f"Error returned from SHODAN: {r['error']}")
+                if "no information available" in str(r['error']).lower():
+                    self.debug(f"SHODAN has no information for {qry}")
+                else:
+                    self.error(f"Error returned from SHODAN: {r['error']}")
                 return None
             return r
         except Exception as e:
@@ -177,7 +183,10 @@ class sfp_shodan(SpiderFootPlugin):
         try:
             r = json.loads(res['content'])
             if "error" in r:
-                self.error(f"Error returned from SHODAN: {r['error']}")
+                if "no information available" in str(r['error']).lower():
+                    self.debug(f"SHODAN has no information for {qry}")
+                else:
+                    self.error(f"Error returned from SHODAN: {r['error']}")
                 return None
             if r.get('total', 0) == 0:
                 self.info(f"No SHODAN info found for {qry}")

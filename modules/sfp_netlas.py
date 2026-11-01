@@ -180,13 +180,19 @@ class sfp_netlas(SpiderFootPlugin):
             if data:
                 for item in data.get("items", []):
                     src = item.get("data", {})
+                    if not isinstance(src, dict):
+                        continue
 
                     port = src.get("port")
                     if port:
                         e = SpiderFootEvent("TCP_PORT_OPEN", f"{eventData}:{port}", self.__name__, event)
                         self.notifyListeners(e)
 
-                    banner = src.get("http", {}).get("headers", {}).get("server", "")
+                    http = src.get("http")
+                    headers = http.get("headers") if isinstance(http, dict) else None
+                    banner = headers.get("server", "") if isinstance(headers, dict) else ""
+                    if isinstance(banner, list):
+                        banner = ", ".join(str(b) for b in banner)
                     if banner:
                         e = SpiderFootEvent("WEBSERVER_BANNER", banner, self.__name__, event)
                         self.notifyListeners(e)

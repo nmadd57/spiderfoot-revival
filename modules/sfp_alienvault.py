@@ -288,7 +288,7 @@ class sfp_alienvault(SpiderFootPlugin):
                 data = self.queryHostnameUrlList(eventData, page=page)
                 page += 1
 
-                url_list = data.get('url_list')
+                url_list = data.get('url_list') if isinstance(data, dict) else None
                 if not url_list:
                     break
 
