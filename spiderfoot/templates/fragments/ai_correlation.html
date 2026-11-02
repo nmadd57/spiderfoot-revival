@@ -6,7 +6,7 @@
 #}
 {% if ai_enabled %}
 <div x-data="{
-   model: '{{ default_model }}',
+   model: {{ default_model | tojson | forceescape }},
    streaming: false,
    content: '',
    error: '',

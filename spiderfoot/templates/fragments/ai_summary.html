@@ -10,9 +10,9 @@
 {% if ai_enabled %}
 <div class="rounded-lg border border-gray-200 dark:border-gray-800 p-3 md:p-4 mt-4 mb-4 md:mb-0 min-w-0"
      x-data="{
-        model: '{{ default_model }}',
+        model: {{ default_model | tojson | forceescape }},
         streaming: false,
-        content: {{ (active_cache.content if active_cache else '') | tojson }},
+        content: {{ (active_cache.content if active_cache else '') | tojson | forceescape }},
         error: '',
         startStream(regenerate) {
           this.streaming = true;
