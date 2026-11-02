@@ -15,6 +15,8 @@ On top of the Revival UI (Flask, Tailwind, HTMX, Alpine.js) and its module overh
 - **Cost and key awareness.** Modules carry a pricing tag (free, free tier, paid, local). Per-module call counters, daily/total/per-second limits, vendor quota checks, key tests, and automatic hiding of modules that cannot run (no key, over quota, tool not installed).
 - **Web search without Google or Bing.** Their search APIs are retired or closing, so those modules are gone. Search modules use your own [SearXNG](https://docs.searxng.org/) instance.
 - **People to businesses, filings and professional licences.** A person's name can lead to the companies they appear in (SEC EDGAR), the company's filings, and healthcare and securities licences for people and businesses.
+- **Business search.** Scan a company name (`Acme Widgets LLC` or `business: Acme`) and get SEC registration, state business registries, LEI records, federal awards, FCC, IRS, FDIC, EPA, CFPB and Labor Department records. See [Business search](#business-search).
+- **Module repair and dead-module cleanup.** Crashing modules fixed, vendors that changed their APIs ported (Censys, ZoomEye), dead services removed, and the remaining broken ones labelled. See [Module repair and cleanup](#module-repair-and-cleanup).
 - **Local-tool modules that work out of the box.** The image bundles BBOT, nmap, nuclei and the other CLI tools instead of leaving them as an exercise.
 - **Local AI endpoints.** The AI assistant works with any OpenAI-compatible server, not only OpenRouter.
 - **Built to sit behind single sign-on.** The app trusts a reverse proxy (oauth2-proxy and similar). See [Running it safely](#running-it-safely).
@@ -127,9 +129,33 @@ Streams scan summaries and correlation explanations over Server-Sent Events from
 
 The people and business modules match on names only, so a common name returns several unrelated people. Each result says it is a name match; check that it is the same person before relying on it. Results are capped per name.
 
-### Removed
+### Business search
 
-Dead services: ThreatCrowd, CRXcavator, F-Secure Riddler, Clearbit, RiskIQ, BitcoinAbuse, PunkSpider, Crobat, Twitter, Venmo, MySpace, DNSDB, SpyOnWeb, Zonefiles.io, Abusix, ThreatJammer, BinaryEdge, EmailCrawlr, C2-Tracker (archived upstream). Retired APIs: the Google Custom Search, Google Maps and Bing modules. DNSGrep and bitcoinwhoswho are kept but labelled BROKEN.
+Enter a company name as the scan target (a trailing legal form such as `LLC` or `Inc` is recognised; otherwise prefix it with `business:`, for example `business: Acme Widgets`). Company names also arrive from other modules (a person's employer, a certificate's organisation) and are searched the same way.
+
+| Source | What it returns | Cost |
+|---|---|---|
+| `sfp_sec_edgar` | SEC registrants: addresses, phone, tickers, EIN, state of incorporation, former names | free |
+| `sfp_secedgar` | The same registration data plus recent filings (10-K, 8-K, proxy, ownership, Form D) as `COMPANY_FILING` events | free |
+| `sfp_us_state_registries`, `sfp_govfiles` | State business entity registries: status, entity type, formation date, addresses and officers. The first covers NY, CO, CT, OR and TX from open data; GovFiles covers all 50 states and DC | free, GovFiles needs a free key |
+| `sfp_gleif`, `sfp_opencorporates` | Legal Entity Identifier records, and OpenCorporates | free, paid |
+| `sfp_usaspending` | Federal contracts, grants and loans: UEI, parent company, award totals | free |
+| `sfp_fcc`, `sfp_irs_nonprofits`, `sfp_fdic` | FCC filings, tax-exempt organisations (Form 990), FDIC-insured banks | free |
+| `sfp_epa_echo`, `sfp_cfpb_complaints`, `sfp_dol_enforcement` | Environmental facilities and violations, consumer complaints, OSHA and wage-and-hour cases | free, DOL needs a free key |
+| `sfp_opensanctions` | Sanctions and politically-exposed-person screening for companies and people | free key |
+| `sfp_npiregistry`, `sfp_brokercheck` | Professional licences and registrations for businesses (healthcare organisations, brokerage and adviser firms) | free |
+| `sfp_crt_org` | Domains a company has had certificates issued to | free |
+
+**People lead to businesses.** A person's name (a scan target, or one found by another module) is searched in SEC filings, and the public companies it appears in become company targets, which fan out into the sources above. The same name also goes to the licence registries. These are name matches, so each result says so and results are capped per name.
+
+### Module repair and cleanup
+
+- **Repaired.** Modules that crashed or logged errors on every event in real scans: the StevenBlack hosts list parser, Netlas, OpenSanctions and AlienVault handling of unexpected replies, Shodan's normal "no information for that IP" reply (no longer an error), and empty replies from DuckDuckGo and Psbdmp. Vendor API changes followed: Censys now uses the Censys Platform API (a Personal Access Token), ZoomEye uses its v2 search API. The web client no longer takes minutes per request on hosts without IPv6 when a custom DNS server is set.
+- **Dead modules removed.** Services that no longer exist or no longer work: ThreatCrowd, CRXcavator, F-Secure Riddler, Clearbit, RiskIQ, BitcoinAbuse, PunkSpider, Crobat, Twitter, Venmo, MySpace, DNSDB, SpyOnWeb, Zonefiles.io, Abusix, ThreatJammer, BinaryEdge, EmailCrawlr, C2-Tracker (archived upstream), and the Google Custom Search, Google Maps and Bing modules (their APIs are retired or closing). Replacements were added where useful (RapidDNS, FireHOL, Spamhaus DROP, WhoisDS, Chainabuse, crt.sh by organisation, SearXNG search, OpenStreetMap geocoding).
+- **Labelled, not hidden.** Modules whose service may come back are kept and marked BROKEN: DNSGrep and bitcoinwhoswho. A module that cannot run for a fixable reason (no key, no SearXNG instance, tool not installed, over quota) is hidden from New Scan with the reason shown on Settings → Modules.
+- **Kept honest.** Modules that depend on unofficial endpoints, or that have not been run against their live API, are called out under [Known limitations](#known-limitations). The module Test button exists so a repair can be checked in place.
+
+Earlier repairs in the Revival line: DNSDumpster (new JSON API), DNSGrep (bufferover.run), Skymem, HackerTarget rate limits, HaveIBeenPwned v3 only, Keybase.
 
 ### Target types
 
@@ -228,6 +254,7 @@ If you add Tailwind classes to a template, rebuild the stylesheet: `npx tailwind
 
 - **TruffleHog.** The image installs TruffleHog 3.x but `sfp_tool_trufflehog` was written for the 2.x command line, so that module does not work until it is ported.
 - **Matching.** Name-based registry lookups are name matches, not identity matches.
+- **Two SEC modules overlap.** `sfp_sec_edgar` (company registration lookup) and `sfp_secedgar` (adds person-to-company links and filings) cover similar ground; enable either.
 - **Unofficial endpoints.** BrokerCheck and the SEC's adviser search have no documented API; the modules use the JSON the public search pages use and may break without notice.
 - **Several vendor modules are untested against live APIs** (they need paid or restricted keys): Recorded Future, Tria.ge, Chainabuse, and the Censys v3 output beyond host basics.
 - **Usage limits are best effort.** Counters are kept per scan process and only count requests made through the shared HTTP client.
