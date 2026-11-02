@@ -82,9 +82,25 @@ def pick_sample(watched, target=None):
         if re.match(r'^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$', target) and 'PHYSICAL_COORDINATES' in watched:
             return 'PHYSICAL_COORDINATES', target.strip(), 'INTERNET_NAME', 'example.com'
         ttype = SpiderFootHelpers.targetTypeFromString(target)
-        if not ttype and 'PHYSICAL_ADDRESS' in watched and len(target) > 6:
-            return 'PHYSICAL_ADDRESS', target, 'INTERNET_NAME', 'example.com'
+        text = target.strip().strip('"')
+        if ttype in ('HUMAN_NAME', 'USERNAME', 'COMPANY_NAME'):
+            # quotes only mark these target types; the modules want the bare name
+            for etype in ([ttype] + (['HUMAN_NAME'] if ttype == 'USERNAME' and ' ' in text else [])):
+                if etype in watched or wildcard:
+                    return etype, text, ttype, text
+            return None
         if not ttype:
+            words = text.split()
+            if 'PHYSICAL_ADDRESS' in watched and len(text) > 6 and re.search(r'\d', text) and ',' in text:
+                return 'PHYSICAL_ADDRESS', text, 'INTERNET_NAME', 'example.com'
+            company = re.search(r'\b(inc|corp|corporation|llc|llp|ltd|plc|co|company|group|holdings|partners|bank|clinic|hospital|'
+                                r'university|investments|financial|capital|advisors|advisers|associates|enterprises|industries|'
+                                r'trust|fund|foundation|services|solutions|technologies|systems|international|management|'
+                                r'securities|insurance|realty|properties|ventures|labs|pharma|health|medical)\b\.?$', text, re.I)
+            if 'COMPANY_NAME' in watched and (company or 'HUMAN_NAME' not in watched):
+                return 'COMPANY_NAME', text, 'COMPANY_NAME', text
+            if 'HUMAN_NAME' in watched and 2 <= len(words) <= 4 and all(re.match(r"^[A-Za-z.'\-]+$", w) for w in words):
+                return 'HUMAN_NAME', text, 'HUMAN_NAME', text
             return None
         cands = [ttype]
         if ttype == 'INTERNET_NAME':

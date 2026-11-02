@@ -4,6 +4,17 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Google and Bing modules removed
+
+- Removed `sfp_googlesearch`, `sfp_googlemaps`, `sfp_bingsearch` and `sfp_bingsharedip`, and the `googleIterate`/`bingIterate` helpers with their Google Custom Search and Bing Search API code (Google closes the Custom Search JSON API on 2027-01-01; Bing's was retired in August 2025). Web search is now only `SpiderFoot.webSearch`, backed by the SearXNG instance set up on the SearXNG module; `sfp_pastebin`, `sfp_onioncity` and `sfp_socialprofiles` lost their Google/Bing key options. `sfp_openstreetmap` is the geocoder; `sfp_searxng` does `site:` listings.
+
+### People to businesses, filings and professional licences
+
+- Name searches now reach the business modules. `sfp_secedgar` (new, free, no key) searches SEC EDGAR for a person's name in insider, ownership, proxy and annual filings, and reports the operating companies they appear in as `COMPANY_NAME`, which every company module (GLEIF, FCC, IRS, FDIC, EPA and so on) then picks up. It also emits `COMPANY_FILING` entries (form, date, link) both for the filings the person appears in and the company's recent filings, plus the company's registration details, business address and phone. Given a company name it does the same lookup directly. Matches are by name only and the evidence record says so.
+- Professional licensing: `sfp_npiregistry` (US NPI registry; healthcare professionals and organisations: specialty, state licence number, practice address, phone, and an organisation's authorised official as a new `HUMAN_NAME`) and `sfp_brokercheck` (FINRA BrokerCheck and the SEC's IAPD; brokers, investment adviser representatives and firms: CRD and SEC numbers, status, current employer firms as `COMPANY_NAME`, and whether there are disclosures). Both take a person or a business name.
+- New event types `COMPANY_FILING` and `PROFESSIONAL_LICENSE`.
+- The module Test box accepts a plain person or company name.
+
 ### Web search through SearXNG; free geocoding
 
 - Google's Custom Search JSON API is closed to new customers and ends on 2027-01-01, and Microsoft retired the Bing Search API in August 2025. `sfp_googlesearch`, `sfp_bingsearch`, `sfp_pastebin`, `sfp_onioncity` and `sfp_socialprofiles` now search through the SearXNG instance set up on the SearXNG module (Settings -> Modules -> SearXNG), reusing its URL, auth header and query defaults, so there is one place to configure it. The Google API is only a fallback while it still works and a key is entered; the Bing API path is removed. These modules no longer carry the `apikey` flag: they are free and key-optional. With no SearXNG instance and no legacy key they are auto-disabled as "no web search backend (set up SearXNG)".
