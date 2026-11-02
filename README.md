@@ -121,7 +121,7 @@ Streams scan summaries and correlation explanations over Server-Sent Events from
 
 | Area | Modules |
 |---|---|
-| People, businesses and filings | `sfp_secedgar` (SEC EDGAR: people to companies, company filings and registration), `sfp_openstreetmap` (free geocoding and reverse geocoding), `sfp_crt_org` (domains by certificate organisation) |
+| People, businesses and filings | `sfp_sec_edgar` (SEC EDGAR: company profile, filings and parent company, and people to the companies they appear in), `sfp_openstreetmap` (free geocoding and reverse geocoding), `sfp_crt_org` (domains by certificate organisation) |
 | Professional licences | `sfp_npiregistry` (US healthcare professionals and organisations, state licence numbers), `sfp_brokercheck` (FINRA BrokerCheck and SEC adviser registrations for people and firms) |
 | Threat and reputation | `sfp_rapiddns`, `sfp_firehol`, `sfp_spamhaus_drop`, `sfp_whoisds`, `sfp_chainabuse`, `sfp_recordedfuture`, `sfp_triage` |
 | Search | `sfp_searxng` (`site:` listings for hosts, exact-phrase searches for names, businesses, emails, usernames and phones, with optional embeddings ranking) and `sfp_vane` (a cited, model-written profile of the target from a self-hosted Vane instance; labelled as model-generated, not in the Footprint use case), plus Pastebin, Onion.link and social profiles running on SearXNG |
@@ -135,8 +135,7 @@ The people and business modules match on names only, so a common name returns se
 
 | Source | What it returns | Cost |
 |---|---|---|
-| `sfp_sec_edgar` | SEC filer profile (addresses, phone, tickers, EIN, state of incorporation, former names), recent filings, and the parent company found from other filers' Exhibit 21 | free, optional contact email |
-| `sfp_secedgar` | Company registration and recent filings as `COMPANY_FILING` events (10-K, 8-K, proxy, ownership, Form D), and, from a person's name, the public companies they appear in | free |
+| `sfp_sec_edgar` | SEC filer profile (addresses, phone, tickers, EIN, state of incorporation, former names), recent filings as `COMPANY_FILING` events (10-K, 8-K, proxy, ownership, Form D), and the parent company found from other filers' Exhibit 21. Given a person's name it reports the public companies they appear in | free, optional contact email |
 | `sfp_us_state_registries`, `sfp_govfiles` | State business entity registries: status, entity type, formation date, addresses and officers. The first covers NY, CO, CT, OR and TX from open data; GovFiles covers all states and DC (default: New England) and also stands in for MA, NH and ME, whose own registries block automated clients | free; GovFiles needs a key |
 | `sfp_gleif`, `sfp_opencorporates` | Legal Entity Identifier records, and OpenCorporates | free, paid |
 | `sfp_usaspending` | Federal contracts, grants and loans: UEI, parent company, award totals | free |
@@ -254,7 +253,6 @@ If you add Tailwind classes to a template, rebuild the stylesheet: `npx tailwind
 
 - **TruffleHog.** The image installs TruffleHog 3.x but `sfp_tool_trufflehog` was written for the 2.x command line, so that module does not work until it is ported.
 - **Matching.** Name-based registry lookups are name matches, not identity matches.
-- **Two SEC modules overlap.** `sfp_sec_edgar` (company profile, filings and parent company) and `sfp_secedgar` (person-to-company links and filings) cover similar ground and may report the same filings twice.
 - **Registries that block automated clients.** The Massachusetts, New Hampshire and Maine registry sites cannot be scraped; they are covered through GovFiles, which needs a key (not tested live).
 - **Unofficial endpoints.** BrokerCheck and the SEC's adviser search have no documented API; the modules use the JSON the public search pages use and may break without notice.
 - **Several vendor modules are untested against live APIs** (they need paid or restricted keys): Recorded Future, Tria.ge, Chainabuse, and the Censys v3 output beyond host basics.

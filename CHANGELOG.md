@@ -4,6 +4,10 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### One SEC EDGAR module
+
+- `sfp_secedgar` is merged into `sfp_sec_edgar`, so there is one SEC module instead of two that reported the same filings. `sfp_sec_edgar` keeps its company lookup (filer profile, parent company from Exhibit 21) and gains: recent filings as `COMPANY_FILING` events (limited to the useful forms by the new `filing_forms` option; empty means every form), and a person search (`person_search`, `person_forms`, `max_companies`) that finds the operating companies a person's name appears in through insider, ownership and proxy filings, with an evidence record that says it is a name match. It now also watches `HUMAN_NAME`, throttles itself to 10 requests a second (`delay`), and ignores companies it reported itself. The `contact_email` option is kept (the removed module's `contact` option is gone). Anything that referenced `sfp_secedgar` should use `sfp_sec_edgar`.
+
 ### Security: CodeQL findings and Dependabot
 
 - Error responses no longer carry exception text: failures are logged on the server and the client gets a short fixed message (settings save, scan start, vacuum, presets, usage limits, module test, SearXNG test).
@@ -32,7 +36,7 @@ All notable changes to the SpiderFoot Revival project.
 
 ### People to businesses, filings and professional licences
 
-- Name searches now reach the business modules. `sfp_secedgar` (new, free, no key) searches SEC EDGAR for a person's name in insider, ownership, proxy and annual filings, and reports the operating companies they appear in as `COMPANY_NAME`, which every company module (GLEIF, FCC, IRS, FDIC, EPA and so on) then picks up. It also emits `COMPANY_FILING` entries (form, date, link) both for the filings the person appears in and the company's recent filings, plus the company's registration details, business address and phone. Given a company name it does the same lookup directly. Matches are by name only and the evidence record says so.
+- Name searches now reach the business modules. `sfp_sec_edgar` (formerly a separate `sfp_secedgar`; free, no key) searches SEC EDGAR for a person's name in insider, ownership, proxy and annual filings, and reports the operating companies they appear in as `COMPANY_NAME`, which every company module (GLEIF, FCC, IRS, FDIC, EPA and so on) then picks up. It also emits `COMPANY_FILING` entries (form, date, link) both for the filings the person appears in and the company's recent filings, plus the company's registration details, business address and phone. Given a company name it does the same lookup directly. Matches are by name only and the evidence record says so.
 - Professional licensing: `sfp_npiregistry` (US NPI registry; healthcare professionals and organisations: specialty, state licence number, practice address, phone, and an organisation's authorised official as a new `HUMAN_NAME`) and `sfp_brokercheck` (FINRA BrokerCheck and the SEC's IAPD; brokers, investment adviser representatives and firms: CRD and SEC numbers, status, current employer firms as `COMPANY_NAME`, and whether there are disclosures). Both take a person or a business name.
 - New event types `COMPANY_FILING` and `PROFESSIONAL_LICENSE`.
 - The module Test box accepts a plain person or company name.

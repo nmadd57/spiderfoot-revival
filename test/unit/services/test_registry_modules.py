@@ -5,7 +5,6 @@ from unittest import mock
 
 from modules.sfp_brokercheck import sfp_brokercheck
 from modules.sfp_npiregistry import sfp_npiregistry
-from modules.sfp_secedgar import sfp_secedgar
 from sflib import SpiderFoot
 from spiderfoot import SpiderFootEvent, SpiderFootTarget
 from spiderfoot.services import people
@@ -63,82 +62,6 @@ class Base(unittest.TestCase):
                     return {'code': '200', 'content': json.dumps(body)} if body is not None else {'code': '404', 'content': None}
             return {'code': '404', 'content': None}
         return mock.patch.object(self.sf, 'fetchUrl', side_effect=fetch)
-
-
-NIKE = {'name': 'NIKE, Inc.', 'cik': '320187', 'entityType': 'operating', 'sic': '3021',
-        'sicDescription': 'Rubber & Plastics Footwear', 'tickers': ['NKE'], 'exchanges': ['NYSE'],
-        'stateOfIncorporation': 'OR', 'fiscalYearEnd': '0531', 'ein': '930584541', 'formerNames': [],
-        'phone': '5036713173',
-        'addresses': {'business': {'street1': 'ONE BOWERMAN DRIVE', 'city': 'BEAVERTON', 'stateOrCountry': 'OR', 'zipCode': '97005'}},
-        'filings': {'recent': {'form': ['4', '10-K', '8-K', '10-Q'], 'filingDate': ['2026-10-01', '2026-07-20', '2026-06-27', '2026-04-01'],
-                               'accessionNumber': ['0000320187-26-000010', '0000320187-26-000008', '0000320187-26-000007', '0000320187-26-000003'],
-                               'primaryDocument': ['x4.xml', 'nke-10k.htm', 'nke-8k.htm', 'nke-10q.htm']}}}
-COOK_SELF = {'name': 'COOK TIMOTHY D', 'cik': '1214156', 'entityType': 'other'}
-
-
-def fts_hit(form, date, adsh, doc, names, ciks):
-    return {'_id': f"{adsh}:{doc}", '_source': {'form': form, 'file_date': date, 'adsh': adsh, 'display_names': names, 'ciks': ciks}}
-
-
-class TestSecEdgar(Base):
-    cls = sfp_secedgar
-
-    def test_person_to_companies_and_filings(self):
-        hits = {'hits': {'hits': [
-            fts_hit('4', '2021-10-08', '0001127602-21-026859', 'doc4.xml',
-                    ['COOK TIMOTHY D  (CIK 0001214156)', 'NIKE, Inc.  (NKE)  (CIK 0000320187)'], ['0001214156', '0000320187']),
-            fts_hit('4', '2017-09-25', '0000320187-17-000156', 'doc4.xml',
-                    ['COOK TIMOTHY D  (CIK 0001214156)', 'NIKE INC  (NKE)  (CIK 0000320187)'], ['0001214156', '0000320187']),
-        ]}}
-        with self.serve([('search-index', hits), ('CIK0000320187.json', NIKE), ('CIK0001214156.json', COOK_SELF)]):
-            self.feed('HUMAN_NAME', 'Timothy Cook')
-        self.assertEqual(self.by_type('COMPANY_NAME'), ['NIKE, Inc.'])
-        filings = self.by_type('COMPANY_FILING')
-        self.assertTrue(any('Form 4 · 2021-10-08' in f and '/data/320187/000112760221026859/doc4.xml' in f for f in filings), filings)
-        self.assertTrue(any('Form 10-K · 2026-07-20' in f for f in filings))  # the company's own recent filings
-        self.assertIn('ONE BOWERMAN DRIVE, BEAVERTON, OR, 97005', self.by_type('PHYSICAL_ADDRESS'))
-        evidence = [json.loads(d) for d in self.by_type('RAW_RIR_DATA') if '"person"' in d][0]
-        self.assertEqual(evidence['appearsIn'], {'4': 2})
-        self.assertIn('name only', evidence['note'])
-
-    def test_person_with_one_word_or_no_hits(self):
-        with self.serve([('search-index', {'hits': {'hits': []}})]) as f:
-            self.feed('HUMAN_NAME', 'Madonna')
-            f.assert_not_called()
-            self.feed('HUMAN_NAME', 'Nobody Atall')
-        self.assertEqual(self.out, [])
-
-    def test_non_operating_filers_are_not_companies(self):
-        hits = {'hits': {'hits': [fts_hit('4', '2020-01-01', '0001-20-1', 'd.xml',
-                                          ['COOK TIMOTHY D  (CIK 0001214156)', 'SMITH JANE  (CIK 0000999)'], ['0001214156', '0000999'])]}}
-        with self.serve([('search-index', hits), ('CIK0000000999.json', {'name': 'SMITH JANE', 'entityType': 'other'})]):
-            self.feed('HUMAN_NAME', 'Timothy Cook')
-        self.assertEqual(self.by_type('COMPANY_NAME'), [])
-
-    def test_company_lookup(self):
-        typeahead = {'hits': {'hits': [{'_id': '320187', '_source': {'entity': 'NIKE INC (NKE)'}},
-                                       {'_id': '999', '_source': {'entity': 'NIKE HOLDINGS LLC'}}]}}
-        with self.serve([('keysTyped', typeahead), ('CIK0000320187.json', NIKE)]):
-            self.feed('COMPANY_NAME', 'Nike Inc.')
-        filings = self.by_type('COMPANY_FILING')
-        self.assertEqual(len(filings), 3)  # the Form 4 is not in the default company form list
-        self.assertTrue(all('NIKE, Inc. · Form' in f for f in filings))
-        self.assertEqual(self.by_type('PHONE_NUMBER'), ['5036713173'])
-        self.assertEqual(self.by_type('COMPANY_NAME'), [])
-
-    def test_ignores_its_own_companies_and_blocked_requests(self):
-        with self.serve([]) as f:
-            self.feed('COMPANY_NAME', 'Nike Inc.', src='sfp_secedgar')
-            f.assert_not_called()
-        with mock.patch.object(self.sf, 'fetchUrl', return_value={'code': '403', 'content': 'x'}), \
-                mock.patch.object(self.module, 'error') as err:
-            self.feed('HUMAN_NAME', 'Timothy Cook')
-        self.assertTrue(self.module.errorState)
-        self.assertIn('contact email', err.call_args[0][0])
-
-    def test_contact_goes_into_user_agent(self):
-        self.module.opts['contact'] = 'me@example.org'
-        self.assertTrue(self.module.userAgent().endswith('me@example.org'))
 
 
 NPI_PERSON = {'results': [{'number': '1972813608', 'enumeration_type': 'NPI-1',
