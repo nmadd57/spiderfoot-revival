@@ -1,22 +1,18 @@
 # SpiderFoot Revival
 
-Self-hosted OSINT automation platform forked from [SpiderFoot](https://github.com/smicallef/spiderfoot). Major overhaul — new UI, new modules, modernized stack. Current version: **5.2.0**.
+Self-hosted OSINT automation platform forked from [SpiderFoot](https://github.com/smicallef/spiderfoot). Major overhaul — new UI, new modules, modernized stack. Current version: **5.2.0**. See the README for what this fork adds.
 
 ## Quick Start
 
 ```bash
-# Slim image — Python deps only
 docker build -t spiderfoot-revival .
-docker run -p 5001:5001 spiderfoot-revival
+docker run -p 127.0.0.1:5001:5001 -v ~/.spiderfoot:/var/lib/spiderfoot spiderfoot-revival
 # Visit http://localhost:5001
 ```
 
-For the local-tool modules (BBOT, nmap, nuclei, dnstwist, etc.) build the full image:
+The image bundles the local-tool modules (BBOT, nmap, nuclei, trufflehog, testssl.sh, WhatWeb and the others); see the README for the list. `Dockerfile.full` is the older all-in-one variant.
 
-```bash
-docker build -f Dockerfile.full -t spiderfoot-full .
-docker run -p 5001:5001 -v ~/.spiderfoot:/var/lib/spiderfoot spiderfoot-full
-```
+Run the tests with `python -m pytest test/unit` (Python 3.12+).
 
 ## Project Structure
 

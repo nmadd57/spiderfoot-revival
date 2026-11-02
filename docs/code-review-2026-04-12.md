@@ -1,7 +1,7 @@
 # Code Review — SpiderFoot Revival
 **Date**: 2026-04-12
 **Scope**: Full codebase audit — event pipeline, security, correlation engine, concurrency, architecture
-**Reviewed by**: Claude Code audit (5 parallel review agents)
+**Reviewed by**: automated audit (5 parallel review agents)
 
 ## Summary
 
@@ -514,7 +514,7 @@
 The entire module system depends on a `SpiderFoot` instance with no interface abstraction. Unit tests cover only module metadata, not event processing logic. The core event pipeline (`sfscan.py:waitForThreads()`) and correlation engine (`correlation.py:process_rule()`) appear under-tested relative to their complexity and criticality.
 
 ### Extensibility of Module System: Good with Caveats
-The module pattern (watchedEvents/producedEvents/handleEvent) is clean and well-documented. The CLAUDE.md provides a reference template. However, there is no runtime validation that modules implement required methods, no enforced pattern for error handling (errorState compliance varies widely), and event types are magic strings with no enum or constant definition.
+The module pattern (watchedEvents/producedEvents/handleEvent) is clean and well-documented. DEVELOPMENT.md provides a reference template. However, there is no runtime validation that modules implement required methods, no enforced pattern for error handling (errorState compliance varies widely), and event types are magic strings with no enum or constant definition.
 
 ### Readiness for Multi-User / Cloud Deployment: Not Ready
 - Plaintext password storage

@@ -138,7 +138,7 @@ class sfp_example(SpiderFootPlugin):
 | POST | `/api/savesettings` | Import config (JSON or CFG file) |
 | GET | `/api/modules` | List all available modules |
 
-## Current Module Count: 244
+## Current Module Count: 255
 
 ### By API Model
 - FREE_NOAUTH_UNLIMITED: ~35 modules
@@ -240,19 +240,14 @@ ORDER BY r.generated DESC
 
 ## Docker
 
-Two images:
+One image (`python:3.15-alpine`, multi-stage, non-root user). A `tools` build stage downloads and builds the local-tool binaries and the final image copies them in, so the `sfp_tool_*` modules work without configuration:
 
 ```bash
-# Slim — Python deps only (Alpine 3.18, multi-stage build, non-root)
 docker build -t spiderfoot-revival .
-docker run -p 5001:5001 -v ~/.spiderfoot:/var/lib/spiderfoot spiderfoot-revival
-
-# Full — Python + every local-tool CLI binary the modules wrap
-docker build -f Dockerfile.full -t spiderfoot-full .
-docker run -p 5001:5001 -v ~/.spiderfoot:/var/lib/spiderfoot spiderfoot-full
+docker run -p 127.0.0.1:5001:5001 -v ~/.spiderfoot:/var/lib/spiderfoot spiderfoot-revival
 ```
 
-The full image is `python:3.11`-based (lxml<5 has no wheels on 3.13) and ships nmap, nuclei, whatweb, dnstwist, cmseek, wafw00f, onesixtyone, nbtscan, retire, testssl.sh, snallygaster, trufflehog, and BBOT with all module deps pre-installed.
+Bundled: nmap, nbtscan, onesixtyone, nuclei (with templates), trufflehog, testssl.sh, WhatWeb, CMSeeK, retire.js, wafw00f, snallygaster, dnstwist, and BBOT 3.0.2 in its own Python 3.13 environment (built from source; its Python dependencies are installed at build time because BBOT cannot install them as an unprivileged user). `Dockerfile.full` is the older all-in-one variant.
 
 For BBOT active port scanning (masscan SYN scans) add `--cap-add=NET_RAW`; without it BBOT falls back to TCP-connect.
 
