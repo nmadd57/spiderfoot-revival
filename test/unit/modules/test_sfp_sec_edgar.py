@@ -240,6 +240,17 @@ class TestModuleSecEdgarPeople(unittest.TestCase):
         self.assertTrue(self.module.errorState)
         self.assertIn('contact email', err.call_args[0][0])
 
+    def test_a_reset_connection_is_retried_once(self):
+        typeahead = {'hits': {'hits': [{'_id': '320187', '_source': {'entity': 'NIKE INC (NKE)'}}]}}
+        replies = [{'code': 'None', 'content': None, 'status': 'reset'},
+                   {'code': '200', 'content': json.dumps(typeahead)},
+                   {'code': '200', 'content': json.dumps(NIKE)},
+                   {'code': '200', 'content': json.dumps({'hits': {'hits': []}})}]
+        with mock.patch('modules.sfp_sec_edgar.time.sleep'), mock.patch.object(self.sf, 'fetchUrl', side_effect=replies) as f:
+            self.feed('COMPANY_NAME', 'Nike Inc.')
+        self.assertEqual(f.call_count, 4)
+        self.assertTrue(self.by_type('COMPANY_FILING'))
+
     def test_contact_email_goes_into_the_user_agent(self):
         self.module.opts['contact_email'] = 'me@example.org'
         self.assertTrue(self.module._useragent().endswith('me@example.org'))

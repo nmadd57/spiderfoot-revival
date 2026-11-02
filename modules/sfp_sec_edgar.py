@@ -114,8 +114,15 @@ class sfp_sec_edgar(SpiderFootPlugin):
         return f"SpiderFoot-Revival OSINT {email}".strip() if email else "SpiderFoot-Revival OSINT"
 
     def _get(self, url: str):
-        _wait(float(self.opts.get('delay') or 0))
-        res = self.sf.fetchUrl(url, timeout=self.opts['_fetchtimeout'], useragent=self._useragent())
+        # The SEC's edge sometimes resets a connection (TLS EOF) under bursts of requests; one retry
+        # after a short pause gets through.
+        for attempt in (1, 2):
+            _wait(float(self.opts.get('delay') or 0))
+            res = self.sf.fetchUrl(url, timeout=self.opts['_fetchtimeout'], useragent=self._useragent())
+            if str(res.get('code')) == 'None' and attempt == 1:
+                time.sleep(1.0)
+                continue
+            break
         code = str(res.get('code'))
         if code in ("403", "429"):
             self.error(f"SEC EDGAR refused the request (HTTP {code}). Set a contact email in the "
