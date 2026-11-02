@@ -53,9 +53,26 @@ class TestSearxngService(SfBase):
                 self.assertIsNone(searxng.search(sf, 'q'))
             self.assertIn(text, err.call_args[0][0])
 
+    def test_sso_sign_in_page_is_recognised(self):
+        page = '<html><title>Sign In</title>Sign in with PocketID <a href="/oauth2/start">continue</a></html>'
+        for code in ('403', '401', '200'):
+            sf = self.sf()
+            with mock.patch.object(sf, 'fetchUrl', return_value={'code': code, 'content': page}), \
+                    mock.patch.object(sf, 'error') as err:
+                self.assertIsNone(searxng.search(sf, 'q'))
+            self.assertIn('sign-in page', err.call_args[0][0], code)
+            self.assertIn('skips the login', err.call_args[0][0], code)
+
+    def test_plain_403_still_says_json_may_be_disabled(self):
+        sf = self.sf()
+        with mock.patch.object(sf, 'fetchUrl', return_value={'code': '403', 'content': '<h1>Forbidden</h1>'}), \
+                mock.patch.object(sf, 'error') as err:
+            searxng.search(sf, 'q')
+        self.assertIn('JSON output is disabled', err.call_args[0][0])
+
     def test_html_reply_is_reported(self):
         sf = self.sf()
-        with mock.patch.object(sf, 'fetchUrl', return_value={'code': '200', 'content': '<html>login</html>'}), \
+        with mock.patch.object(sf, 'fetchUrl', return_value={'code': '200', 'content': '<html>maintenance</html>'}), \
                 mock.patch.object(sf, 'error') as err:
             self.assertIsNone(searxng.search(sf, 'q'))
         self.assertIn('did not return JSON', err.call_args[0][0])

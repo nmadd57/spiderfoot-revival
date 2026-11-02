@@ -1,6 +1,8 @@
 import socket
 import unittest
 
+import dns.resolver
+
 import sflib
 
 
@@ -24,6 +26,7 @@ class TestIpv4First(unittest.TestCase):
                 self.assertTrue(getattr(socket.getaddrinfo, '_ipv4_first', False))
                 self.assertIsNone(getattr(socket.getaddrinfo.__closure__[0].cell_contents, '_ipv4_first', None))
         finally:
+            dns.resolver.restore_system_resolver()  # undoes every socket function the override replaced
             socket.getaddrinfo = original
 
     def test_no_wrapper_without_a_custom_dns_server(self):
@@ -32,4 +35,5 @@ class TestIpv4First(unittest.TestCase):
             sflib.SpiderFoot({'_dnsserver': '', '_useragent': 'x', '_fetchtimeout': 5, '_internettlds': '', '_internettlds_cache': 1})
             self.assertIs(socket.getaddrinfo, original)
         finally:
+            dns.resolver.restore_system_resolver()  # undoes every socket function the override replaced
             socket.getaddrinfo = original

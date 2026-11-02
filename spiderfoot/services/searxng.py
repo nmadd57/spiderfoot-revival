@@ -11,6 +11,7 @@ The instance URL, auth header, TLS verification and query defaults are read from
 """
 
 import json
+import re
 import urllib.parse
 
 MODULE = 'sfp_searxng'
@@ -22,6 +23,19 @@ def parse_header(value) -> dict:
     if not sep or not name.strip() or not val.strip():
         return {}
     return {name.strip(): val.strip()}
+
+
+_LOGIN = re.compile(r'oauth2|sign[ _-]?in|log[ _-]?in|single sign|sso|authelia|authentik|keycloak|pocket ?id', re.I)
+
+
+def login_page(content) -> bool:
+    """True if a reply body looks like a sign-in page from an SSO/auth proxy rather than SearXNG."""
+    return bool(content) and bool(_LOGIN.search(str(content)[:4000]))
+
+
+SSO_HINT = ("The URL is behind a login (SSO) proxy, which answers API calls with a sign-in page. Point the SearXNG "
+            "module at an address that skips the login, such as the instance's own port on your LAN, or have "
+            "the proxy skip authentication for this host.")
 
 
 def config(sf) -> dict:
@@ -69,6 +83,9 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0):
         res = sf.fetchUrl(f"{base}/search?" + urllib.parse.urlencode(params), timeout=timeout, headers=headers,
                           useragent=useragent, verify=bool(cfg.get('verify_ssl', True)))
         code = str(res.get('code'))
+        if code in ('401', '403', '407') and login_page(res.get('content')):
+            sf.error(f"SearXNG at {base} answered HTTP {code} with a sign-in page. {SSO_HINT}")
+            return None
         if code == '403':
             sf.error("SearXNG returned HTTP 403: JSON output is disabled (add 'json' to search.formats in settings.yml) "
                      "or a proxy in front of the instance blocked the request.")
@@ -87,8 +104,11 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0):
         try:
             data = json.loads(res['content'])
         except ValueError:
-            sf.error("SearXNG did not return JSON: check the instance URL, any proxy login in front of it, and that "
-                     "no bot-protection page sits in front of it.")
+            if login_page(res.get('content')):
+                sf.error(f"SearXNG at {base} returned a sign-in page instead of JSON. {SSO_HINT}")
+            else:
+                sf.error("SearXNG did not return JSON: check the instance URL and that no bot-protection page "
+                         "sits in front of it.")
             return None
         page = [r for r in (data.get('results') or []) if isinstance(r, dict) and r.get('url')]
         new = [r for r in page if r['url'] not in seen]

@@ -4,6 +4,10 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### SearXNG behind a login
+
+- When the SearXNG URL sits behind an SSO proxy (oauth2-proxy, Authelia, Authentik...) the proxy answers API calls with a 403 or a sign-in page. The error now says so and suggests an address that skips the login, instead of claiming JSON output is disabled. Applies to the shared web search helper and the SearXNG module.
+
 ### Fix: very slow requests with a custom DNS server
 
 - With a custom DNS server set (Settings -> General -> DNS), the resolver override returned AAAA (IPv6) records first. On a host without working IPv6, such as a container behind a WireGuard tunnel, every unreachable IPv6 address cost a full connect timeout, so a single HTTP request to a host with eight IPv6 addresses took four minutes. IPv4 addresses are now tried first. Every module that makes HTTP requests benefits.

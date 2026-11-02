@@ -13,6 +13,7 @@ import math
 import urllib.parse
 
 from spiderfoot import SpiderFootEvent, SpiderFootPlugin
+from spiderfoot.services import searxng as searxng_svc
 
 
 def parse_header(value: str):
@@ -138,6 +139,10 @@ class sfp_searxng(SpiderFootPlugin):
             verify=bool(self.opts.get('verify_ssl', True)),
         )
         code = str(res.get('code'))
+        if code in ("401", "403", "407") and searxng_svc.login_page(res.get('content')):
+            self.error(f"SearXNG at {self.baseUrl()} answered HTTP {code} with a sign-in page. {searxng_svc.SSO_HINT}")
+            self.errorState = True
+            return None
         if code == "403":
             self.error("SearXNG returned HTTP 403: JSON output is disabled (add 'json' to search.formats in "
                        "settings.yml) or a proxy in front of the instance blocked the request.")
@@ -163,8 +168,11 @@ class sfp_searxng(SpiderFootPlugin):
             data = json.loads(res['content'])
         except Exception:
             # An HTML page usually means a reverse-proxy login page or a bot-protection challenge
-            self.error("SearXNG did not return JSON: check the instance URL, any proxy authentication, and "
-                       "that no bot-protection page (e.g. Anubis) sits in front of it.")
+            if searxng_svc.login_page(res.get('content')):
+                self.error(f"SearXNG at {self.baseUrl()} returned a sign-in page instead of JSON. {searxng_svc.SSO_HINT}")
+            else:
+                self.error("SearXNG did not return JSON: check the instance URL and that no bot-protection page "
+                           "(e.g. Anubis) sits in front of it.")
             self.errorState = True
             return None
         return data if isinstance(data, dict) else None
