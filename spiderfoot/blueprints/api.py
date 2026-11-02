@@ -767,7 +767,8 @@ def ai_test():
     base = str(body.get('base_url') if body.get('base_url') is not None else cfg.get('_ai_base_url', '') or '').strip()
     if base and not re.match(r'^https?://', base, re.I):
         return jsonify({"ok": False, "message": "The base URL must start with http:// or https://", "models": [], "modelCount": 0, "chat": None})
-    return jsonify(ai_service.test_connection(base, key, str(body.get('model') or '')))
+    model = str(body['model'] if 'model' in body else cfg.get('_ai_default_model', '') or '')
+    return jsonify(ai_service.test_connection(base, key, model))
 
 
 _test_locks = {}
