@@ -49,21 +49,37 @@ class TestRunModule(unittest.TestCase):
     def test_unknown_module(self):
         self.assertEqual(mt.run_module('sfp_nope', self.config(), SpiderFoot)['status'], 'skip')
 
+    def test_running_a_test_does_not_touch_the_module_options(self):
+        import modules.sfp_countryname as m
+        before = dict(m.sfp_countryname.opts)
+        mt.run_module('sfp_countryname', self.config('sfp_countryname'), SpiderFoot, target='+14155550100')
+        self.assertEqual(before, m.sfp_countryname.opts)
+
     def test_offline_module_produces_events(self):
         res = mt.run_module('sfp_countryname', self.config('sfp_countryname'), SpiderFoot, target='+14155550100')
         self.assertEqual(res['status'], 'pass', res)
         self.assertTrue(any(e['type'] == 'COUNTRY_NAME' for e in res['events']))
         self.assertEqual(res['errors'], [])
 
-    def test_module_error_is_reported(self):
-        def boom(self_, event):
-            self_.error("Something broke")
+    def test_non_key_message_is_a_note_not_a_failure(self):
+        def noisy(self_, event):
+            self_.error("No information available for that IP")
 
-        cfg = self.config('sfp_countryname')
+        with mock.patch('modules.sfp_countryname.sfp_countryname.handleEvent', noisy):
+            res = mt.run_module('sfp_countryname', self.config('sfp_countryname'), SpiderFoot, target='+14155550100')
+        self.assertEqual(res['status'], 'warn')
+        self.assertEqual(res['errors'], [])
+        self.assertIn('No information available for that IP', res['notes'])
+        self.assertIsNone(res['keyProblem'])
+
+    def test_exception_fails(self):
+        def boom(self_, event):
+            raise RuntimeError("kaput")
+
         with mock.patch('modules.sfp_countryname.sfp_countryname.handleEvent', boom):
-            res = mt.run_module('sfp_countryname', cfg, SpiderFoot, target='+14155550100')
+            res = mt.run_module('sfp_countryname', self.config('sfp_countryname'), SpiderFoot, target='+14155550100')
         self.assertEqual(res['status'], 'fail')
-        self.assertIn('Something broke', res['errors'])
+        self.assertIn('kaput', res['summary'])
 
     def test_key_problem_message_is_classified(self):
         def boom(self_, event):

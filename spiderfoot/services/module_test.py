@@ -115,7 +115,7 @@ class _Capture(logging.Handler):
 
 def _result(status, summary, **extra):
     out = {'status': status, 'summary': summary, 'ms': 0, 'events': [], 'eventCount': 0,
-           'errors': [], 'warnings': [], 'requests': [], 'target': '', 'eventType': '', 'keyProblem': None}
+           'errors': [], 'notes': [], 'warnings': [], 'requests': [], 'target': '', 'eventType': '', 'keyProblem': None}
     out.update(extra)
     return out
 
@@ -186,6 +186,9 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
         module = __import__('modules.' + name, globals(), locals(), [name])
         mod = getattr(module, name)()
         mod.__name__ = name
+        # setup() merges the global config into ``self.opts``, which is a class-level dict shared with
+        # the app's module registry: work on a private copy so a test never changes real settings.
+        mod.opts = deepcopy(type(mod).opts)
     except Exception as e:
         return _result('fail', f'The module could not be loaded: {e}')
 
@@ -286,8 +289,13 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
         kind, detail = problem
         label = {'rejected': 'the key was rejected', 'quota': 'the key is out of quota or credits', 'rate': 'the vendor rate limited the request'}[kind]
         return _result('fail', f'The service answered but {label}: {detail}', keyProblem={'kind': kind, 'detail': detail}, **base)
+    if outcome['exc']:
+        return _result('fail', outcome['exc'], **base)
     if errors:
-        return _result('fail', errors[0], **base)
+        # Messages that do not concern the API key (no results, odd replies) are shown as notes,
+        # not as a failed test: only key or account problems fail a module.
+        base['notes'], base['errors'] = errors[:6], []
+        return _result('warn', f'Completed, but the module logged: {errors[0]}', **base)
     if ev:
         return _result('pass', f'Produced {len(ev)} event{"s" if len(ev) != 1 else ""} for {edata}.', **base)
     return _result('pass', f'Ran without errors but found nothing for the sample {edata}. '

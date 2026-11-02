@@ -66,25 +66,33 @@ class TestConnectionOptions(unittest.TestCase):
 
 
 class TestStatus(unittest.TestCase):
-    def test_scan_stats(self):
+    def test_only_key_related_errors_are_reported(self):
         with tempfile.NamedTemporaryFile(suffix='.db') as t:
             c = sqlite3.connect(t.name)
             c.execute("CREATE TABLE tbl_scan_log (scan_instance_id TEXT, generated INT, component TEXT, type TEXT, message TEXT)")
             c.execute("CREATE TABLE tbl_scan_results (module TEXT, generated INT)")
             now = int(time.time() * 1000)
             old = now - 30 * 86400 * 1000
-            c.executemany("INSERT INTO tbl_scan_log VALUES ('s',?,?,?,?)", [
-                (old, 'sfp_a', 'ERROR', 'old failure'), (now - 5000, 'sfp_a', 'ERROR', 'latest failure'),
-                (now, 'sfp_a', 'INFO', 'fine')])
+            rows = [
+                (old, 'sfp_a', 'ERROR', 'API key seems to have been rejected'),
+                (now - 5000, 'sfp_a', 'ERROR', 'Out of credits for this account'),
+                (now - 4000, 'sfp_a', 'ERROR', 'No information available for that IP.'),
+                (now - 3000, 'sfp_a', 'ERROR', 'Error processing JSON response: Expecting value'),
+                (now, 'sfp_a', 'INFO', 'fine'),
+                (now, 'sfp_c', 'ERROR', 'Unable to fetch CommonCrawl index.'),
+            ]
+            c.executemany("INSERT INTO tbl_scan_log VALUES ('s',?,?,?,?)", rows)
             c.executemany("INSERT INTO tbl_scan_results VALUES (?,?)", [('sfp_a', now - 9000), ('sfp_b', now)])
             c.commit()
             c.close()
             s = ms.scan_stats(t.name, now=time.time() + 100)
             self.assertEqual((s['sfp_a']['errors'], s['sfp_a']['errors7d']), (2, 1))
-            self.assertEqual(s['sfp_a']['lastError'], 'latest failure')
+            self.assertEqual(s['sfp_a']['lastError'], 'Out of credits for this account')
             self.assertEqual(s['sfp_a']['events'], 1)
             self.assertEqual(s['sfp_b']['events'], 1)
             self.assertNotIn('lastError', s['sfp_b'])
+            # a module whose only errors are ordinary scan noise reports no errors at all
+            self.assertNotIn('sfp_c', s)
 
     def test_missing_db_is_empty(self):
         self.assertEqual(ms.scan_stats('/nonexistent/x.db', now=time.time() + 1000), {})

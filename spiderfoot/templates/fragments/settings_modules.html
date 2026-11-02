@@ -189,14 +189,14 @@
               </p>
               <template x-if="tests[m.id]">
                 <div class="mt-2">
-                  <p class="font-semibold" :class="tests[m.id].status === 'pass' ? 'text-sf-success' : (tests[m.id].status === 'fail' ? 'text-red-400' : 'text-slate-400')"
+                  <p class="font-semibold" :class="tests[m.id].status === 'pass' ? 'text-sf-success' : (tests[m.id].status === 'fail' ? 'text-red-400' : (tests[m.id].status === 'warn' ? 'text-amber-500' : 'text-slate-400'))"
                      x-text="testWord(tests[m.id].status) + ': ' + tests[m.id].summary"></p>
                   <p class="text-slate-400" x-show="tests[m.id].target" x-text="'Sample: ' + tests[m.id].eventType + ' ' + tests[m.id].target + ' · ' + tests[m.id].ms + ' ms'"></p>
                   <template x-for="e in tests[m.id].errors" :key="e">
                     <p class="text-red-400 break-words" x-text="'Error: ' + e"></p>
                   </template>
-                  <template x-for="e in tests[m.id].warnings" :key="e">
-                    <p class="text-amber-500 break-words" x-text="'Warning: ' + e"></p>
+                  <template x-for="e in tests[m.id].notes" :key="e">
+                    <p class="text-slate-400 break-words" x-text="'Note: ' + e"></p>
                   </template>
                   <div x-show="tests[m.id].requests.length" class="mt-1 font-mono text-slate-400">
                     <template x-for="(r, i) in tests[m.id].requests" :key="i">
@@ -225,14 +225,14 @@
               <button type="button" @click="dismissIssue(m)" class="btn mt-1">Dismiss</button>
             </div>
             <div x-show="m.stats.lastError" class="mb-2 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
-              <p class="font-semibold text-amber-500">Last error <span class="font-normal text-slate-400" x-text="'· ' + when(m.stats.lastErrorAt)"></span></p>
+              <p class="font-semibold text-amber-500">Last key-related error <span class="font-normal text-slate-400" x-text="'· ' + when(m.stats.lastErrorAt)"></span></p>
               <p class="text-slate-500 dark:text-slate-400 mt-0.5 break-words" x-text="m.stats.lastError"></p>
             </div>
             <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
               <dt>Results produced</dt><dd class="font-mono" x-text="m.stats.events"></dd>
               <dt>Last result</dt><dd class="font-mono" x-text="m.stats.lastEventAt ? when(m.stats.lastEventAt) : 'never'"></dd>
-              <dt>Scan errors (7 days)</dt><dd class="font-mono" x-text="m.stats.errors7d"></dd>
-              <dt>Scan errors (all time)</dt><dd class="font-mono" x-text="m.stats.errors"></dd>
+              <dt>Key errors (7 days)</dt><dd class="font-mono" x-text="m.stats.errors7d"></dd>
+              <dt>Key errors (all time)</dt><dd class="font-mono" x-text="m.stats.errors"></dd>
             </dl>
 
             <template x-if="m.canLimit">
@@ -308,7 +308,6 @@ function modulesPage(data, autoOn) {
         { id: 'defoff', label: 'Off by default', on } ] },
       { id: 'status', label: 'Status', options: [
         { id: 'ok', label: 'Working', on: 'border-green-500 text-green-400 bg-green-500/10' },
-        { id: 'warn', label: 'Errors', on: 'border-amber-500 text-amber-500 bg-amber-500/10' },
         { id: 'bad', label: 'Problem', on: 'border-red-500 text-red-400 bg-red-500/10' },
         { id: 'idle', label: 'Not used yet', on } ] },
       { id: 'key', label: 'Key', options: [
@@ -352,6 +351,8 @@ function modulesPage(data, autoOn) {
     },
 
     // ---- status
+    // Only API key / account problems are reported here (see keyIssue); ordinary scan messages
+    // such as empty results are deliberately not.
     status(m) {
       const s = m.stats || {};
       if (m.disabled) return { k: 'idle', label: 'Disabled', detail: '' };
@@ -359,7 +360,6 @@ function modulesPage(data, autoOn) {
       if (m.toolMissing) return { k: 'bad', label: 'Tool not installed', detail: 'The binary for this module is not installed' };
       if (m.autoReason && this.auto) return { k: 'idle', label: m.autoReason, detail: '' };
       if (m.keyIssue) return { k: 'bad', label: this.keyIssueLabel(m), detail: m.keyIssue.detail };
-      if (s.errors7d && s.lastErrorAt >= s.lastEventAt) return { k: 'warn', label: s.errors7d + ' error' + (s.errors7d > 1 ? 's' : '') + ' this week', detail: s.lastError };
       if (s.events) return { k: 'ok', label: 'Working', detail: '' };
       return { k: 'idle', label: 'Not used yet', detail: '' };
     },
@@ -484,9 +484,10 @@ function modulesPage(data, autoOn) {
     },
 
     // ---- module test
-    testWord(s) { return s === 'pass' ? 'passed' : (s === 'fail' ? 'failed' : 'skipped'); },
+    testWord(s) { return s === 'pass' ? 'passed' : (s === 'fail' ? 'failed' : (s === 'warn' ? 'ran with notes' : 'skipped')); },
     testPill(s) {
       return s === 'pass' ? 'bg-green-500/10 text-green-400 border-green-500/40'
+           : s === 'warn' ? 'bg-amber-500/10 text-amber-500 border-amber-500/40'
            : s === 'fail' ? 'bg-red-500/10 text-red-400 border-red-500/40' : 'bg-slate-500/10 text-slate-400 border-slate-500/30';
     },
     async runTest(m, fromRow) {

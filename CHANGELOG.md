@@ -4,6 +4,12 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Only API key problems are passed through
+
+- Settings -> Modules now reports only errors that concern the module's API key or account (key rejected, out of credits or quota, rate limited). Ordinary scan messages such as "no information for that IP" or a parse problem are no longer shown as module errors, counted, or used to colour a module's status. The "Errors" status filter is gone; counts are labelled "Key errors".
+- A module Test that logs only non-key messages now reports "ran with notes" instead of failing. Exceptions and key/account problems still fail it.
+- Fixed: running a module Test merged the global configuration into the module's shared option dictionary, which could leak internal options into the module registry in the web process. The test now works on a private copy.
+
 ### Test buttons
 
 - Every module on Settings -> Modules has a **Test** button (and a Run test box in its panel with an optional target). It sets the module up exactly as a scan would, feeds it one sample it watches (a harmless public sample, or your own target), and shows the result: events it produced, errors and warnings, and the HTTP status of each request (host and path only, never the query string). Real calls are made with your key and count toward your limits. A recognised key or quota problem is flagged as such. Invasive modules (port scanners, crawlers) only run when you supply a target; `sfp_tool_*` modules are never run against anything, the test starts the binary with a version/help flag instead. Nothing is stored and no scan is created.
