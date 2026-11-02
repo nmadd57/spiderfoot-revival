@@ -58,6 +58,8 @@ def build_fields(mod_name: str, mod_cfg: dict, saved: dict) -> list:
         # connection options such as an auth header carry credentials too
         secret = is_secret(opt) or (opt in connection and 'auth' in opt.lower())
         raw = saved.get(f'{mod_name}:{opt}', default)
+        if is_tool_path(mod_name, opt) and default and not str(raw or '').strip():
+            raw = default  # an empty saved path means "use the default install location"
         if secret:
             value = MASK if str(raw or '').strip() else ''
             group = 'credentials'

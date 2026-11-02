@@ -88,3 +88,12 @@ class TestStatus(unittest.TestCase):
 
     def test_missing_db_is_empty(self):
         self.assertEqual(ms.scan_stats('/nonexistent/x.db', now=time.time() + 1000), {})
+
+
+class TestToolPathDefaults(unittest.TestCase):
+    def test_empty_saved_path_uses_default(self):
+        cfg = {'opts': {'nmappath': '/usr/bin/'}, 'optdescs': {}}
+        f = mo.build_fields('sfp_tool_nmap', cfg, {'sfp_tool_nmap:nmappath': ''})[0]
+        self.assertEqual(f['value'], '/usr/bin/')
+        f = mo.build_fields('sfp_tool_nmap', cfg, {'sfp_tool_nmap:nmappath': '/opt/nmap/'})[0]
+        self.assertEqual(f['value'], '/opt/nmap/')

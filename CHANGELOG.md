@@ -8,6 +8,7 @@ All notable changes to the SpiderFoot Revival project.
 
 - Every module on Settings -> Modules has a **Test** button (and a Run test box in its panel with an optional target). It sets the module up exactly as a scan would, feeds it one sample it watches (a harmless public sample, or your own target), and shows the result: events it produced, errors and warnings, and the HTTP status of each request (host and path only, never the query string). Real calls are made with your key and count toward your limits. A recognised key or quota problem is flagged as such. Invasive modules (port scanners, crawlers) only run when you supply a target; `sfp_tool_*` modules are never run against anything, the test starts the binary with a version/help flag instead. Nothing is stored and no scan is created.
 - Settings -> AI Assistant has a **Test connection** button. It uses the values on the form (saved or not), reads the endpoint's `/models` list, fills the default/fallback model suggestions with it (and fills an empty default model), and sends a tiny chat request with the default model to confirm it answers. Works with OpenRouter and any OpenAI-compatible server.
+- Tool path settings that were saved as an empty string by older versions no longer override the install location the image ships; without this the tools were installed but their modules still reported "did not set a path to the tool".
 - A tool module whose path setting points at a directory now counts as installed only if the binary is in that directory.
 
 ### One Modules page

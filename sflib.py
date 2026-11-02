@@ -466,6 +466,11 @@ class SpiderFoot:
                         continue
 
                     if isinstance(ref_mod, str):
+                        # A tool module's path setting that was saved as "" (the old default) must not
+                        # hide the install location the image now ships as the default.
+                        if (ref_mod and not str(opts[modName + ":" + opt]).strip()
+                                and modName.startswith('sfp_tool_') and opt.lower().endswith('path')):
+                            continue
                         returnOpts['__modules__'][modName]['opts'][opt] = str(opts[modName + ":" + opt])
                         continue
 
