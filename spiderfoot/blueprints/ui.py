@@ -214,6 +214,9 @@ def _build_modules_data(include_disabled=False):
 
     modules = {}
 
+    searx_url = str(saved_config.get('sfp_searxng:instance_url', '')
+                    or (raw.get('sfp_searxng', {}).get('opts', {}) or {}).get('instance_url', '')).strip()
+
     from spiderfoot.services import module_state
     disabled = module_state.parse(saved_config.get(module_state.KEY, ''))
     default_off = module_state.parse(saved_config.get(module_state.DEFAULT_OFF_KEY, ''))
@@ -263,7 +266,15 @@ def _build_modules_data(include_disabled=False):
         from spiderfoot.services import tools
         tool_missing = mod_name.startswith('sfp_tool_') and not tools.tool_installed(mod_name, opts, saved_config)
 
+        # Modules that search the web need a SearXNG instance (or, still, a legacy Google key)
+        uses_search = bool(meta.get('usesWebSearch'))
+        search_ready = bool(searx_url) or any(
+            str(saved_config.get(f'{mod_name}:{k}', '') or opts.get(k, '')).strip()
+            for k in api_key_opts if 'bing' not in k.lower())
+
         modules[mod_name] = {
+            'usesSearch': uses_search,
+            'searchReady': search_ready,
             'toolMissing': tool_missing,
             'name': meta.get('name', mod_name),
             'summary': meta.get('summary', mod_cfg.get('descr', '')),
@@ -286,6 +297,7 @@ def _build_modules_data(include_disabled=False):
     reasons = auto_disable.compute(
         sf_config.get('__database'), saved_config,
         {n: (True, False, 'tool not installed') if m['toolMissing']
+         else (True, m['searchReady'], 'no web search backend (set up SearXNG)') if m['usesSearch']
          else (m['requiresKey'], m['keyConfigured']) if not m['needsUrl']
          else (True, m['urlConfigured'], 'no instance URL') for n, m in modules.items()})
     issues = {}

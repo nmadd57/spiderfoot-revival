@@ -21,7 +21,8 @@ class sfp_googlemaps(SpiderFootPlugin):
 
     meta = {
         'name': "Google Maps",
-        'summary': "Identifies potential physical addresses and latitude/longitude coordinates.",
+        'summary': "Identifies potential physical addresses and latitude/longitude coordinates with the Google Geocoding API. "
+                   "The OpenStreetMap module does the same without a key.",
         'flags': ["apikey"],
         'pricing': 'free_key',
         'useCases': ["Footprint", "Investigate", "Passive"],
@@ -139,7 +140,7 @@ class sfp_googlemaps(SpiderFootPlugin):
 
         geometry = data.get('geometry')
         if geometry:
-            location = data.get('location')
+            location = geometry.get('location')
             if location:
                 lat = location.get('lat')
                 lng = location.get('lng')

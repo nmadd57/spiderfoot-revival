@@ -20,14 +20,16 @@ class sfp_onioncity(SpiderFootPlugin):
 
     meta = {
         'name': "Onion.link",
-        'summary': "Search Tor 'Onion City' search engine for mentions of the target domain using Google Custom Search.",
-        'flags': ["apikey", "tor"],
+        'summary': "Search Tor 'Onion City' search engine for mentions of the target domain, through your SearXNG "
+                   "instance or Google Custom Search.",
+        'flags': ["tor"],
+        'usesWebSearch': True,
         'pricing': 'free',
         'useCases': ["Footprint", "Investigate"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://onion.link/",
-            'model': "FREE_NOAUTH_UNLIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://developers.google.com/custom-search/v1",
                 "https://developers.google.com/custom-search/docs/overview",
@@ -56,7 +58,7 @@ class sfp_onioncity(SpiderFootPlugin):
 
     # Option descriptions
     optdescs = {
-        "api_key": "Google API Key for Onion.link search.",
+        "api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
         "cse_id": "Google Custom Search Engine ID.",
         'fetchlinks': "Fetch the darknet pages (via TOR, if enabled) to verify they mention your target.",
         'fullnames': "Search for human names?"
@@ -97,8 +99,9 @@ class sfp_onioncity(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if self.opts['api_key'] == "":
-            self.error("You enabled sfp_onioncity but did not set a Google API key!")
+        if not self.sf.webSearchAvailable(self.opts['api_key']):
+            self.error("You enabled sfp_onioncity but there is no web search backend: set up SearXNG "
+                       "(Settings > Modules > SearXNG) or add a Google API key.")
             self.errorState = True
             return
 
@@ -130,19 +133,24 @@ class sfp_onioncity(SpiderFootPlugin):
             self.results[link] = True
 
         # Submit the Google results for analysis
-        googlesearch_url = res["webSearchUrl"]
-        response = self.sf.fetchUrl(
-            googlesearch_url,
-            timeout=self.opts["_fetchtimeout"],
-            useragent=self.opts["_useragent"],
-        )
-        if response['code'] in ["200", "201", "202"]:
-            evt = SpiderFootEvent(
-                "RAW_RIR_DATA", response["content"], self.__name__, event
-            )
+        if res.get("results"):
+            # SearXNG results are already in hand (its HTML page may need a login)
+            evt = SpiderFootEvent("RAW_RIR_DATA", str(res["results"]), self.__name__, event)
             self.notifyListeners(evt)
         else:
-            self.error("Failed to fetch Google web search URL")
+            googlesearch_url = res["webSearchUrl"]
+            response = self.sf.fetchUrl(
+                googlesearch_url,
+                timeout=self.opts["_fetchtimeout"],
+                useragent=self.opts["_useragent"],
+            )
+            if response['code'] in ["200", "201", "202"]:
+                evt = SpiderFootEvent(
+                    "RAW_RIR_DATA", response["content"], self.__name__, event
+                )
+                self.notifyListeners(evt)
+            else:
+                self.error("Failed to fetch Google web search URL")
 
         # Check if we've been asked to stop
         if self.checkForStop():

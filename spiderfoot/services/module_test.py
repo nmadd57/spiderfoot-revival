@@ -42,6 +42,8 @@ SAMPLES = [
     ('COMPANY_NAME', 'Example Inc', 'COMPANY_NAME', 'Example Inc'),
     ('IPV6_ADDRESS', '2001:4860:4860::8888', 'IPV6_ADDRESS', '2001:4860:4860::8888'),
     ('BITCOIN_ADDRESS', '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', 'BITCOIN_ADDRESS', '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'),
+    ('PHYSICAL_ADDRESS', 'Eiffel Tower, Champ de Mars, 5 Avenue Anatole France, Paris, France', 'INTERNET_NAME', 'example.com'),
+    ('PHYSICAL_COORDINATES', '48.8584,2.2945', 'INTERNET_NAME', 'example.com'),
     ('LINKED_URL_INTERNAL', 'https://example.com/', 'INTERNET_NAME', 'example.com'),
     ('AFFILIATE_INTERNET_NAME', 'example.org', 'INTERNET_NAME', 'example.com'),
     ('CO_HOSTED_SITE', 'example.org', 'INTERNET_NAME', 'example.com'),
@@ -75,7 +77,13 @@ def pick_sample(watched, target=None):
     watched = list(watched or [])
     wildcard = '*' in watched
     if target:
+        # places are not scan target types: take "lat,lon" or free text as an address/coordinate input
+        import re
+        if re.match(r'^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$', target) and 'PHYSICAL_COORDINATES' in watched:
+            return 'PHYSICAL_COORDINATES', target.strip(), 'INTERNET_NAME', 'example.com'
         ttype = SpiderFootHelpers.targetTypeFromString(target)
+        if not ttype and 'PHYSICAL_ADDRESS' in watched and len(target) > 6:
+            return 'PHYSICAL_ADDRESS', target, 'INTERNET_NAME', 'example.com'
         if not ttype:
             return None
         cands = [ttype]
@@ -181,6 +189,19 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
             return _result('skip', 'No API key is set for this module.')
     if 'instance_url' in opts and not str(saved.get(f'{name}:instance_url', '') or opts.get('instance_url', '')).strip():
         return _result('skip', 'No instance URL is set for this module.')
+
+    if meta.get('usesWebSearch'):
+        import types
+
+        from spiderfoot.services import searxng
+        shim = types.SimpleNamespace(opts={**config, '__modules__': {
+            **(config.get('__modules__') or {}),
+            'sfp_searxng': {'opts': {**((config.get('__modules__') or {}).get('sfp_searxng', {}).get('opts') or {}),
+                                     **{k.split(':', 1)[1]: v for k, v in saved.items() if k.startswith('sfp_searxng:')}}}}})
+        if not searxng.available(shim) and not any(
+                str(saved.get(f'{name}:{k}', '') or opts.get(k, '')).strip() for k in keyopts if 'bing' not in k.lower()):
+            return _result('skip', 'No web search backend is set up. Add your SearXNG instance URL on the SearXNG module '
+                           '(or a legacy Google key on this module).')
 
     try:
         module = __import__('modules.' + name, globals(), locals(), [name])

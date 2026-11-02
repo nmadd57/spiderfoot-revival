@@ -49,13 +49,14 @@ class sfp_socialprofiles(SpiderFootPlugin):
     meta = {
         'name': "Social Media Profile Finder",
         'summary': "Tries to discover the social media profiles for human names identified.",
-        'flags': ["slow", "apikey"],
-        'pricing': 'free_key',
+        'flags': ["slow"],
+        'usesWebSearch': True,
+        'pricing': 'free',
         'useCases': ["Footprint", "Passive"],
         'categories': ["Social Media"],
         'dataSource': {
             'website': "https://developers.google.com/custom-search",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://developers.google.com/custom-search/v1",
                 "https://developers.google.com/custom-search/docs/overview",
@@ -98,8 +99,8 @@ class sfp_socialprofiles(SpiderFootPlugin):
         "count": "Number of bing search engine results of identified profiles to iterate through.",
         "method": "Search engine to use: 'google' or 'bing'.",
         "tighten": "Tighten results by expecting to find the keyword of the target domain mentioned in the social media profile page results?",
-        "bing_api_key": "Bing API Key for social media profile search.",
-        "google_api_key": "Google API Key for social media profile search.",
+        "bing_api_key": "Unused: the Bing Search API was retired on 2025-08-11.",
+        "google_api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
         "google_cse_id": "Google Custom Search Engine ID.",
     }
 
@@ -137,8 +138,9 @@ class sfp_socialprofiles(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if self.opts['google_api_key'] == "" and self.opts['bing_api_key'] == "":
-            self.error("You enabled sfp_socialprofiles but did not set a Google or Bing API key!")
+        if not self.sf.webSearchAvailable(self.opts['google_api_key']):
+            self.error("You enabled sfp_socialprofiles but there is no web search backend: set up SearXNG "
+                       "(Settings > Modules > SearXNG) or add a Google API key.")
             self.errorState = True
             return
 
@@ -155,18 +157,22 @@ class sfp_socialprofiles(SpiderFootPlugin):
             if len(self.keywords) == 0:
                 self.keywords = None
 
+        method = self.opts["method"].lower()
+        if method == "bing" and not self.sf.webSearchAvailable() and self.opts["google_api_key"]:
+            method = "google"  # the Bing API is gone; only the legacy Google key is left
+
         for site in sites:
             s = str(sites[site][0]).format(name=eventData)
             searchStr = s.replace(" ", "%20")
             res = None
 
-            if self.opts["method"].lower() == "yahoo":
+            if method == "yahoo":
                 self.error(
                     "Yahoo is no longer supported. Please try 'bing' or 'google'."
                 )
                 return
 
-            if self.opts["method"].lower() == "google":
+            if method == "google":
                 res = self.sf.googleIterate(
                     searchString=searchStr,
                     opts={
@@ -178,7 +184,7 @@ class sfp_socialprofiles(SpiderFootPlugin):
                 )
                 self.__dataSource__ = "Google"
 
-            if self.opts["method"].lower() == "bing":
+            if method == "bing":
                 res = self.sf.bingIterate(
                     searchString=searchStr,
                     opts={

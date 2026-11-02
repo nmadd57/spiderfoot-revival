@@ -24,6 +24,12 @@ class TestSamples(unittest.TestCase):
         self.assertIsNone(mt.pick_sample(['IP_ADDRESS'], 'foo.org'))
         self.assertIsNone(mt.pick_sample(['IP_ADDRESS'], '???'))
 
+    def test_places(self):
+        self.assertEqual(mt.pick_sample(['PHYSICAL_ADDRESS', 'PHYSICAL_COORDINATES'])[0], 'PHYSICAL_ADDRESS')
+        self.assertEqual(mt.pick_sample(['PHYSICAL_COORDINATES'], '48.85, 2.29')[:2], ('PHYSICAL_COORDINATES', '48.85, 2.29'))
+        self.assertEqual(mt.pick_sample(['PHYSICAL_ADDRESS'], '1 Main Street, Springfield')[0], 'PHYSICAL_ADDRESS')
+        self.assertIsNone(mt.pick_sample(['IP_ADDRESS'], '1 Main Street, Springfield'))
+
     def test_redaction_drops_query(self):
         r = mt._redact('https://api.example.com/v1/x?key=SECRET&q=1')
         self.assertEqual(r, {'host': 'api.example.com', 'path': '/v1/x'})

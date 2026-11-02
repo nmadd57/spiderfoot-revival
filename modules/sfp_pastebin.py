@@ -20,14 +20,15 @@ class sfp_pastebin(SpiderFootPlugin):
 
     meta = {
         'name': "PasteBin",
-        'summary': "PasteBin search (via Google Search API) to identify related content.",
-        'flags': ["apikey"],
-        'pricing': 'free_key',
+        'summary': "PasteBin search (through your SearXNG instance, or the Google Search API) to identify related content.",
+        'flags': [],
+        'usesWebSearch': True,
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Leaks, Dumps and Breaches"],
         'dataSource': {
             'website': "https://pastebin.com/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://pastebin.com/doc_api",
                 "https://pastebin.com/faq"
@@ -56,7 +57,7 @@ class sfp_pastebin(SpiderFootPlugin):
 
     # Option descriptions
     optdescs = {
-        "api_key": "Google API Key for PasteBin search.",
+        "api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
         "cse_id": "Google Custom Search Engine ID.",
     }
 
@@ -90,8 +91,9 @@ class sfp_pastebin(SpiderFootPlugin):
         if self.errorState:
             return
 
-        if self.opts['api_key'] == "":
-            self.error(f"You enabled {self.__class__.__name__} but did not set a Google API key!")
+        if not self.sf.webSearchAvailable(self.opts['api_key']):
+            self.error(f"You enabled {self.__class__.__name__} but there is no web search backend: set up SearXNG "
+                       "(Settings > Modules > SearXNG) or add a Google API key.")
             self.errorState = True
             return
 

@@ -17,14 +17,16 @@ class sfp_googlesearch(SpiderFootPlugin):
 
     meta = {
         'name': "Google",
-        'summary': "Obtain information from the Google Custom Search API to identify sub-domains and links.",
-        'flags': ["apikey"],
-        'pricing': 'free_key',
+        'summary': "Search the web for sub-domains and links on the target, through your SearXNG instance "
+                   "(or, while it lasts, the Google Custom Search API).",
+        'flags': [],
+        'usesWebSearch': True,
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://developers.google.com/custom-search",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://developers.google.com/custom-search/v1",
                 "https://developers.google.com/custom-search/docs/overview",
@@ -54,7 +56,7 @@ class sfp_googlesearch(SpiderFootPlugin):
 
     # Option descriptions
     optdescs = {
-        "api_key": "Google API Key for Google search.",
+        "api_key": "Optional, legacy: Google Custom Search API key (the API closes to existing users on 2027-01-01). Not needed when SearXNG is set up.",
         "cse_id": "Google Custom Search Engine ID."
     }
 
@@ -89,8 +91,9 @@ class sfp_googlesearch(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if self.opts['api_key'] == "":
-            self.error("You enabled sfp_googlesearch but did not set a Google API key!")
+        if not self.sf.webSearchAvailable(self.opts['api_key']):
+            self.error("You enabled sfp_googlesearch but there is no web search backend: set up SearXNG "
+                       "(Settings > Modules > SearXNG) or add a Google API key.")
             self.errorState = True
             return
 

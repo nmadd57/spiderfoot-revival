@@ -16,14 +16,16 @@ class sfp_bingsearch(SpiderFootPlugin):
 
     meta = {
         'name': "Bing",
-        'summary': "Obtain information from bing to identify sub-domains and links.",
-        'flags': ["apikey"],
-        'pricing': 'free_key',
+        'summary': "Search the web for sub-domains and links on the target through your SearXNG instance "
+                   "(the Bing Search API was retired in August 2025).",
+        'flags': [],
+        'usesWebSearch': True,
+        'pricing': 'free',
         'useCases': ["Footprint", "Investigate", "Passive"],
         'categories': ["Search Engines"],
         'dataSource': {
             'website': "https://www.bing.com/",
-            'model': "FREE_AUTH_LIMITED",
+            'model': "FREE_NOAUTH_LIMITED",
             'references': [
                 "https://docs.microsoft.com/en-us/azure/cognitive-services/bing-web-search/"
             ],
@@ -49,7 +51,7 @@ class sfp_bingsearch(SpiderFootPlugin):
     # Option descriptions
     optdescs = {
         "pages": "Number of max bing results to request from the API.",
-        "api_key": "Bing API Key for Bing search."
+        "api_key": "Unused: the Bing Search API was retired on 2025-08-11."
     }
 
     results = None
@@ -82,8 +84,9 @@ class sfp_bingsearch(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if self.opts['api_key'] == "":
-            self.error("You enabled sfp_bingsearch but did not set a Bing API key!")
+        if not self.sf.webSearchAvailable():
+            self.error("You enabled sfp_bingsearch but SearXNG is not set up (Settings > Modules > SearXNG). "
+                       "The Bing Search API was retired on 2025-08-11.")
             self.errorState = True
             return
 

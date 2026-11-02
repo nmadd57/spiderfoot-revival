@@ -4,6 +4,12 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Web search through SearXNG; free geocoding
+
+- Google's Custom Search JSON API is closed to new customers and ends on 2027-01-01, and Microsoft retired the Bing Search API in August 2025. `sfp_googlesearch`, `sfp_bingsearch`, `sfp_pastebin`, `sfp_onioncity` and `sfp_socialprofiles` now search through the SearXNG instance set up on the SearXNG module (Settings -> Modules -> SearXNG), reusing its URL, auth header and query defaults, so there is one place to configure it. The Google API is only a fallback while it still works and a key is entered; the Bing API path is removed. These modules no longer carry the `apikey` flag: they are free and key-optional. With no SearXNG instance and no legacy key they are auto-disabled as "no web search backend (set up SearXNG)".
+- `sfp_openstreetmap` is now the free replacement for the Google Maps geocoder: besides turning addresses into coordinates it also turns coordinates found by other modules into a street address (Nominatim reverse geocoding), uses an identifying User-Agent, enforces the public server's one-request-per-second limit across threads, and takes an optional `nominatim_url` for your own server. Fixed the Google Maps module reading the location from the wrong place in the reply.
+- The module Test box accepts an address or `lat,lon` for the geocoder, and skips web-search modules with a clear message when no backend is set up.
+
 ### Only API key problems are passed through
 
 - Settings -> Modules now reports only errors that concern the module's API key or account (key rejected, out of credits or quota, rate limited). Ordinary scan messages such as "no information for that IP" or a parse problem are no longer shown as module errors, counted, or used to colour a module's status. The "Errors" status filter is gone; counts are labelled "Key errors".
