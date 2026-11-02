@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from spiderfoot import SpiderFootHelpers
 from spiderfoot.mcp import catalog, guardrails, schema
 from spiderfoot.mcp.context import ToolError, collect_secrets, scrub
-from spiderfoot.services import module_options
+from spiderfoot.services import access, module_options
 
 log = logging.getLogger('spiderfoot.mcp')
 
@@ -103,13 +103,26 @@ def _clip(value, limit):
     return text if len(text) <= limit else text[:limit] + '...'
 
 
-def _find_scan(dbh, scan_id):
-    """(id, row) of an existing scan; row is (name, target, created, started, ended, status)."""
+def _find_scan(cc, dbh, scan_id, need='view'):
+    """(id, row) of a scan the caller may use at level ``need``; row is (name, target, created, started, ended, status).
+
+    A scan the caller cannot see at all is reported as not existing; one they can see but not use at
+    this level says which access is missing.
+    """
     for candidate in (scan_id, scan_id.upper()):
         row = dbh.scanInstanceGet(candidate)
         if row:
-            return candidate, row
+            have = cc.level(dbh, candidate)
+            if access.allows(have, need):
+                return candidate, row
+            if have >= access.VIEW:
+                raise ToolError(f"Not permitted: you have {access.level_name(have)} access to scan {candidate}, "
+                                f"which is not enough to {_NEED_TEXT[need]}.")
+            break
     raise ToolError(f"Scan '{scan_id}' does not exist. Use list_scans to see the scan ids.")
+
+
+_NEED_TEXT = {'view': 'read it', 'edit': 'stop or rerun it', 'owner': 'delete it'}
 
 
 def _module_ids(selected: str) -> list:
@@ -374,7 +387,7 @@ def list_event_types(cc, args):
 # read-only: scans
 
 @tool('list_scans', 'List scans',
-      'List scans, newest first, with id, name, target, status, event count and start/end times. Status is one of '
+      'List the scans you may see (yours and those shared with you), newest first, with id, name, target, status, event count and start/end times, and your access (view, edit or owner). Status is one of '
       'STARTING, RUNNING, FINISHED, ABORT-REQUESTED, ABORTED, ERROR-FAILED. A scan is done when it is FINISHED, '
       'ABORTED or ERROR-FAILED. Scans created through this server have names starting with "mcp: ".',
       {'limit': {'type': 'integer', 'minimum': 1, 'maximum': 100, 'default': 25, 'description': 'Scans to return (1-100).'},
@@ -384,7 +397,8 @@ def list_event_types(cc, args):
        'mcp_only': {'type': 'boolean', 'default': False, 'description': 'Only scans created through this server.'}})
 def list_scans(cc, args):
     with cc.ctx.db() as dbh:
-        rows = dbh.scanInstanceList()
+        rows = access.filter_scan_list(cc.user, dbh.scanInstanceList(), dbh, cc.unowned_visible)
+        levels = access.scan_levels(cc.user, dbh, cc.unowned_visible)
     scans = []
     for r in rows:
         if args.get('status') and r[6] != args['status']:
@@ -392,7 +406,8 @@ def list_scans(cc, args):
         if args['mcp_only'] and not str(r[1]).startswith(NAME_PREFIX):
             continue
         scans.append({'scanId': r[0], 'name': r[1], 'target': r[2], 'status': r[6], 'events': int(r[7] or 0),
-                      'created': _iso(r[3]), 'started': _iso(r[4]), 'ended': _iso(r[5])})
+                      'created': _iso(r[3]), 'started': _iso(r[4]), 'ended': _iso(r[5]),
+                      'yourAccess': access.level_name(access.OWNER if levels is None else levels.get(r[0], access.VIEW))})
     return _page(scans, args, 'scans')
 
 
@@ -404,7 +419,7 @@ def list_scans(cc, args):
       {'scan_id': _SCAN_ID}, ['scan_id'])
 def get_scan(cc, args):
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         by_type = dbh.scanResultSummary(scan_id, 'type')
         by_module = dbh.scanResultSummary(scan_id, 'module')
         risk = {'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'INFO': 0}
@@ -436,7 +451,7 @@ def get_scan(cc, args):
       {'scan_id': _SCAN_ID}, ['scan_id'])
 def get_scan_summary(cc, args):
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         by_type = dbh.scanResultSummary(scan_id, 'type')
         by_module = dbh.scanResultSummary(scan_id, 'module')
     types = sorted(({'type': t[0], 'description': t[1], 'count': int(t[3] or 0), 'unique': int(t[4] or 0), 'lastSeen': _iso(t[2])}
@@ -458,7 +473,7 @@ def get_scan_summary(cc, args):
        'limit': _LIMIT, 'offset': _OFFSET}, ['scan_id'])
 def get_scan_events(cc, args):
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         rows = dbh.scanResultEvent(scan_id, args.get('event_type', '').strip() or 'ALL', args.get('module', '').strip() or None,
                                    filterFp=not args['include_false_positives'])
     query = args.get('query', '').strip().lower()
@@ -480,7 +495,7 @@ def get_scan_events(cc, args):
        'limit': _LIMIT, 'offset': _OFFSET}, ['scan_id'])
 def get_scan_correlations(cc, args):
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         rows = dbh.scanCorrelationList(scan_id)
     items = [{'id': r[0], 'title': r[1], 'rule': r[2], 'risk': r[3], 'ruleName': r[4], 'description': _clip(r[5], 400),
               'events': int(r[7] or 0)} for r in rows if not args.get('risk') or r[3] == args['risk']]
@@ -500,7 +515,7 @@ def get_scan_correlations(cc, args):
        'limit': _LIMIT}, ['scan_id'])
 def get_scan_log(cc, args):
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         rows = dbh.scanLogs(scan_id, limit=None if args.get('level') else args['limit'], reverse=args['newest_first'])
     if args.get('level'):
         rows = [r for r in rows if r[2] == args['level']][:args['limit']]
@@ -537,7 +552,7 @@ def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target
         raise ToolError('No modules left to run. ' + _dropped_text(dropped))
     scan_name = (NAME_PREFIX + (name or raw_target).strip())[:100]
     res = start_scan_core(scan_name, raw_target, modulelist=','.join(keep), config=cc.ctx.config, dbh=dbh,
-                          logging_queue=cc.ctx.logging_queue, target_type=target_type)
+                          logging_queue=cc.ctx.logging_queue, target_type=target_type, owner=cc.user.id)
     dropped.update(res.dropped)
     if not res.ok:
         raise ToolError(res.error + (' ' + _dropped_text(dropped) if dropped else ''))
@@ -603,12 +618,12 @@ def create_scan(cc, args):
 
 @tool('stop_scan', 'Stop a running scan',
       'Ask a running scan to stop. It finishes the work in progress and ends as ABORTED; poll get_scan to see it '
-      'end. Results found so far are kept. Needs the operator\'s permission to run scans.',
+      'end. Results found so far are kept. Needs the operator\'s permission to run scans and edit access to the scan (yours, or shared with you for editing).',
       {'scan_id': _SCAN_ID}, ['scan_id'], read_only=False, destructive=False, idempotent=True)
 def stop_scan(cc, args):
     cc.require('scan', 'start or stop scans')
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'edit')
         status = row[5]
         if status == 'FINISHED':
             raise ToolError(f'Scan {scan_id} has already finished.')
@@ -623,7 +638,7 @@ def stop_scan(cc, args):
 
 
 @tool('rerun_scan', 'Rerun a scan',
-      'Start a new scan with the same target and modules as an earlier scan. The same rules as create_scan apply: '
+      'Start a new scan with the same target and modules as an earlier scan (needs edit access to it; the new scan is yours). The same rules as create_scan apply: '
       'active modules need operator permission and confirm_active=true, private targets need permission, disabled '
       'modules are dropped, and the concurrent scan limit applies. The original scan is left untouched.',
       {'scan_id': _SCAN_ID, 'confirm_active': _CONFIRM_ACTIVE}, ['scan_id'], read_only=False, idempotent=False)
@@ -632,7 +647,7 @@ def rerun_scan(cc, args):
     index = catalog.module_index()
     known = set(cc.ctx.config.get('__modules__', {}))
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'edit')
         ids = _scan_modules(dbh, scan_id)
         if not ids:
             raise ToolError(f'The module list of scan {scan_id} cannot be read, so it cannot be rerun.')
@@ -649,8 +664,8 @@ def rerun_scan(cc, args):
 
 
 @tool('delete_scan', 'Delete a scan',
-      'Permanently delete a finished scan with all its events, log and correlations. This cannot be undone. Only '
-      'works when the operator allows deleting, the scan is not running, and confirm is true. Ask the person you are '
+      'Permanently delete a finished scan with all its events, log and correlations. This cannot be undone. Only the owner of a scan (or an administrator) can delete it, and only '
+      'when the operator allows deleting, the scan is not running, and confirm is true. Ask the person you are '
       'working for before deleting anything you did not create in this session.',
       {'scan_id': _SCAN_ID, 'confirm': {'type': 'boolean', 'default': False, 'description': 'Must be true to delete.'}},
       ['scan_id'], read_only=False, destructive=True, idempotent=True)
@@ -659,7 +674,7 @@ def delete_scan(cc, args):
     if args['confirm'] is not True:
         raise ToolError('Deleting is permanent. Call again with confirm=true to delete the scan.')
     with cc.ctx.db() as dbh:
-        scan_id, row = _find_scan(dbh, args['scan_id'])
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'owner')
         if row[5] in RUNNING or row[5] == 'ABORT-REQUESTED':
             raise ToolError(f"Scan {scan_id} is {row[5]}. Running scans cannot be deleted; stop it and wait for it to end.")
         dbh.scanInstanceDelete(scan_id)

@@ -3,7 +3,7 @@
 from contextlib import contextmanager
 
 from spiderfoot import SpiderFootDb
-from spiderfoot.services import mcp_auth, module_options
+from spiderfoot.services import access, mcp_auth, module_options
 
 
 class ToolError(Exception):
@@ -52,11 +52,21 @@ class CallContext:
     'private'} booleans, see spiderfoot.services.mcp_auth).
     """
 
-    def __init__(self, ctx: McpContext, saved: dict, client: str = ''):
+    def __init__(self, ctx: McpContext, saved: dict, client: str = '', user=None, auth=None):
         self.ctx = ctx
         self.saved = saved or {}
         self.perms = mcp_auth.permissions(self.saved)
         self.client = client
+        self.user = user
+        self.auth = auth
+
+    @property
+    def unowned_visible(self) -> bool:
+        return bool(self.auth and self.auth.unowned_visible)
+
+    def level(self, dbh, scan_id: str) -> int:
+        """The level the calling user holds on a scan (see spiderfoot.services.access)."""
+        return access.scan_level(self.user, scan_id, dbh, self.unowned_visible)
 
     def require(self, permission: str, what: str):
         if not self.perms.get(permission):

@@ -8,8 +8,26 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto" x-data="{ section: (['apikeys', 'usage'].includes(localStorage.getItem('sf_settings_section')) ? 'modules' : localStorage.getItem('sf_settings_section')) || 'general' }"
+{# Administrators get every section; other users only Appearance and their own agent tokens #}
+{% set nav_items = [
+  ('general',    'General'),
+  ('modules',    'Modules'),
+  ('search',     'Web Search'),
+  ('proxy',      'Proxy / TOR'),
+  ('database',   'Database'),
+  ('appearance', 'Appearance'),
+  ('ai',         'AI Assistant'),
+  ('mcp',        'Agent (MCP)'),
+  ('access',     'Access'),
+] if is_admin else [
+  ('appearance', 'Appearance'),
+  ('mcp',        'Agent (MCP)'),
+] %}
+<div class="max-w-5xl mx-auto" x-data='{ allowed: {{ nav_items | map("first") | list | tojson }}, section: "" }'
      x-init="
+       let s = localStorage.getItem('sf_settings_section');
+       if (s === 'apikeys' || s === 'usage') s = 'modules';
+       section = allowed.includes(s) ? s : allowed[0];
        if (section !== 'general') {
          htmx.ajax('GET', '/frag/settings-section?section=' + section, '#settings-content');
        }
@@ -24,17 +42,6 @@
          x-effect="section; $nextTick(() => { const a = $el.querySelector('[aria-current=true]'); if (a && $el.scrollWidth > $el.clientWidth) $el.scrollTo({ left: a.offsetLeft - ($el.clientWidth - a.offsetWidth) / 2, behavior: 'smooth' }); })"
          class="relative sf-scroll-x border-b md:border-b-0 md:border-r border-slate-200 dark:border-sf-border
                 px-2 py-2 md:px-0 md:py-3 md:w-40 shrink-0 flex flex-row md:flex-col gap-1.5 md:gap-0.5">
-
-      {% set nav_items = [
-        ('general',    'General'),
-        ('modules',    'Modules'),
-        ('search',     'Web Search'),
-        ('proxy',      'Proxy / TOR'),
-        ('database',   'Database'),
-        ('appearance', 'Appearance'),
-        ('ai',         'AI Assistant'),
-        ('mcp',        'Agent (MCP)'),
-      ] %}
 
       {% for key, label in nav_items %}
       <button
@@ -56,8 +63,8 @@
 
     {# ---- Content area ---- #}
     <div class="flex-1 p-3 sm:p-4 md:p-6 min-w-0" id="settings-content">
-      {# Default: General section rendered inline (no round-trip needed on first load) #}
-      {% include 'fragments/settings_general.html' %}
+      {# Administrators: General section rendered inline (no round-trip needed on first load) #}
+      {% if is_admin %}{% include 'fragments/settings_general.html' %}{% endif %}
     </div>
 
   </div>

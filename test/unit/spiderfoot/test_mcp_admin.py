@@ -50,7 +50,7 @@ class TestCsrf:
 class TestSettings:
     def test_defaults(self, client):
         d = client.get('/api/mcp/settings').get_json()
-        assert d['enabled'] is False and d['hasToken'] is False
+        assert d['enabled'] is False
         assert d['permissions'] == {'scan': True, 'delete': False, 'active': False, 'private': False}
         assert 'token' not in d
 
@@ -75,96 +75,106 @@ class TestSettings:
         r = client.post('/api/mcp/settings', data='enabled=1', content_type='text/plain')
         assert r.status_code == 400
 
-    def test_enable_needs_a_token(self, client, app):
-        r = client.post('/api/mcp/settings', json={'enabled': True})
-        assert r.status_code == 400
-        assert 'token' in r.get_json()['error'].lower()
-        assert mcp_auth.ENABLED not in saved(app)
-        # Disabling without a token is fine
-        assert client.post('/api/mcp/settings', json={'enabled': False}).status_code == 200
-
-    def test_enable_after_token(self, client, app):
-        client.post('/api/mcp/token')
+    def test_enable_needs_no_shared_token(self, client, app):
+        # Users hold personal tokens now, so the switch is all an operator sets
         r = client.post('/api/mcp/settings', json={'enabled': True})
         assert r.status_code == 200 and r.get_json()['enabled'] is True
         assert mcp_auth.enabled(saved(app))
 
+    def test_status_has_no_token_fields(self, client):
+        d = client.get('/api/mcp/settings').get_json()
+        assert 'hasToken' not in d and 'tokenHint' not in d and d['isAdmin'] is True
+
+    def test_retired_shared_token_removed_from_the_database(self, app):
+        path = app.config['SF_CONFIG']['__database']
+        import sqlite3
+        conn = sqlite3.connect(path)
+        conn.execute("REPLACE INTO tbl_config VALUES ('GLOBAL', '_mcp_token_hash', 'deadbeef')")
+        conn.commit()
+        conn.close()
+        assert '_mcp_token_hash' not in saved(app)  # opening the database migrates it away
+
 
 class TestToken:
     def test_token_shown_once_and_only_hash_stored(self, client, app):
-        r = client.post('/api/mcp/token')
+        r = client.post('/api/mcp/tokens', json={'name': 'laptop'})
         assert r.status_code == 200
         d = r.get_json()
         token = d['token']
-        assert token.startswith('sfmcp_') and d['hasToken'] and d['tokenHint'] == token[:10]
-        assert d['enabled'] is False  # generating does not enable
-        s = saved(app)
-        assert s[mcp_auth.TOKEN_HASH] == mcp_auth.hash_token(token)
-        assert token not in json.dumps(s)
-        assert mcp_auth.verify(token, s)
+        assert token.startswith('sfmcp_')
+        [t] = d['tokens']
+        assert t['name'] == 'laptop' and t['hint'] == token[:10] and t['last_used'] == 0 and t['expires']
+        assert 'hash' not in t
+        db = SpiderFootDb(app.config['SF_CONFIG'])
+        row = db.mcpTokenByHash(mcp_auth.hash_token(token))
+        assert row and row['name'] == 'laptop'
+        assert token not in json.dumps(saved(app))
         assert 'no-store' in r.headers['Cache-Control']
 
-        later = client.get('/api/mcp/settings')
+        later = client.get('/api/mcp/tokens')
         text = later.get_data(as_text=True)
-        assert token not in text and s[mcp_auth.TOKEN_HASH] not in text
-        assert 'token' not in later.get_json()
+        assert token not in text and mcp_auth.hash_token(token) not in text
         assert token not in client.get('/frag/settings-section?section=mcp').get_data(as_text=True)
 
-    def test_rotation_invalidates_old_token(self, client, app):
-        old = client.post('/api/mcp/token').get_json()['token']
-        new = client.post('/api/mcp/token').get_json()['token']
-        assert old != new
-        s = saved(app)
-        assert not mcp_auth.verify(old, s) and mcp_auth.verify(new, s)
+    def test_defaults_and_validation(self, client):
+        d = client.post('/api/mcp/tokens', json={}).get_json()
+        assert d['tokens'][0]['name'] == 'Agent'
+        t = d['tokens'][0]
+        assert abs((t['expires'] - t['created']) - 90 * 86400) < 5  # 90 days unless told otherwise
+        never = client.post('/api/mcp/tokens', json={'name': 'x\x00y\n' + 'z' * 100, 'days': 0}).get_json()
+        newest = never['tokens'][0]
+        assert newest['expires'] is None and len(newest['name']) <= 60 and '\x00' not in newest['name']
+        for bad in ({'days': -1}, {'days': 'soon'}, {'days': True}, {'days': 99999}):
+            assert client.post('/api/mcp/tokens', json=bad).status_code == 400
 
-    def test_status_never_has_hash(self, client, app):
-        client.post('/api/mcp/token')
-        h = saved(app)[mcp_auth.TOKEN_HASH]
-        for resp in (client.get('/api/mcp/settings'), client.post('/api/mcp/settings', json={'allow_scan': True})):
-            assert h not in resp.get_data(as_text=True)
+    def test_limit_per_user(self, client):
+        for _ in range(25):
+            assert client.post('/api/mcp/tokens', json={}).status_code == 200
+        assert client.post('/api/mcp/tokens', json={}).status_code == 400
 
-    def test_revoke_disables(self, client, app):
-        token = client.post('/api/mcp/token').get_json()['token']
-        client.post('/api/mcp/settings', json={'enabled': True})
-        r = client.post('/api/mcp/token/revoke')
-        assert r.status_code == 200
-        d = r.get_json()
-        assert d['enabled'] is False and d['hasToken'] is False and d['tokenHint'] == ''
-        s = saved(app)
-        assert not mcp_auth.verify(token, s) and not mcp_auth.enabled(s)
+    def test_revoke_own_token(self, client, app):
+        d = client.post('/api/mcp/tokens', json={'name': 'a'}).get_json()
+        tid = d['tokens'][0]['id']
+        r = client.delete(f'/api/mcp/tokens/{tid}')
+        assert r.status_code == 200 and r.get_json()['tokens'] == []
+        assert SpiderFootDb(app.config['SF_CONFIG']).mcpTokenByHash(mcp_auth.hash_token(d['token'])) is None
+        assert client.delete(f'/api/mcp/tokens/{tid}').status_code == 404
 
     def test_logs_carry_no_token(self, client, caplog):
         import logging
         with caplog.at_level(logging.INFO):
-            token = client.post('/api/mcp/token').get_json()['token']
+            d = client.post('/api/mcp/tokens', json={}).get_json()
             client.post('/api/mcp/settings', json={'allow_delete': True})
-            client.post('/api/mcp/token/revoke')
+            client.delete(f"/api/mcp/tokens/{d['tokens'][0]['id']}")
         text = caplog.text
-        assert 'MCP token rotated' in text and 'MCP permissions changed: scan=1 delete=1 active=0 private=0' in text
-        assert token not in text and mcp_auth.hash_token(token) not in text
+        assert 'MCP token created' in text and 'MCP permissions changed: scan=1 delete=1 active=0 private=0' in text
+        assert d['token'] not in text and mcp_auth.hash_token(d['token']) not in text
+
+    def test_old_endpoints_are_gone(self, client):
+        assert client.post('/api/mcp/token').status_code == 404
+        assert client.post('/api/mcp/token/revoke').status_code == 404
 
 
 class TestNoExceptionText:
     @pytest.mark.parametrize('method,path,body', [
         ('get', '/api/mcp/settings', None),
         ('post', '/api/mcp/settings', {'allow_scan': True}),
-        ('post', '/api/mcp/token', None),
-        ('post', '/api/mcp/token/revoke', None),
+        ('get', '/api/mcp/tokens', None),
+        ('post', '/api/mcp/tokens', {}),
+        ('delete', '/api/mcp/tokens/1', None),
     ])
     def test_failures_are_generic(self, client, method, path, body):
-        with mock.patch('spiderfoot.blueprints.mcp_admin.get_db', side_effect=RuntimeError(SECRET)):
+        db = mock.Mock()
+        db.configGet.side_effect = RuntimeError(SECRET)
+        db.configSet.side_effect = RuntimeError(SECRET)
+        db.mcpTokenList.side_effect = RuntimeError(SECRET)
+        db.mcpTokenRevoke.side_effect = RuntimeError(SECRET)
+        with mock.patch('spiderfoot.blueprints.mcp_admin._db', return_value=db), \
+                mock.patch('spiderfoot.blueprints.mcp_admin.identity.current_user_id', return_value=1):
             r = getattr(client, method)(path, json=body) if body is not None else getattr(client, method)(path)
         assert r.status_code == 500
         assert SECRET not in r.get_data(as_text=True)
         assert set(r.get_json()) == {'error'}
-
-    def test_db_write_failure_is_generic(self, client):
-        db = mock.Mock()
-        db.configGet.return_value = {}
-        db.configSet.side_effect = IOError(SECRET)
-        with mock.patch('spiderfoot.blueprints.mcp_admin.get_db', return_value=db):
-            r = client.post('/api/mcp/token')
-        assert r.status_code == 500 and SECRET not in r.get_data(as_text=True)
 
 
 class TestFragment:
@@ -172,35 +182,31 @@ class TestFragment:
         saved_cfg = env.pop('saved', {})
         with app.test_request_context('/'):
             with mock.patch.dict('os.environ', env):
-                return render_template('fragments/settings_mcp.html', st=mcp_auth.public_status(saved_cfg))
+                return render_template('fragments/settings_mcp.html', st=dict(mcp_auth.public_status(saved_cfg), isAdmin=True, sso=False),
+                                       tokens=[])
 
     def test_nav_entry(self, client):
         assert "'Agent (MCP)'" in open('spiderfoot/templates/pages/settings.html').read()
         assert 'Agent (MCP)' in client.get('/opts').get_data(as_text=True)
 
-    def test_no_token_not_listening(self, app):
+    def test_not_listening(self, app):
         with mock.patch.dict('os.environ', {}, clear=False):
             import os
             os.environ.pop('SF_MCP_PORT', None)
             html = self.render(app)
         assert 'SF_MCP_PORT' in html and 'mcpSettings(' in html
-        assert '"hasToken": false' in html and '"listening": false' in html
+        assert '"listening": false' in html
         for name in ('list_modules', 'get_scan_log', 'create_scan', 'delete_scan', 'rerun_scan', 'validate_target'):
             assert name in html
         assert 'Bearer &lt;your token&gt;' in html or 'Bearer <your token>' in html
 
-    def test_token_listening(self, app):
-        s = mcp_auth.token_settings('deadbeef' * 8, 'sfmcp_ab12', 1700000000)
-        s[mcp_auth.ENABLED] = '1'
-        html = self.render(app, saved=s, SF_MCP_PORT='5093')
-        assert '"hasToken": true' in html and '"port": 5093' in html and '"listening": true' in html
-        assert 'sfmcp_ab12' in html
-        assert 'deadbeef' * 8 not in html  # the stored hash never reaches the page
+    def test_listening(self, app):
+        html = self.render(app, saved={mcp_auth.ENABLED: '1'}, SF_MCP_PORT='5093')
+        assert '"port": 5093' in html and '"listening": true' in html
 
     def test_section_route(self, client, app):
         r = client.get('/frag/settings-section?section=mcp')
         assert r.status_code == 200 and 'Agent (MCP)' in r.get_data(as_text=True)
-        client.post('/api/mcp/token')
+        d = client.post('/api/mcp/tokens', json={'name': 'phone'}).get_json()
         html = client.get('/frag/settings-section?section=mcp').get_data(as_text=True)
-        h = saved(app)[mcp_auth.TOKEN_HASH]
-        assert '"hasToken": true' in html and h not in html
+        assert 'phone' in html and d['token'] not in html and mcp_auth.hash_token(d['token']) not in html

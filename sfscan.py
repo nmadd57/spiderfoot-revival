@@ -118,7 +118,7 @@ class SpiderFootScanner():
             self.__scanId = SpiderFootHelpers.genScanInstanceId()
 
         self.__sf.scanId = self.__scanId
-        self.__dbh.scanInstanceCreate(self.__scanId, self.__scanName, self.__targetValue)
+        self.__dbh.scanInstanceCreate(self.__scanId, self.__scanName, self.__targetValue, owner=self.__config.get('__scan_owner'))
 
         # Create our target
         try:

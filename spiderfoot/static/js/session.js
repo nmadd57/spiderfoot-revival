@@ -33,6 +33,8 @@
   if (realFetch) {
     window.fetch = function () {
       return realFetch.apply(this, arguments).then(function (res) {
+        // Native sign-in answers 401 JSON (not a redirect) when the session has ended
+        try { if (res.status === 401) banner(); } catch (e) { /* ignore */ }
         try { if (expired(res.url, res.redirected)) banner(); } catch (e) { /* never break a request */ }
         return res;
       });

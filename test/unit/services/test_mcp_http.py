@@ -47,16 +47,20 @@ class TestAuth:
         # a wrong token learns nothing either
         assert env.post(env.rpc('ping'), token='sfmcp_bad').status_code == 403
 
-    def test_enabled_without_token_is_disabled(self, env):
-        env.db().configSet(mcp_auth.revoked_settings())
-        env.configure(enabled=1)
-        assert env.post(env.rpc('ping')).status_code == 403
+    def test_retired_shared_token_is_ignored(self, env):
+        # An old database may still hold the shared token's hash; it grants nothing
+        env.db().configSet({'_mcp_token_hash': mcp_auth.hash_token('sfmcp_old-shared-token')})
+        assert env.post(env.rpc('ping'), token='sfmcp_old-shared-token').status_code == 401
 
     def test_revoked_token_stops_working_immediately(self, env):
         assert env.post(env.rpc('ping')).status_code == 200
-        _, digest, hint, created = mcp_auth.new_token()
-        env.db().configSet(mcp_auth.token_settings(digest, hint, created))
+        env.db().mcpTokenRevoke(env.admin['id'], env.db().mcpTokenList(env.admin['id'])[0]['id'])
         assert env.post(env.rpc('ping')).status_code == 401
+
+    def test_expired_token_is_refused(self, env):
+        import time
+        token = env.token_for(env.admin['id'], expires=int(time.time()) - 5)
+        assert env.post(env.rpc('ping'), token=token).status_code == 401
 
     def test_settings_are_read_on_every_request(self, env):
         client = env.client()

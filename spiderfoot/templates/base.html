@@ -56,9 +56,9 @@
 </head>
 <body class="bg-white dark:bg-sf-base text-slate-800 dark:text-slate-200 font-sans min-h-screen">
 
-  {% include 'components/sidebar.html' %}
+  {% block sidebar %}{% include 'components/sidebar.html' %}{% endblock %}
 
-  <main class="p-3 sm:p-4 md:ml-14 md:p-6 pb-24 md:pb-6 transition-[margin] duration-200 min-w-0">
+  <main class="{% block main_class %}p-3 sm:p-4 md:ml-14 md:p-6 pb-24 md:pb-6{% endblock %} transition-[margin] duration-200 min-w-0">
     {% block content %}{% endblock %}
   </main>
 

@@ -6,7 +6,7 @@ from spiderfoot import SpiderFootDb
 from spiderfoot.__version__ import __version__
 from spiderfoot.helpers import SpiderFootHelpers
 from spiderfoot.services.preset_service import serialize_preset
-from spiderfoot.services import ai_service
+from spiderfoot.services import access, ai_service, identity, scan_listing
 from spiderfoot.services.ai_persistence import (
     fetch_models_for_scan, fetch_cached
 )
@@ -21,19 +21,24 @@ def _get_db():
     return SpiderFootDb(current_app.config['SF_CONFIG'])
 
 
-def _build_scan_list():
-    """Return (scans, stats) for the dashboard.
+def _build_scan_list(which=''):
+    """Return (scans, stats) for the dashboard: the scans the signed-in user may see.
+
+    ``which`` is the list filter: 'mine', 'shared' (shared with me) or '' for everything visible.
 
     scans is a list of dicts with keys:
         id, name, target, created, started, ended, status, num_results,
-        type_counts, progress
+        type_counts, progress, owner, level, relation
 
     stats is a dict with keys: running, completed, findings, total_events,
         queued, scans_with_findings, modules_total, modules_needing_keys
     """
     try:
         dbh = _get_db()
-        rows = dbh.scanInstanceList()
+        user, settings = identity.current_user(), identity.request_settings()
+        rows = access.filter_scan_list(user, dbh.scanInstanceList(), dbh, settings.unowned_visible)
+        info = scan_listing.annotate([r[0] for r in rows], user, dbh, settings)
+        rows = [r for r in rows if scan_listing.matches_filter(info[r[0]], which)]
     except Exception as e:
         log.warning("Could not load scan list: %s", e)
         return [], {'running': 0, 'completed': 0, 'findings': 0,
@@ -65,6 +70,9 @@ def _build_scan_list():
             'num_results': int(row[7] or 0),
             'type_counts': [],
             'progress': None,
+            'owner': info[row[0]]['owner'],
+            'level': info[row[0]]['level'],
+            'relation': info[row[0]]['relation'],
         }
         scans.append(scan)
 
@@ -148,7 +156,9 @@ def _build_scan_list():
 
 @ui_bp.route('/')
 def dashboard():
-    scans, stats = _build_scan_list()
+    which = request.args.get('show', '')
+    which = which if which in ('mine', 'shared') else ''
+    scans, stats = _build_scan_list(which)
     has_running = any(
         (s.get('status') or '').upper() in ('RUNNING', 'STARTED', 'STARTING')
         for s in scans
@@ -161,6 +171,7 @@ def dashboard():
         scans=scans,
         stats=stats,
         poll_interval=poll_interval,
+        show=which,
     )
 
 
@@ -405,6 +416,13 @@ def scaninfo():
         'ended': row[4],
         'status': row[5],
     }
+    try:
+        mine = scan_listing.annotate([scan_id], identity.current_user(), dbh, identity.request_settings())[scan_id]
+    except Exception:
+        mine = {'owner': '', 'level': 'view', 'relation': 'other', 'unowned': True}
+    scan['owner'] = mine['owner']
+    scan['unowned'] = mine['unowned']
+    scan['level'] = mine['level']
 
     # Event summary by type: (type, event_descr, last_in, total, utotal)
     try:
@@ -504,11 +522,18 @@ def scaninfo():
         cached_models=cached_models,
         selected=default_model,
         active_cache=active_cache,
+        can_edit=access.level_value(scan['level']) >= access.EDIT,
+        can_manage=access.level_value(scan['level']) >= access.OWNER,
     )
 
 
 @ui_bp.route('/opts')
 def settings():
+    user = identity.current_user()
+    if user is not None and not user.is_admin:
+        # Plain users only get Appearance and their agent tokens; the General section (and its values) is for admins
+        return render_template('pages/settings.html', page_id='SETTINGS', version=__version__, config={})
+
     # Load saved config values for the default (General) section
     try:
         dbh = _get_db()

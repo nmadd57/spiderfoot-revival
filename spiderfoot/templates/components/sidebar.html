@@ -72,6 +72,23 @@
   {# ---- Footer ---- #}
   <div class="border-t border-slate-200 dark:border-sf-border py-3 px-4 space-y-2 shrink-0">
 
+    {# Signed-in user: name and role, with Sign out #}
+    {% if current_user and sign_in_enabled %}
+    <div class="flex items-center h-9 text-slate-600 dark:text-slate-300" title="{{ current_user.label }} ({{ current_user.role }})">
+      {{ icons.user_circle(class="w-5 h-5 shrink-0 text-sf-accent") }}
+      <span class="nav-label ml-3 min-w-0 leading-tight">
+        <span class="block text-xs font-medium truncate max-w-[9.5rem]">{{ current_user.label }}</span>
+        <span class="block text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{{ current_user.role }}</span>
+      </span>
+    </div>
+    <a href="{{ url_for('auth.logout') }}"
+       class="flex items-center w-full h-8 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors duration-150"
+       title="Sign out">
+      {{ icons.arrow_right_on_rectangle(class="w-5 h-5 shrink-0") }}
+      <span class="nav-label ml-3 text-xs font-medium">Sign out</span>
+    </a>
+    {% endif %}
+
     {# Theme toggle #}
     <button data-theme-toggle
             class="flex items-center w-full h-8 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors duration-150"
@@ -114,4 +131,28 @@
     <span class="icon-moon hidden">{{ icons.moon(class="w-6 h-6") }}</span>
     <span>Theme</span>
   </button>
+  {% if current_user and sign_in_enabled %}
+  {# Account: opens a small sheet above the bar with the name, role and Sign out #}
+  <div class="flex-1 relative flex" x-data="{ open: false }" @keydown.escape.window="open = false" @click.away="open = false">
+    <button type="button" @click="open = !open" :aria-expanded="open ? 'true' : 'false'" aria-label="Account menu" aria-haspopup="true"
+            class="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-xs font-medium text-slate-500 dark:text-slate-400">
+      {{ icons.user_circle(class="w-6 h-6") }}
+      <span>Account</span>
+    </button>
+    <div x-show="open" x-cloak x-transition.opacity role="menu"
+         class="absolute right-1 w-[min(18rem,calc(100vw-1rem))] rounded-lg border border-slate-200 dark:border-sf-border bg-white dark:bg-sf-elevated shadow-xl p-3 space-y-2"
+         style="bottom: calc(100% + 6px)">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100 sf-break">{{ current_user.label }}</p>
+        {% if current_user.email %}<p class="text-xs text-slate-500 dark:text-slate-400 sf-break">{{ current_user.email }}</p>{% endif %}
+        <p class="mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide
+          {{ 'bg-sf-accent/15 text-sf-accent' if current_user.role == 'admin' else 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' }}">{{ current_user.role }}</span></p>
+      </div>
+      <a href="{{ url_for('auth.logout') }}" role="menuitem"
+         class="flex items-center justify-center gap-2 min-h-[44px] rounded-md border border-slate-300 dark:border-sf-border text-sm font-medium text-slate-700 dark:text-slate-200 hover:border-sf-accent">
+        {{ icons.arrow_right_on_rectangle(class="w-5 h-5") }} Sign out
+      </a>
+    </div>
+  </div>
+  {% endif %}
 </nav>

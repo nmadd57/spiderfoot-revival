@@ -1,0 +1,294 @@
+{# Settings > Access (administrators): single sign-on (OIDC), the mapping from groups to roles, session lifetime and the
+   directory of people who have signed in. view = the saved settings (the client secret is never included, only whether
+   one is set); users = the signed-in accounts (no secrets). #}
+
+<div class="space-y-6 min-w-0" x-data='accessSettings({{ view | tojson }}, {{ users | tojson }})'>
+
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Access</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      Sign people in with your identity provider (OpenID Connect) and decide, from their groups, who is an administrator and who may use SpiderFoot.
+      Every scan then belongs to the person who started it and can be shared with users or groups.
+    </p>
+  </div>
+
+  <p class="text-sm rounded border border-amber-500/40 bg-amber-500/5 p-3 text-amber-700 dark:text-amber-400 sf-break" x-show="view.legacyUsers">
+    The password file still has accounts. They keep working for scripts and the command line client with HTTP Basic authentication and have administrator rights.
+  </p>
+
+  {# ------------------------------------------------------------ Provider #}
+  <section class="acc-card space-y-4">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Single sign-on (OIDC)</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+          Status: <span class="font-medium" :class="view.configured ? 'text-green-600 dark:text-green-400' : 'text-slate-600 dark:text-slate-300'"
+                        x-text="view.configured ? 'on' : 'off'"></span>.
+          Values set in the environment (<span class="font-mono">SF_OIDC_*</span>) win and cannot be changed here.
+        </p>
+      </div>
+      <button type="button" role="switch" :aria-checked="f.oidc_enabled === '1' ? 'true' : 'false'" aria-label="Enable single sign-on"
+              :disabled="busy || locked('oidc_enabled')" @click="f.oidc_enabled = f.oidc_enabled === '1' ? '0' : '1'"
+              class="acc-switch" :class="f.oidc_enabled === '1' ? 'acc-switch-on' : ''"><span class="acc-knob"></span></button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="acc-field md:col-span-2">
+        <span class="acc-label">Issuer URL</span>
+        <input class="acc-input font-mono" type="url" x-model.trim="f.oidc_issuer" :disabled="locked('oidc_issuer')" placeholder="https://id.example.com" autocomplete="off" spellcheck="false">
+        <span class="acc-hint" x-show="locked('oidc_issuer')">Set by the environment.</span>
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">Client ID</span>
+        <input class="acc-input font-mono" x-model.trim="f.oidc_client_id" :disabled="locked('oidc_client_id')" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">Client secret</span>
+        <input class="acc-input font-mono" type="password" x-model="secret" :disabled="locked('oidc_client_secret') || clearSecret"
+               :placeholder="view.secretSet ? '•••••••• (saved, leave empty to keep)' : 'Not set (public client)'" autocomplete="new-password" spellcheck="false">
+        <span class="acc-hint" x-show="locked('oidc_client_secret')">Set by the environment.</span>
+        <label class="mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 min-h-[44px] md:min-h-0" x-show="view.secretSet && !locked('oidc_client_secret')">
+          <input type="checkbox" x-model="clearSecret" class="acc-check"> Remove the saved secret
+        </label>
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">Scopes</span>
+        <input class="acc-input font-mono" x-model.trim="f.oidc_scopes" :disabled="locked('oidc_scopes')" placeholder="openid profile email groups" autocomplete="off">
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">Groups claim</span>
+        <input class="acc-input font-mono" x-model.trim="f.oidc_groups_claim" :disabled="locked('oidc_groups_claim')" placeholder="groups" autocomplete="off">
+      </label>
+      <label class="acc-field md:col-span-2">
+        <span class="acc-label">Redirect URL override <span class="font-normal text-slate-400">(optional)</span></span>
+        <input class="acc-input font-mono" type="url" x-model.trim="f.oidc_redirect_uri" :disabled="locked('oidc_redirect_uri')" :placeholder="view.redirectUri" autocomplete="off">
+      </label>
+      <label class="acc-field md:col-span-2">
+        <span class="acc-label">Audience for agent (MCP) access tokens <span class="font-normal text-slate-400">(optional, default: the client ID)</span></span>
+        <input class="acc-input font-mono" x-model.trim="f.oidc_mcp_audience" :disabled="locked('oidc_mcp_audience')" autocomplete="off">
+      </label>
+    </div>
+
+    <div class="rounded border border-slate-300/60 dark:border-sf-border p-3 text-sm space-y-1">
+      <p class="font-medium text-slate-700 dark:text-slate-200">Register this redirect URL at your identity provider</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <code class="font-mono text-xs sm:text-sm break-all select-all min-w-0" x-text="f.oidc_redirect_uri || view.redirectUri"></code>
+        <button type="button" class="acc-btn acc-btn-secondary" @click="copy(f.oidc_redirect_uri || view.redirectUri)"><span x-text="copied ? 'Copied' : 'Copy'"></span></button>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        Use the authorization code flow with PKCE. Make the groups available to SpiderFoot: request the <span class="font-mono">groups</span> scope
+        (Dex, Keycloak and Authentik can add the claim to the ID token).
+        If you use the agent (MCP) listener with SSO, its access tokens are checked against the same issuer.
+      </p>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Roles #}
+  <section class="acc-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Groups and roles</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      One group name per line (or separated by commas). Members of an admin group are administrators and see every scan and all settings.
+      Members of a user group (or anybody, when the user groups list is empty) can run scans, see their own and shared scans, and keep their agent tokens.
+      Anyone else who signs in is turned away.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="acc-field">
+        <span class="acc-label">Admin groups</span>
+        <textarea class="acc-input font-mono" rows="3" x-model="f.oidc_admin_groups" :disabled="locked('oidc_admin_groups')" placeholder="spiderfoot-admins" spellcheck="false"></textarea>
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">User groups <span class="font-normal text-slate-400">(empty: any signed-in account)</span></span>
+        <textarea class="acc-input font-mono" rows="3" x-model="f.oidc_user_groups" :disabled="locked('oidc_user_groups')" placeholder="spiderfoot-users" spellcheck="false"></textarea>
+      </label>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Sessions #}
+  <section class="acc-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Sessions and legacy scans</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="acc-field">
+        <span class="acc-label">Session lifetime (hours)</span>
+        <input class="acc-input" type="number" min="0.1" max="720" step="any" inputmode="decimal" x-model="f.auth_session_hours" :disabled="locked('auth_session_hours')">
+        <span class="acc-hint">People sign in again after this long, even if they are active.</span>
+      </label>
+      <label class="acc-field">
+        <span class="acc-label">Reverse proxy hops</span>
+        <input class="acc-input" type="number" min="0" max="10" inputmode="numeric" x-model="f.auth_trust_proxy" :disabled="locked('auth_trust_proxy')">
+        <span class="acc-hint">0: ignore X-Forwarded-* headers. 1: one proxy in front (used for the redirect URL and failed-login throttling).</span>
+      </label>
+    </div>
+    <label class="flex items-start gap-3 min-h-[44px] text-sm text-slate-700 dark:text-slate-200">
+      <input type="checkbox" class="acc-check mt-0.5" :checked="f.auth_unowned_visible === '1'" @change="f.auth_unowned_visible = $event.target.checked ? '1' : '0'" :disabled="locked('auth_unowned_visible')">
+      <span><span class="font-medium">Show scans without an owner to everyone (read only)</span>
+        <span class="block text-xs text-slate-500 dark:text-slate-400">Scans created before sign-in was set up have no owner. By default only administrators see them.</span></span>
+    </label>
+  </section>
+
+  {# ------------------------------------------------------------ Save / test #}
+  <section class="acc-card space-y-3">
+    <label class="flex items-start gap-3 min-h-[44px] text-sm text-amber-700 dark:text-amber-400" x-show="f.oidc_enabled === '1' && !view.configured">
+      <input type="checkbox" class="acc-check mt-0.5" x-model="ack">
+      <span>I understand that everyone must sign in with SSO from now on, and that my account has to be in an admin group.
+        If I lock myself out I can set <span class="font-mono">SF_OIDC_ENABLED=0</span> in the environment and restart.</span>
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" class="acc-btn acc-btn-primary" :disabled="busy" @click="save()">Save</button>
+      <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy || !f.oidc_issuer" @click="runTest()">Test connection</button>
+      <span class="text-sm" :class="msgOk ? 'text-green-600' : 'text-red-500'" x-text="msg" role="status"></span>
+    </div>
+
+    <div x-show="test" x-cloak class="rounded border p-3 text-sm space-y-1.5"
+         :class="test && test.ok ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'" role="status">
+      <p class="font-medium" :class="test && test.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'" x-text="test && test.message"></p>
+      <template x-if="test && test.ok">
+        <dl class="grid grid-cols-1 sm:grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
+          <dt class="text-slate-500 dark:text-slate-400">Issuer</dt><dd class="font-mono break-all" x-text="test.issuer"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Authorization</dt><dd class="font-mono break-all" x-text="test.authorization_endpoint"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Token</dt><dd class="font-mono break-all" x-text="test.token_endpoint"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Userinfo</dt><dd class="font-mono break-all" x-text="test.userinfo_endpoint || 'not advertised'"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Sign-out</dt><dd class="font-mono break-all" x-text="test.end_session_endpoint || 'not advertised'"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Signing keys</dt><dd x-text="test.keys + ' key(s) published'"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">PKCE (S256)</dt><dd x-text="test.pkce ? 'supported' : 'not advertised'"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Groups scope</dt>
+          <dd x-text="test.groups_scope === null ? 'the provider does not list its scopes' : (test.groups_scope ? 'advertised' : 'not advertised: check that groups reach the ID token')"></dd>
+          <dt class="text-slate-500 dark:text-slate-400">Groups claim</dt>
+          <dd x-text="test.groups_claim === null ? 'the provider does not list its claims' : (test.groups_claim ? 'advertised' : 'not advertised')"></dd>
+        </dl>
+      </template>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Users #}
+  <section class="acc-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">People who have signed in</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Read only. Roles follow the group mapping above and are checked on every request.</p>
+    <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!users.length">Nobody has signed in yet.</p>
+
+    {# Phones: cards #}
+    <ul class="md:hidden divide-y divide-slate-100 dark:divide-sf-border" x-show="users.length">
+      <template x-for="u in users" :key="'c' + u.id">
+        <li class="py-2 space-y-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-medium text-slate-800 dark:text-slate-100 sf-break" x-text="u.name || u.username"></span>
+            <span class="acc-role" :class="'acc-role-' + u.role" x-text="u.role"></span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 sf-break" x-text="u.email"></p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 sf-break" x-text="u.groups.length ? u.groups.join(', ') : 'no groups'"></p>
+          <p class="text-xs text-slate-400 dark:text-slate-500" x-text="'last sign-in ' + when(u.lastLogin)"></p>
+        </li>
+      </template>
+    </ul>
+
+    {# Larger screens: table #}
+    <div class="hidden md:block overflow-x-auto" x-show="users.length">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <th class="py-2 pr-3 font-semibold">Name</th><th class="py-2 pr-3 font-semibold">E-mail</th><th class="py-2 pr-3 font-semibold">Role</th>
+          <th class="py-2 pr-3 font-semibold">Groups</th><th class="py-2 font-semibold">Last sign-in</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-sf-border">
+          <template x-for="u in users" :key="'t' + u.id">
+            <tr>
+              <td class="py-2 pr-3 text-slate-800 dark:text-slate-100" x-text="u.name || u.username"></td>
+              <td class="py-2 pr-3 text-slate-600 dark:text-slate-300 break-all" x-text="u.email"></td>
+              <td class="py-2 pr-3"><span class="acc-role" :class="'acc-role-' + u.role" x-text="u.role"></span></td>
+              <td class="py-2 pr-3 text-slate-600 dark:text-slate-300" x-text="u.groups.join(', ')"></td>
+              <td class="py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" x-text="when(u.lastLogin)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+  .acc-card { border:1px solid rgb(148 163 184 / .35); border-radius:.5rem; padding:.75rem; }
+  @media (min-width: 768px) { .acc-card { padding:1rem; } }
+  .acc-field { display:block; min-width:0; }
+  .acc-label { display:block; font-size:.875rem; font-weight:500; margin-bottom:.25rem; color:rgb(51 65 85); }
+  .dark .acc-label { color:rgb(203 213 225); }
+  .acc-hint { display:block; margin-top:.25rem; font-size:.75rem; color:rgb(100 116 139); }
+  .acc-input { width:100%; min-height:44px; padding:.4rem .6rem; border-radius:.375rem; font-size:.875rem; min-width:0;
+               border:1px solid rgb(148 163 184 / .6); background:transparent; color:inherit; }
+  .acc-input:focus { outline:2px solid var(--color-sf-accent, #06b6d4); outline-offset:1px; }
+  .acc-input:disabled { opacity:.55; cursor:not-allowed; }
+  @media (min-width: 768px) { .acc-input { min-height:36px; } textarea.acc-input { min-height:0; } }
+  .acc-check { width:20px; height:20px; flex-shrink:0; }
+  .acc-btn { padding:.5rem 1rem; border-radius:.375rem; font-size:.875rem; min-height:44px; flex:1 1 9rem; text-align:center; }
+  @media (min-width: 768px) { .acc-btn { min-height:0; flex:0 0 auto; } }
+  .acc-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .acc-btn-primary { background:var(--color-sf-accent, #06b6d4); color:#fff; }
+  .acc-btn-secondary { border:1px solid rgb(148 163 184 / .6); }
+  .acc-btn-secondary:hover:not(:disabled) { border-color:var(--color-sf-accent, #06b6d4); }
+  .acc-switch { position:relative; flex-shrink:0; width:3rem; height:1.75rem; border-radius:9999px; background:rgb(148 163 184 / .5); transition:background .15s; }
+  .acc-switch::after { content:''; position:absolute; inset:-8px 0; }
+  .acc-switch:disabled { opacity:.5; cursor:not-allowed; }
+  .acc-switch-on { background:var(--color-sf-accent, #06b6d4); }
+  .acc-knob { position:absolute; top:.125rem; left:.125rem; width:1.5rem; height:1.5rem; border-radius:9999px; background:#fff; transition:transform .15s; }
+  .acc-switch-on .acc-knob { transform:translateX(1.25rem); }
+  .acc-role { display:inline-flex; align-items:center; padding:.1rem .5rem; border-radius:9999px; font-size:.65rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .acc-role-admin { background:rgb(6 182 212 / .15); color:#0891b2; }
+  .acc-role-user { background:rgb(148 163 184 / .2); color:rgb(71 85 105); }
+  .dark .acc-role-user { color:rgb(203 213 225); }
+  .acc-role-denied { background:rgb(239 68 68 / .15); color:rgb(220 38 38); }
+</style>
+
+<script>
+function accessSettings(initial, people) {
+  const csrf = () => (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  const lines = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean).join('\n');
+  const prep = (fields) => Object.assign({}, fields, {
+    oidc_admin_groups: lines(fields.oidc_admin_groups), oidc_user_groups: lines(fields.oidc_user_groups) });
+  return {
+    view: initial, f: prep(initial.fields), users: people || [],
+    secret: '', clearSecret: false, ack: false, busy: false, msg: '', msgOk: true, test: null, copied: false,
+
+    locked(name) { return (this.view.env || []).includes(name); },
+    when(ts) {
+      if (!ts) return 'never';
+      try { return new Date(ts * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return ''; }
+    },
+    async call(path, body) {
+      this.busy = true;
+      try {
+        const r = await fetch('/api/access/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+                                                       body: JSON.stringify(body) });
+        let d = {};
+        try { d = await r.json(); } catch (e) { d = {}; }
+        return { ok: r.ok, data: d, error: (d && d.error) || 'Request failed.' };
+      } catch (e) { return { ok: false, data: {}, error: 'Request failed.' }; }
+      finally { this.busy = false; }
+    },
+    async save() {
+      this.msg = '';
+      const f = this.f;
+      const body = {};
+      for (const k of ['oidc_issuer', 'oidc_client_id', 'oidc_scopes', 'oidc_groups_claim', 'oidc_redirect_uri', 'oidc_mcp_audience',
+                       'oidc_enabled', 'auth_session_hours', 'auth_unowned_visible', 'auth_trust_proxy']) {
+        if (!this.locked(k)) body[k] = String(f[k] === undefined ? '' : f[k]);
+      }
+      for (const k of ['oidc_admin_groups', 'oidc_user_groups']) {
+        if (!this.locked(k)) body[k] = String(f[k] || '').split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+      }
+      if (this.secret) body.oidc_client_secret = this.secret;
+      if (this.clearSecret) body.clear_secret = true;
+      if (this.ack) body.acknowledge = true;
+      const r = await this.call('settings', body);
+      this.msgOk = r.ok;
+      if (!r.ok) { this.msg = r.error; return; }
+      this.view = r.data; this.f = prep(r.data.fields); this.secret = ''; this.clearSecret = false; this.ack = false;
+      this.msg = 'Saved.';
+    },
+    async runTest() {
+      this.msg = ''; this.test = null;
+      const r = await this.call('test', { oidc_issuer: this.f.oidc_issuer, oidc_scopes: this.f.oidc_scopes, oidc_groups_claim: this.f.oidc_groups_claim });
+      this.test = r.ok ? r.data : { ok: false, message: r.error };
+    },
+    async copy(text) {
+      try { await navigator.clipboard.writeText(text); this.copied = true; setTimeout(() => { this.copied = false; }, 2000); } catch (e) { this.copied = false; }
+    },
+  };
+}
+</script>

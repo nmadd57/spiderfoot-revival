@@ -70,6 +70,7 @@
             </a>
           </div>
         </div>
+        {% if can_edit %}
         <button type="button"
                 hx-post="{{ url_for('api.rerunscan') }}"
                 hx-vals='{"id": "{{ scan.id }}"}'
@@ -82,9 +83,13 @@
           {{ icons.arrow_path(class="w-3.5 h-3.5 mr-1.5") }}
           Re-scan
         </button>
+        {% endif %}
       </div>
     </div>
   </div>
+
+  {# -- Sharing -- #}
+  {% include 'components/scan_sharing.html' %}
 
   {# -- Stat Cards -- #}
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">

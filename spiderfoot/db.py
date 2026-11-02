@@ -18,8 +18,10 @@ import time
 import typing
 import uuid
 
+from spiderfoot.db_identity import IdentityDbMixin, PRESERVED_CONFIG_PREFIXES
 
-class SpiderFootDb:
+
+class SpiderFootDb(IdentityDbMixin):
     """SpiderFoot database
 
     Attributes:
@@ -56,7 +58,8 @@ class SpiderFootDb:
             created     INT DEFAULT 0, \
             started     INT DEFAULT 0, \
             ended       INT DEFAULT 0, \
-            status      VARCHAR NOT NULL \
+            status      VARCHAR NOT NULL, \
+            owner       INTEGER \
         )",
         "CREATE TABLE tbl_scan_log ( \
             scan_instance_id    VARCHAR NOT NULL REFERENCES tbl_scan_instance(guid), \
@@ -424,6 +427,9 @@ class SpiderFootDb:
                     raise IOError(
                         "Failed to migrate database for scan-presets feature"
                     ) from e
+
+            # Migration: users, scan access grants, scan owner column and personal MCP tokens.
+            self._migrate_identity()
 
             # Always sync eventDetails into tbl_event_types so that existing
             # databases pick up newly added event types on upgrade. Each
@@ -855,13 +861,14 @@ class SpiderFootDb:
                 # log.critical(f"Unable to log event in DB due to lock: {e.args[0]}")
                 pass
 
-    def scanInstanceCreate(self, instanceId: str, scanName: str, scanTarget: str) -> None:
+    def scanInstanceCreate(self, instanceId: str, scanName: str, scanTarget: str, owner: typing.Optional[int] = None) -> None:
         """Store a scan instance in the database.
 
         Args:
             instanceId (str): scan instance ID
             scanName(str): scan name
             scanTarget (str): scan target
+            owner (int): id of the user who owns the scan (None: no owner)
 
         Raises:
             TypeError: arg type was invalid
@@ -878,13 +885,13 @@ class SpiderFootDb:
             raise TypeError(f"scanTarget is {type(scanTarget)}; expected str()") from None
 
         qry = "INSERT INTO tbl_scan_instance \
-            (guid, name, seed_target, created, status) \
-            VALUES (?, ?, ?, ?, ?)"
+            (guid, name, seed_target, created, status, owner) \
+            VALUES (?, ?, ?, ?, ?, ?)"
 
         with self.dbhLock:
             try:
                 self.dbh.execute(qry, (
-                    instanceId, scanName, scanTarget, time.time() * 1000, 'CREATED'
+                    instanceId, scanName, scanTarget, time.time() * 1000, 'CREATED', owner
                 ))
                 self.conn.commit()
             except sqlite3.Error as e:
@@ -1394,6 +1401,7 @@ class SpiderFootDb:
         qry5 = "DELETE FROM tbl_scan_correlation_results_events WHERE correlation_id IN (SELECT id FROM tbl_scan_correlation_results WHERE scan_instance_id = ?)"
         qry6 = "DELETE FROM tbl_scan_correlation_results WHERE scan_instance_id = ?"
         qry7 = "DELETE FROM tbl_ai_summaries WHERE scan_id = ?"
+        qry8 = "DELETE FROM tbl_scan_acl WHERE scan_id = ?"
         qvars = [instanceId]
 
         with self.dbhLock:
@@ -1408,6 +1416,10 @@ class SpiderFootDb:
                     self.dbh.execute(qry7, qvars)
                 except sqlite3.Error:
                     pass  # AI summaries table may not exist in older databases
+                try:
+                    self.dbh.execute(qry8, qvars)
+                except sqlite3.Error:
+                    pass  # grants table may not exist in older databases
                 self.dbh.execute(qry3, qvars)
                 self.dbh.execute(qry4, qvars)
                 self.dbh.execute(qry2, qvars)
@@ -1537,10 +1549,13 @@ class SpiderFootDb:
             IOError: database I/O failed
         """
 
-        qry = "DELETE from tbl_config"
+        # Sign-in settings are kept: wiping them could leave the application open to everyone.
+        keep = " AND ".join("opt NOT LIKE ? ESCAPE '\\'" for _ in PRESERVED_CONFIG_PREFIXES)
+        qry = f"DELETE from tbl_config WHERE scope <> 'GLOBAL' OR ({keep})"
+        keep_args = [p.replace('_', '\\_') + '%' for p in PRESERVED_CONFIG_PREFIXES]
         with self.dbhLock:
             try:
-                self.dbh.execute(qry)
+                self.dbh.execute(qry, keep_args)
                 self.conn.commit()
             except sqlite3.Error as e:
                 raise IOError("Unable to clear configuration from the database") from e

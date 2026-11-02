@@ -1,0 +1,161 @@
+{# Sharing panel on the scan page: owner, who the scan is shared with, and (for the owner and administrators) the controls
+   to change it. Edit-level users see the list read only; view-level users see only their own access. #}
+{% import 'components/icons.html' as icons %}
+{% if sign_in_enabled %}
+<section class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg mb-4 md:mb-6 min-w-0"
+         x-data='scanSharing({{ scan.id | tojson }}, {{ (is_admin or false) | tojson }})' x-init="init()" aria-label="Sharing">
+  <button type="button" @click="open = !open" :aria-expanded="open ? 'true' : 'false'"
+          class="w-full flex items-center justify-between gap-3 px-4 py-3 min-h-[44px] text-left">
+    <span class="flex items-center gap-2 min-w-0">
+      {{ icons.users(class="w-5 h-5 shrink-0 text-sf-accent") }}
+      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Sharing</span>
+      <span class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="summary()"></span>
+    </span>
+    {{ icons.chevron_down(class="w-4 h-4 shrink-0 text-slate-400 transition-transform") }}
+  </button>
+
+  <div x-show="open" x-cloak class="border-t border-slate-200 dark:border-sf-border px-4 py-3 space-y-3">
+    <p class="text-sm text-red-500" x-show="error" x-text="error" role="alert"></p>
+
+    <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+      <dt class="text-slate-500 dark:text-slate-400">Owner</dt>
+      <dd class="text-slate-800 dark:text-slate-100 sf-break" x-text="d.owner ? d.owner.name : 'No owner (created before sign-in was set up)'"></dd>
+      <dt class="text-slate-500 dark:text-slate-400">Your access</dt>
+      <dd><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide bg-sf-accent/10 text-sf-accent" x-text="d.yourLevel"></span></dd>
+    </dl>
+
+    <p class="text-xs text-slate-500 dark:text-slate-400" x-show="d.yourLevel === 'view'">You can read this scan. Ask the owner for edit access to stop or rerun it.</p>
+    <p class="text-xs text-slate-500 dark:text-slate-400" x-show="d.yourLevel === 'edit'">You can stop, rerun and mark false positives. Only the owner can change who has access, or delete the scan.</p>
+
+    <div x-show="d.canSeeGrants" class="space-y-2">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Shared with</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400" x-show="!d.grants.length">Not shared with anyone.</p>
+      <ul class="divide-y divide-slate-100 dark:divide-sf-border">
+        <template x-for="g in d.grants" :key="g.type + ':' + g.principal">
+          <li class="py-2 flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 shrink-0"
+                  x-text="g.type === 'group' ? 'G' : 'U'" :title="g.type === 'group' ? 'Group' : 'User'"></span>
+            <span class="flex-1 min-w-0 text-sm text-slate-800 dark:text-slate-100 sf-break" x-text="g.name"></span>
+            <template x-if="d.canManage">
+              <span class="flex items-center gap-2">
+                <select class="sh-input" :value="g.level" @change="setLevel(g, $event.target.value)" :disabled="busy" :aria-label="'Access for ' + g.name">
+                  <option value="view">View</option>
+                  <option value="edit">Edit</option>
+                </select>
+                <button type="button" class="sh-btn sh-btn-danger" @click="remove(g)" :disabled="busy" :aria-label="'Remove ' + g.name">Remove</button>
+              </span>
+            </template>
+            <template x-if="!d.canManage">
+              <span class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400" x-text="g.level"></span>
+            </template>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    {# Add a grant: owner and administrators only #}
+    <form x-show="d.canManage" @submit.prevent="add()" class="space-y-2 pt-1" aria-label="Share this scan">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Share with</h3>
+      <div class="grid grid-cols-2 sm:grid-cols-[7rem_minmax(0,1fr)_7rem_auto] gap-2">
+        <select class="sh-input" x-model="form.type" aria-label="Share with a user or a group">
+          <option value="group">Group</option>
+          <option value="user">User</option>
+        </select>
+        <select class="sh-input col-span-2 sm:col-span-1 order-3 sm:order-none" x-show="form.type === 'user'" x-model="form.user" aria-label="User">
+          <option value="">Choose a user</option>
+          <template x-for="u in users" :key="u.id"><option :value="u.id" x-text="u.name + (u.username && u.username !== u.name ? ' (' + u.username + ')' : '')"></option></template>
+        </select>
+        <input class="sh-input col-span-2 sm:col-span-1 order-3 sm:order-none" x-show="form.type === 'group'" x-model.trim="form.group"
+               list="sh-groups" placeholder="Group name" maxlength="200" autocomplete="off" aria-label="Group name">
+        <datalist id="sh-groups"><template x-for="n in groups" :key="n"><option :value="n"></option></template></datalist>
+        <select class="sh-input" x-model="form.level" aria-label="Access level">
+          <option value="view">View</option>
+          <option value="edit">Edit</option>
+        </select>
+        <button type="submit" class="sh-btn sh-btn-primary col-span-2 sm:col-span-1 order-4 sm:order-none" :disabled="busy || !canAdd()">Share</button>
+      </div>
+    </form>
+
+    {# Administrators can hand a scan (for example one without an owner) to a user #}
+    <form x-show="isAdmin" @submit.prevent="setOwner()" class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 pt-1" aria-label="Change owner">
+      <select class="sh-input" x-model="ownerPick" aria-label="New owner">
+        <option value="">Change owner (admin)</option>
+        <template x-for="u in users" :key="'o' + u.id"><option :value="u.id" x-text="u.name"></option></template>
+      </select>
+      <button type="submit" class="sh-btn sh-btn-secondary" :disabled="busy || !ownerPick">Set owner</button>
+    </form>
+  </div>
+</section>
+
+<style>
+  .sh-input { min-height:44px; padding:.4rem .6rem; border-radius:.375rem; font-size:.875rem; max-width:100%; min-width:0;
+              border:1px solid rgb(148 163 184 / .6); background:transparent; color:inherit; }
+  .sh-input:focus { outline:2px solid var(--color-sf-accent, #06b6d4); outline-offset:1px; }
+  .dark .sh-input option { background:#1e293b; color:#e2e8f0; }
+  @media (min-width: 768px) { .sh-input { min-height:36px; } }
+  .sh-btn { min-height:44px; padding:.4rem .9rem; border-radius:.375rem; font-size:.875rem; text-align:center; }
+  @media (min-width: 768px) { .sh-btn { min-height:36px; } }
+  .sh-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .sh-btn-primary { background:var(--color-sf-accent, #06b6d4); color:#fff; }
+  .sh-btn-secondary { border:1px solid rgb(148 163 184 / .6); }
+  .sh-btn-danger { border:1px solid rgb(239 68 68 / .6); color:rgb(239 68 68); }
+</style>
+
+<script>
+function scanSharing(scanId, isAdmin) {
+  const csrf = () => (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  return {
+    isAdmin, open: window.matchMedia('(min-width: 768px)').matches, busy: false, error: '',
+    d: { owner: null, grants: [], yourLevel: '', canManage: false, canSeeGrants: false, unowned: false },
+    users: [], groups: [], form: { type: 'group', user: '', group: '', level: 'view' }, ownerPick: '',
+
+    summary() {
+      const n = (this.d.grants || []).length;
+      const who = this.d.owner ? this.d.owner.name : 'no owner';
+      return who + (this.d.canSeeGrants ? ' · ' + (n ? 'shared with ' + n : 'not shared') : '');
+    },
+    canAdd() { return this.form.type === 'user' ? !!this.form.user : !!this.form.group; },
+    async api(method, path, body) {
+      this.busy = true; this.error = '';
+      try {
+        const r = await fetch('/api/scan/' + encodeURIComponent(scanId) + path, {
+          method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+          body: body ? JSON.stringify(body) : undefined });
+        let data = {};
+        try { data = await r.json(); } catch (e) { data = {}; }
+        if (!r.ok) { this.error = (data && data.error) || 'Request failed.'; return null; }
+        return data;
+      } catch (e) { this.error = 'Request failed.'; return null; }
+      finally { this.busy = false; }
+    },
+    async init() {
+      const d = await this.api('GET', '/access');
+      if (d) this.d = d;
+      if (this.d.canManage || this.isAdmin) {
+        try {
+          const [u, g] = await Promise.all([fetch('/api/users').then(r => r.json()), fetch('/api/groups').then(r => r.json())]);
+          this.users = Array.isArray(u) ? u : []; this.groups = Array.isArray(g) ? g : [];
+        } catch (e) { /* the lists are only suggestions */ }
+      }
+    },
+    async add() {
+      const principal = this.form.type === 'user' ? this.form.user : this.form.group;
+      const d = await this.api('POST', '/access', { type: this.form.type, principal: String(principal), level: this.form.level });
+      if (d) { this.d = d; this.form.user = ''; this.form.group = ''; }
+    },
+    async setLevel(g, level) {
+      const d = await this.api('POST', '/access', { type: g.type, principal: String(g.principal), level });
+      if (d) this.d = d;
+    },
+    async remove(g) {
+      const d = await this.api('DELETE', '/access', { type: g.type, principal: String(g.principal) });
+      if (d) this.d = d;
+    },
+    async setOwner() {
+      const d = await this.api('POST', '/owner', { user_id: parseInt(this.ownerPick, 10) });
+      if (d) { this.d = d; this.ownerPick = ''; }
+    },
+  };
+}
+</script>
+{% endif %}

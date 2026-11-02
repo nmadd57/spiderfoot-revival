@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import hmac as _hmac
 import logging
@@ -138,6 +137,8 @@ def create_app(config=None):
     app.config['SECRET_KEY'] = secret
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    from spiderfoot.services.session_auth import SessionInterface
+    app.session_interface = SessionInterface()
 
     # Store the live SpiderFoot config on the app so blueprints can access it
     # via current_app.config['SF_CONFIG'].
@@ -185,7 +186,11 @@ def create_app(config=None):
     from spiderfoot.blueprints.fragments import frag_bp
     from spiderfoot.blueprints.ai import ai_bp
     from spiderfoot.blueprints.mcp_admin import mcp_admin_bp
+    from spiderfoot.blueprints.auth import auth_bp
+    from spiderfoot.blueprints.access import access_bp
 
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(access_bp, url_prefix='/api')
     app.register_blueprint(ui_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(frag_bp, url_prefix='/frag')
@@ -218,58 +223,32 @@ def create_app(config=None):
         users = _load_passwd_file(passwd_path)
         app.config['SF_USERS'] = users
 
-    auth_log = logging.getLogger('spiderfoot.auth')
-
     @app.before_request
     def check_auth():
-        from flask import request, Response
+        """Authenticate (sign-in session, HTTP Basic, or no sign-in) and authorize the route.
+
+        See spiderfoot.services.session_auth and spiderfoot.services.route_policy.
+        """
+        from flask import g, request
+        from werkzeug.wrappers import Response as WerkzeugResponse
+        from spiderfoot.services import identity, route_policy, session_auth
 
         # Exempt paths: static files and ping health check
         if request.path.startswith('/static/') or request.path in ('/api/ping', '/ping'):
             return None
 
-        # If no users configured, auth is disabled
-        if not app.config.get('SF_USERS'):
+        policy = route_policy.policy_for(request.endpoint)
+        if policy is not None and policy.kind == 'public':
             return None
 
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Basic '):
-            return Response(
-                'Authentication required.\n',
-                401,
-                {'WWW-Authenticate': 'Basic realm="SpiderFoot"'}
-            )
-
-        try:
-            decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
-            username, password = decoded.split(':', 1)
-        except Exception:
-            return Response(
-                'Malformed credentials.\n',
-                401,
-                {'WWW-Authenticate': 'Basic realm="SpiderFoot"'}
-            )
-
-        stored_password = app.config['SF_USERS'].get(username)
-        if stored_password is None:
-            # Dummy bcrypt check to prevent username-enumeration via timing
-            _check_password(password, _hash_password("dummy"))
-            auth_log.warning(f"Failed login attempt for unknown user '{username}'")
-            return Response(
-                'Invalid credentials.\n',
-                401,
-                {'WWW-Authenticate': 'Basic realm="SpiderFoot"'}
-            )
-
-        if not _check_password(password, stored_password):
-            auth_log.warning(f"Failed login attempt for user '{username}'")
-            return Response(
-                'Invalid credentials.\n',
-                401,
-                {'WWW-Authenticate': 'Basic realm="SpiderFoot"'}
-            )
-
-        return None
+        result = session_auth.authenticate(app)
+        if isinstance(result, str):  # 'denied': the account is not in a group that may use the application
+            return session_auth.denied_response()
+        if isinstance(result, WerkzeugResponse):
+            return result
+        g.sf_user = result
+        g.sf_basic = request.headers.get('Authorization', '').startswith('Basic ') and result.local
+        return route_policy.authorize(result, identity.request_settings(), identity.request_db)
 
     # --- CSRF protection ---
     from flask import session, request as flask_request, Response as FlaskResponse
@@ -280,8 +259,9 @@ def create_app(config=None):
         if flask_request.method in ('GET', 'HEAD', 'OPTIONS'):
             return None
 
-        # Skip CSRF for API clients authenticating via Basic Auth
-        if flask_request.headers.get('Authorization', '').startswith('Basic '):
+        # Skip CSRF for API clients authenticating via Basic Auth (never for a request that carries a
+        # sign-in session: the cookie is what CSRF protects)
+        if flask_request.headers.get('Authorization', '').startswith('Basic ') and not session.get('uid'):
             return None
 
         # Validate the token
@@ -292,6 +272,15 @@ def create_app(config=None):
             return FlaskResponse('CSRF token missing or invalid.\n', 403)
 
         return None
+
+    @app.context_processor
+    def inject_identity():
+        """The signed-in user and role for the navigation and the pages."""
+        from spiderfoot.services import identity
+        user = identity.current_user()
+        sign_in = bool(app.config.get('SF_USERS')) or identity.request_settings().oidc_configured
+        return {'current_user': user, 'is_admin': bool(user and user.is_admin), 'sign_in_enabled': sign_in,
+                'sso_enabled': identity.request_settings().oidc_configured}
 
     @app.context_processor
     def inject_csrf_token():

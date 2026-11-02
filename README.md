@@ -20,7 +20,9 @@ On top of the Revival UI (Flask, Tailwind, HTMX, Alpine.js) and its module overh
 - **Module repair and dead-module cleanup.** Crashing modules fixed, vendors that changed their APIs ported (Censys, ZoomEye), dead services removed, and the remaining broken ones labelled. See [Module repair and cleanup](#module-repair-and-cleanup).
 - **Local-tool modules that work out of the box.** The image bundles BBOT, nmap, nuclei and the other CLI tools instead of leaving them as an exercise.
 - **Local AI endpoints.** The AI assistant works with any OpenAI-compatible server, not only OpenRouter.
-- **Built to sit behind single sign-on.** The app trusts a reverse proxy (oauth2-proxy and similar). See [Running it safely](#running-it-safely).
+- **Users, OIDC sign-in and sharing.** Built-in OpenID Connect login, roles from the groups claim, per-scan owners, and view or edit delegation to a user or a group. See [Users and access](#users-and-access).
+- **MCP server for agents.** An agent can list modules, build and run scans and read results, acting as a signed-in user. See [MCP server](#mcp-server).
+- **Still happy behind a proxy.** The app can also sit behind a reverse proxy (oauth2-proxy and similar). See [Running it safely](#running-it-safely).
 - **Maintenance automation.** CodeQL scanning, Dependabot updates, an image built by GitHub Actions on every push, and a test workflow that cannot hang (per-test timeout of 120 s, a 20-minute job limit, older runs on the same branch cancelled). Lint (`flake8`) and the full unit suite are clean.
 
 Everything is listed in [CHANGELOG.md](CHANGELOG.md); a table of every integration (purpose, auth, cost, project link, status) is in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
@@ -160,6 +162,25 @@ Earlier repairs in the Revival line: DNSDumpster (new JSON API), DNSGrep (buffer
 ### Target types
 
 Domains and subdomains, IP addresses, subnets, email addresses, phone numbers, usernames, person names, company names (`business: Acme Widgets`), Bitcoin addresses and ASNs.
+
+## Users and access
+
+Set `SF_OIDC_ENABLED=1` with `SF_OIDC_ISSUER`, `SF_OIDC_CLIENT_ID` and `SF_OIDC_CLIENT_SECRET` (or fill in **Settings → Access**, which has Save and Test buttons). Register `<your URL>/auth/callback` as the redirect URI at your identity provider and make it send a `groups` claim.
+
+- **Roles.** Members of `SF_OIDC_ADMIN_GROUPS` are administrators. Members of `SF_OIDC_USER_GROUPS` (empty means any signed-in user) are users. Everyone else gets a 403 page. Settings, API keys, AI, usage and raw queries are administrator-only.
+- **Scans have owners.** The owner and administrators have full control. Users only see scans they own or that were shared with them (directly or through a group).
+- **Sharing.** The owner or an administrator can grant a user or group **view** (read results, export) or **edit** (stop, re-scan, mark false positives) from the Sharing panel on the scan page. Delete and sharing stay with the owner. Older scans with no owner are administrator-only.
+- **Safety.** Turning SSO on needs at least one admin group and an acknowledgement, and a change that removes your own admin access is refused. `SF_OIDC_ENABLED=0` is the way back in. HTTP Basic auth for API clients keeps working.
+
+Other options: `SF_OIDC_SCOPES`, `SF_OIDC_GROUPS_CLAIM`, `SF_OIDC_REDIRECT_URI`, `SF_AUTH_SESSION_HOURS` (default 12), `SF_AUTH_UNOWNED_VISIBLE`, `SF_TRUST_PROXY`. Details and the route table are in [TECHNICAL.md](TECHNICAL.md).
+
+## MCP server
+
+Set `SF_MCP_PORT` (and optionally `SF_MCP_HOST`) to start a Model Context Protocol listener at `POST /mcp`, then enable it in **Settings → Agent (MCP)**. Agents authenticate as a user with either an OIDC access token from your issuer or a personal token created on that page (shown once, stored hashed, revocable, 90 days by default). Every tool applies the same access rules as the web UI, using the user's current role and groups.
+
+Tools: `list_modules`, `get_module`, `list_presets`, `suggest_modules`, `validate_target`, `list_event_types`, `list_scans`, `get_scan`, `get_scan_summary`, `get_scan_events`, `get_scan_correlations`, `get_scan_log`, `create_scan`, `stop_scan`, `rerun_scan`, `delete_scan`. There is no tool for API keys, settings or SQL.
+
+Administrators set the ceiling for all agents: scans on or off, delete, active or invasive modules (and then only with `confirm_active`), and private or loopback targets (off by default). Modules that are disabled, over quota or missing a key are dropped with the reason. Tool calls are audit-logged.
 
 ## Running it safely
 

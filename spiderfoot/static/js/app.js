@@ -686,6 +686,13 @@ window.scanForm = (initialModules, presets) => ({
           scantarget: t.value,
           modulelist: enabledMods.join(','),
         });
+        // Optional "Share with" list from the new scan form (only present when sign-in is on)
+        try {
+          const shared = JSON.parse(document.getElementById('share-with-json')?.value || '[]');
+          if (Array.isArray(shared) && shared.length) {
+            body.set('share_with', JSON.stringify(shared.map(s => ({ type: s.type, principal: s.principal, level: s.level }))));
+          }
+        } catch (e) { /* ignore a bad value */ }
 
         try {
           const resp = await fetch('/api/startscan', {

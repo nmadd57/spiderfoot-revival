@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Not found' if status == 404 else 'Access denied' }} - SpiderFoot{% endblock %}
+{% block sidebar %}{% if current_user and not signout %}{% include 'components/sidebar.html' %}{% endif %}{% endblock %}
+{% block main_class %}{% if current_user and not signout %}p-3 sm:p-4 md:ml-14 md:p-6 pb-24 md:pb-6{% else %}p-4 md:p-6{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto mt-8 md:mt-16 bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-5 md:p-6 space-y-3">
+  <h1 class="text-xl font-semibold text-slate-800 dark:text-slate-100">{{ 'Not found' if status == 404 else 'Access denied' }}</h1>
+  <p class="text-sm text-slate-600 dark:text-slate-300 sf-break">{{ message }}</p>
+  <div class="flex flex-wrap gap-2 pt-2">
+    {% if signout %}
+    <a href="{{ url_for('auth.logout') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md border border-slate-300 dark:border-sf-border text-sm text-slate-700 dark:text-slate-200 hover:border-sf-accent">Sign out</a>
+    {% else %}
+    <a href="{{ url_for('ui.dashboard') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md bg-sf-accent text-white text-sm font-medium">Back to the dashboard</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

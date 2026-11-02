@@ -170,6 +170,64 @@
       <p class="md:hidden mt-1.5 text-xs text-slate-500 dark:text-slate-400">A label for this scan. Defaults to the target if left blank.</p>
     </div>
 
+    {% if sign_in_enabled %}
+    {# Optional: share the new scan right away (the owner can change this later on the scan page) #}
+    <div x-data="newScanShare()" x-init="load()" class="space-y-2 mt-4">
+      <p class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        Share with <span class="font-normal text-slate-400 dark:text-slate-500">(optional)</span>
+      </p>
+      <input type="hidden" id="share-with-json" :value="JSON.stringify(items)">
+      <ul class="space-y-1" x-show="items.length">
+        <template x-for="(it, i) in items" :key="it.type + it.principal">
+          <li class="flex items-center gap-2 text-sm">
+            <span class="flex-1 min-w-0 sf-break text-slate-700 dark:text-slate-200" x-text="label(it) + ' · ' + it.level"></span>
+            <button type="button" @click="items.splice(i, 1)" class="min-h-[44px] md:min-h-0 px-3 text-xs text-red-500 border border-red-500/40 rounded" :aria-label="'Remove ' + label(it)">Remove</button>
+          </li>
+        </template>
+      </ul>
+      <div class="grid grid-cols-2 sm:grid-cols-[7rem_minmax(0,1fr)_7rem_auto] gap-2">
+        <select x-model="type" aria-label="Share with a user or a group" class="min-h-[44px] md:min-h-0 px-2 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated text-sm">
+          <option value="group">Group</option><option value="user">User</option>
+        </select>
+        <select x-show="type === 'user'" x-model="user" aria-label="User" class="col-span-2 sm:col-span-1 order-1 sm:order-none min-h-[44px] md:min-h-0 px-2 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated text-sm min-w-0">
+          <option value="">Choose a user</option>
+          <template x-for="u in users" :key="u.id"><option :value="u.id" x-text="u.name"></option></template>
+        </select>
+        <input x-show="type === 'group'" x-model.trim="group" list="ns-groups" placeholder="Group name" maxlength="200" autocomplete="off" aria-label="Group name"
+               class="col-span-2 sm:col-span-1 order-1 sm:order-none min-h-[44px] md:min-h-0 px-3 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated text-sm min-w-0">
+        <datalist id="ns-groups"><template x-for="n in groups" :key="n"><option :value="n"></option></template></datalist>
+        <select x-model="level" aria-label="Access level" class="min-h-[44px] md:min-h-0 px-2 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated text-sm">
+          <option value="view">View</option><option value="edit">Edit</option>
+        </select>
+        <button type="button" @click="add()" :disabled="!(type === 'user' ? user : group)"
+                class="col-span-2 sm:col-span-1 order-2 sm:order-none min-h-[44px] md:min-h-0 px-4 rounded-md border border-sf-accent text-sf-accent text-sm font-medium disabled:opacity-50">Add</button>
+      </div>
+    </div>
+    <script>
+    function newScanShare() {
+      return {
+        items: [], users: [], groups: [], type: 'group', user: '', group: '', level: 'view',
+        async load() {
+          try {
+            const [u, g] = await Promise.all([fetch('/api/users').then(r => r.json()), fetch('/api/groups').then(r => r.json())]);
+            this.users = Array.isArray(u) ? u : []; this.groups = Array.isArray(g) ? g : [];
+          } catch (e) { /* suggestions only */ }
+        },
+        label(it) { return it.type === 'user' ? (it.name || 'user ' + it.principal) : it.principal; },
+        add() {
+          const isUser = this.type === 'user';
+          const principal = String(isUser ? this.user : this.group);
+          if (!principal) return;
+          const name = isUser ? ((this.users.find(u => String(u.id) === principal) || {}).name || '') : '';
+          this.items = this.items.filter(i => !(i.type === this.type && i.principal === principal));
+          this.items.push({ type: this.type, principal, level: this.level, name });
+          this.user = ''; this.group = '';
+        },
+      };
+    }
+    </script>
+    {% endif %}
+
   </div>
 
   {# ================================================================ Use-case tabs #}

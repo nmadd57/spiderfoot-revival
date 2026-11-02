@@ -1,8 +1,11 @@
-"""The HTTP side of the MCP server: ``POST /mcp`` (Streamable HTTP, JSON responses) and ``GET /health``.
+"""The HTTP side of the MCP server: ``POST /mcp`` (Streamable HTTP, JSON responses), ``GET /health`` and
+``GET /.well-known/oauth-protected-resource`` (RFC 9728, when SSO is configured).
 
-Every request except /health must carry ``Authorization: Bearer <token>`` for the token saved on the
-Settings page. Settings are read from the database on each request. Tokens and request headers are
-never logged.
+Every request to /mcp must carry ``Authorization: Bearer <token>``: a personal access token or an OIDC
+access token (see spiderfoot.services.mcp_auth). The caller is a user and the tools apply that user's
+access rules. Settings are read from the database on each request. Tokens and request headers are never
+logged. Failed authentications are throttled per client address; ``X-Forwarded-For`` is used for that
+only when ``SF_TRUST_PROXY`` (or the matching setting) says a proxy is in front.
 """
 
 import collections
@@ -16,7 +19,7 @@ from werkzeug.wrappers import Request, Response
 
 from spiderfoot.mcp import protocol
 from spiderfoot.mcp.context import CallContext, McpContext
-from spiderfoot.services import mcp_auth
+from spiderfoot.services import identity, mcp_auth
 
 log = logging.getLogger('spiderfoot.mcp')
 
@@ -72,6 +75,25 @@ def _json(status, body, headers=None):
     return resp
 
 
+def client_address(request, hops: int = 0) -> str:
+    """The address failed logins are counted against; the Nth entry from the right of X-Forwarded-For when a proxy is trusted."""
+    if hops:
+        parts = [p.strip() for p in request.headers.get('X-Forwarded-For', '').split(',') if p.strip()]
+        if len(parts) >= hops:
+            return parts[-hops]
+    return request.remote_addr or 'unknown'
+
+
+def _origin(request, hops: int = 0) -> str:
+    scheme, host = request.scheme, request.host
+    if hops:
+        def pick(header):
+            parts = [p.strip() for p in request.headers.get(header, '').split(',') if p.strip()]
+            return parts[-hops] if len(parts) >= hops else (parts[0] if parts else '')
+        scheme, host = pick('X-Forwarded-Proto') or scheme, pick('X-Forwarded-Host') or host
+    return f'{scheme if scheme in ("http", "https") else "http"}://{host}'
+
+
 def _host_only(netloc: str) -> str:
     try:
         return (urlsplit('//' + netloc).hostname or '').lower()
@@ -110,6 +132,8 @@ class McpWsgiApp:
             if request.method not in ('GET', 'HEAD'):
                 return _json(405, {'error': 'Method not allowed'}, {'Allow': 'GET, HEAD'})
             return _json(200, {'ok': True})
+        if path.startswith('/.well-known/oauth-protected-resource'):
+            return self.protected_resource(request)
         if path != '/mcp':
             return _json(404, {'error': 'Not found'})
 
@@ -123,14 +147,24 @@ class McpWsgiApp:
         if not mcp_auth.enabled(saved):
             return _json(403, {'error': 'MCP server is disabled'})
 
-        client = request.remote_addr or 'unknown'
-        wait = self.throttle.retry_after(client)
-        if wait:
-            return _json(429, {'error': 'Too many failed attempts'}, {'Retry-After': str(wait)})
-        token = mcp_auth.from_authorization_header(request.headers.get('Authorization'))
-        if not mcp_auth.verify(token, saved):
-            self.throttle.record_failure(client)
-            return _json(401, {'error': 'Unauthorized'}, {'WWW-Authenticate': 'Bearer'})
+        with self.ctx.db() as dbh:
+            auth = identity.load_settings(dbh)
+            client = client_address(request, auth.trust_proxy)
+            wait = self.throttle.retry_after(client)
+            if wait:
+                return _json(429, {'error': 'Too many failed attempts'}, {'Retry-After': str(wait)})
+            token = mcp_auth.from_authorization_header(request.headers.get('Authorization'))
+            try:
+                user = mcp_auth.authenticate(token, dbh, auth)
+            except mcp_auth.McpAuthError as e:
+                if e.status == 403:
+                    log.warning('mcp request refused: account not allowed client=%s', client)
+                    return _json(403, {'error': 'This account is not allowed to use the MCP server'})
+                self.throttle.record_failure(client)
+                challenge = 'Bearer'
+                if auth.oidc_configured:
+                    challenge += f' resource_metadata="{_origin(request, auth.trust_proxy)}/.well-known/oauth-protected-resource"'
+                return _json(401, {'error': 'Unauthorized'}, {'WWW-Authenticate': challenge})
 
         if request.method != 'POST':
             note = 'This server answers JSON-RPC requests sent with POST /mcp; it offers no server-sent event stream.'
@@ -146,7 +180,24 @@ class McpWsgiApp:
         except (ValueError, UnicodeDecodeError):
             return _json(400, protocol.rpc_error(None, protocol.PARSE_ERROR, 'Parse error'))
 
-        status, reply = protocol.handle_payload(payload, CallContext(self.ctx, saved, client))
+        status, reply = protocol.handle_payload(payload, CallContext(self.ctx, saved, f'{client} user={user.id}', user, auth))
         if reply is None:
             return Response(status=status)
         return _json(status, reply)
+
+    def protected_resource(self, request):
+        """OAuth protected resource metadata (RFC 9728): tells MCP clients which issuer to get tokens from."""
+        if request.method not in ('GET', 'HEAD'):
+            return _json(405, {'error': 'Method not allowed'}, {'Allow': 'GET, HEAD'})
+        try:
+            with self.ctx.db() as dbh:
+                auth = identity.load_settings(dbh)
+        except Exception:
+            log.exception('mcp could not read settings')
+            return _json(503, {'error': 'Service unavailable'})
+        if not auth.oidc_configured:
+            return _json(404, {'error': 'Not found'})
+        return _json(200, {'resource': _origin(request, auth.trust_proxy) + '/mcp',
+                           'authorization_servers': [auth.issuer],
+                           'bearer_methods_supported': ['header'],
+                           'resource_name': 'SpiderFoot MCP server'})

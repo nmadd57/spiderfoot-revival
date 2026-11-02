@@ -1,40 +1,42 @@
-"""Settings and token handling for the MCP server (agent access to scans).
+"""Settings, credentials and identity for the MCP server (agent access to scans).
 
-Everything the MCP server and its settings page share lives here so the two cannot drift:
-the saved option names, the token format, and the permission model.
+The MCP server acts as a user. Two kinds of bearer credentials identify the user:
 
-Options are stored like other global settings (``dbh.configSet({key: value})``, read back with
-``dbh.configGet()``), as strings:
+* a personal access token (``sfmcp_...``) that the user generates in Settings > Agent (MCP). Only its
+  SHA-256 hash is stored (``tbl_mcp_tokens``). The token acts as its owner with the owner's *current*
+  role and groups, so an account that loses its groups or is denied loses agent access at once.
+* an OIDC access token (a JWT) from the configured issuer, validated like the login ID token: signature
+  from the issuer's keys, issuer, audience (``_oidc_mcp_audience`` or the client id) and expiry. Groups
+  come from the token's groups claim, or from the userinfo endpoint when the token has none.
 
-* ``_mcp_enabled``      "1" when agents may connect (default off)
-* ``_mcp_token_hash``   SHA-256 hex digest of the access token (the token itself is never stored)
-* ``_mcp_token_hint``   a short, non-secret prefix of the token for display (``sfmcp_ab12``)
-* ``_mcp_token_created`` unix time the token was issued
-* ``_mcp_allow_scan``   "1" lets agents start, stop and rerun scans (default on)
-* ``_mcp_allow_delete`` "1" lets agents delete scans and their data (default off)
-* ``_mcp_allow_active`` "1" lets agents start active/invasive modules, and then only with an explicit
-                        confirmation in the tool call (default off)
+Global settings, saved like other options (``dbh.configSet({key: value})``), as strings:
+
+* ``_mcp_enabled``       "1" when agents may connect (default off)
+* ``_mcp_allow_scan``    "1" lets agents start, stop and rerun scans (default on)
+* ``_mcp_allow_delete``  "1" lets agents delete scans and their data (default off)
+* ``_mcp_allow_active``  "1" lets agents start active/invasive modules, and then only with an explicit
+                         confirmation in the tool call (default off)
 * ``_mcp_allow_private`` "1" lets agents scan loopback, private-range and link-local targets (default off)
 
-Reading data (modules, scans, events) is always allowed once the token is valid; no tool ever returns
-API keys or other secrets.
+The operator's permissions are a ceiling for everyone; what a user may do with a particular scan is
+decided by the same access rules as in the web interface (spiderfoot.services.access). No tool ever
+returns API keys or other secrets. The retired shared token (``_mcp_token_hash`` and friends) is ignored
+and removed from the database when it is next opened.
 
 The MCP listener is a separate port, enabled by environment: ``SF_MCP_PORT`` (0 or unset = no listener)
 and ``SF_MCP_HOST`` (default 0.0.0.0).
 """
 
 import hashlib
-import hmac
 import os
 import secrets
 import time
 
+from spiderfoot.services import identity, oidc
+
 TOKEN_PREFIX = 'sfmcp_'
 
 ENABLED = '_mcp_enabled'
-TOKEN_HASH = '_mcp_token_hash'
-TOKEN_HINT = '_mcp_token_hint'
-TOKEN_CREATED = '_mcp_token_created'
 ALLOW_SCAN = '_mcp_allow_scan'
 ALLOW_DELETE = '_mcp_allow_delete'
 ALLOW_ACTIVE = '_mcp_allow_active'
@@ -48,6 +50,16 @@ DEFAULTS = {
     ALLOW_PRIVATE: '0',
 }
 PERMISSION_KEYS = (ALLOW_SCAN, ALLOW_DELETE, ALLOW_ACTIVE, ALLOW_PRIVATE)
+TOUCH_INTERVAL = 60  # seconds between "last used" updates of a token
+
+
+class McpAuthError(Exception):
+    """A credential problem. ``status`` is the HTTP status (401 not authenticated, 403 not allowed)."""
+
+    def __init__(self, status: int, reason: str):
+        super().__init__(reason)
+        self.status = status
+        self.reason = reason
 
 
 def _flag(saved: dict, key: str) -> bool:
@@ -55,7 +67,7 @@ def _flag(saved: dict, key: str) -> bool:
 
 
 def enabled(saved: dict) -> bool:
-    return _flag(saved, ENABLED) and bool((saved or {}).get(TOKEN_HASH))
+    return _flag(saved, ENABLED)
 
 
 def permissions(saved: dict) -> dict:
@@ -76,24 +88,6 @@ def new_token():
     """Create an access token. Returns (token, hash, hint, created); only the hash and hint are stored."""
     token = TOKEN_PREFIX + secrets.token_urlsafe(32)
     return token, hash_token(token), token[:len(TOKEN_PREFIX) + 4], int(time.time())
-
-
-def token_settings(token_hash: str, hint: str, created: int) -> dict:
-    """The option updates that store a freshly created token."""
-    return {TOKEN_HASH: token_hash, TOKEN_HINT: hint, TOKEN_CREATED: str(created)}
-
-
-def revoked_settings() -> dict:
-    """The option updates that revoke the token and switch the server off."""
-    return {TOKEN_HASH: '', TOKEN_HINT: '', TOKEN_CREATED: '', ENABLED: '0'}
-
-
-def verify(token: str, saved: dict) -> bool:
-    """Constant-time check of a presented token against the stored hash."""
-    stored = str((saved or {}).get(TOKEN_HASH) or '')
-    if not stored or not token:
-        return False
-    return hmac.compare_digest(hash_token(token), stored)
 
 
 def from_authorization_header(value: str):
@@ -121,10 +115,55 @@ def public_status(saved: dict) -> dict:
     """Non-secret state for the settings page."""
     return {
         'enabled': _flag(saved, ENABLED),
-        'hasToken': bool((saved or {}).get(TOKEN_HASH)),
-        'tokenHint': (saved or {}).get(TOKEN_HINT, ''),
-        'tokenCreated': int((saved or {}).get(TOKEN_CREATED) or 0),
         'permissions': permissions(saved),
         'listening': listen_port() > 0,
         'port': listen_port(),
     }
+
+
+# ---------------------------------------------------------------------------------------------
+# identity of the caller
+
+def _user_for_row(row, settings):
+    user = identity.user_from_row(row, settings)
+    if user is None:
+        raise McpAuthError(403, 'account not allowed')
+    return user
+
+
+def authenticate(token: str, dbh, settings):
+    """The :class:`~spiderfoot.services.access.User` a bearer token stands for; raises McpAuthError.
+
+    Roles and groups are evaluated now, not when the token was issued.
+    """
+    if not token:
+        raise McpAuthError(401, 'missing token')
+    if token.startswith(TOKEN_PREFIX):
+        row = dbh.mcpTokenByHash(hash_token(token))
+        if not row:
+            raise McpAuthError(401, 'unknown token')
+        if row['expires'] and row['expires'] < time.time():
+            raise McpAuthError(401, 'expired token')
+        owner = dbh.userGet(row['user_id'])
+        if not owner:
+            raise McpAuthError(401, 'unknown token')
+        user = _user_for_row(owner, settings)
+        if time.time() - (row.get('last_used') or 0) > TOUCH_INTERVAL:
+            dbh.mcpTokenTouch(row['id'])
+        return user
+    if settings.oidc_configured and oidc.looks_like_jwt(token):
+        try:
+            who = oidc.verify_bearer(settings, token)
+        except oidc.OidcError as e:
+            raise McpAuthError(401, e.code) from None
+        role = identity.role_for(who['groups'], settings)
+        if role == identity.ROLE_DENIED:
+            existing = dbh.userGetBySubject(who['subject'])
+            if existing:
+                dbh.userUpsert(who['subject'], who['username'], who['email'], who['display_name'], who['groups'],
+                               existing['role'], login=False)
+            raise McpAuthError(403, 'account not allowed')
+        row = dbh.userUpsert(who['subject'], who['username'], who['email'], who['display_name'], who['groups'], role,
+                             login=False)
+        return _user_for_row(row, settings)
+    raise McpAuthError(401, 'unrecognised token')

@@ -282,9 +282,12 @@ class TestNoSecretsInOutput:
         assert logs[0]['message'] == 'request failed with key [redacted]'
 
     def test_token_hash_never_returned(self, env):
-        saved = env.db().configGet()
+        digest = env.db().mcpTokenList(env.admin['id'])
+        assert digest  # the admin's token exists; only its hash is in the database
+        import hashlib
+        hashed = hashlib.sha256(env.token.encode()).hexdigest()
         text = json.dumps([env.call('list_modules')[1], env.call('list_presets')[1], env.call('list_scans')[1]])
-        assert saved['_mcp_token_hash'] not in text and env.token not in text
+        assert hashed not in text and env.token not in text
 
     def test_audit_log_has_tool_and_summary_but_no_token(self, env, caplog):
         import logging

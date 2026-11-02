@@ -6,7 +6,7 @@ from collections import OrderedDict
 from flask import Blueprint, current_app, render_template, request
 
 from spiderfoot import SpiderFootDb
-from spiderfoot.services import ai_service
+from spiderfoot.services import access, ai_service, identity, scan_listing
 from spiderfoot.services.event_service import (
     EVENT_CATEGORIES, categorize_event_summary,
     human_size, dedup_events, build_event_dict,
@@ -31,11 +31,14 @@ def _get_db():
     return SpiderFootDb(current_app.config['SF_CONFIG'])
 
 
-def _load_scans():
+def _load_scans(which=''):
     """Return a list of scan dicts with summary counts for rendering."""
     try:
         dbh = _get_db()
-        rows = dbh.scanInstanceList()
+        user, settings = identity.current_user(), identity.request_settings()
+        rows = access.filter_scan_list(user, dbh.scanInstanceList(), dbh, settings.unowned_visible)
+        info = scan_listing.annotate([r[0] for r in rows], user, dbh, settings)
+        rows = [r for r in rows if scan_listing.matches_filter(info[r[0]], which)]
     except Exception as e:
         log.warning("Fragment: could not load scan list: %s", e)
         return []
@@ -60,6 +63,9 @@ def _load_scans():
             'num_results': int(row[7] or 0),
             'type_counts': [],
             'progress': None,
+            'owner': info[row[0]]['owner'],
+            'level': info[row[0]]['level'],
+            'relation': info[row[0]]['relation'],
         }
 
         try:
@@ -89,7 +95,8 @@ def _load_scans():
 @frag_bp.route('/scan-table')
 def scan_table():
     """Return the <tbody> rows for the scan table (HTMX swap target)."""
-    scans = _load_scans()
+    which = request.args.get('show', '')
+    scans = _load_scans(which if which in ('mine', 'shared') else '')
     return render_template('fragments/scan_tbody.html', scans=scans)
 
 
@@ -550,7 +557,6 @@ def settings_section():
 
     elif section == 'ai':
         from spiderfoot.services.ai_persistence import fetch_monthly_cost
-        import time
 
         ai_models = ai_service.model_choices(config)
         try:
@@ -567,6 +573,29 @@ def settings_section():
 
     elif section == 'mcp':
         from spiderfoot.services import mcp_auth
-        return render_template('fragments/settings_mcp.html', st=mcp_auth.public_status(saved_config))
+        user = identity.current_user()
+        status = mcp_auth.public_status(saved_config)
+        status['isAdmin'] = bool(user and user.is_admin)
+        status['sso'] = identity.request_settings().oidc_configured
+        tokens = []
+        if user is not None:
+            now = time.time()
+            tokens = [dict(t, expired=bool(t['expires'] and t['expires'] < now))
+                      for t in _get_db().mcpTokenList(identity.current_user_id())]
+        return render_template('fragments/settings_mcp.html', st=status, tokens=tokens)
+
+    elif section == 'access':
+        from spiderfoot.blueprints.access import settings_view
+        from spiderfoot.services import session_auth
+        auth = identity.request_settings()
+        view = settings_view(auth, session_auth.external_origin(auth))
+        view['legacyUsers'] = bool(current_app.config.get('SF_USERS'))
+        users = []
+        for u in _get_db().userList():
+            row = identity.user_from_row(u, auth)
+            users.append({'id': u['id'], 'name': u['display_name'] or u['username'], 'username': u['username'],
+                          'email': u['email'], 'role': row.role if row else 'denied', 'groups': u['groups'],
+                          'lastLogin': u['last_login'], 'local': u['subject'].startswith('local:')})
+        return render_template('fragments/settings_access.html', view=view, users=users)
 
     return '<p class="text-sm text-slate-400 p-6">Unknown section.</p>'

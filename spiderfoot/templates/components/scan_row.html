@@ -73,19 +73,34 @@
           <a href="/scaninfo?id={{ scan.id }}"
              class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
                     border border-sf-accent/40 md:border-0 text-sm md:text-xs text-sf-accent hover:text-cyan-300 font-medium md:ml-2">View &rarr;</a>
-          {% if s == 'RUNNING' %}
+          {% if s == 'RUNNING' and scan.level in ['edit', 'owner'] %}
           <button hx-post="/api/stopscan?id={{ scan.id }}" hx-confirm="Stop this scan?"
                   hx-swap="none"
                   class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
                          border border-sf-warning/40 md:border-0 text-sm md:text-xs text-sf-warning hover:text-amber-300 font-medium">Stop</button>
           {% endif %}
+          {% if scan.level == 'owner' %}
           <button hx-post="/api/scandelete?id={{ scan.id }}" hx-confirm="Delete this scan and all its data?"
                   hx-target="closest tr" hx-swap="delete swap:0.3s"
                   class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
                          border border-sf-critical/40 md:border-0 text-sm md:text-xs text-sf-critical hover:text-red-300 font-medium">Delete</button>
+          {% endif %}
         </div>
       </div>
     </div>
+    {# Owner and sharing: who it belongs to, and how it reached you when it is not yours #}
+    {% if sign_in_enabled %}
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 md:mt-1 text-xs text-slate-500 dark:text-slate-400">
+      {% if scan.relation == 'mine' %}
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-sf-accent/10 text-sf-accent font-medium">Mine</span>
+      {% else %}
+      <span class="sf-break">Owner: {{ scan.owner if scan.owner else 'none' }}</span>
+      {% if scan.relation == 'shared' %}
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">Shared &middot; {{ scan.level }}</span>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
     {# Progress bar for running scans #}
     {% if scan.progress is not none and s == 'RUNNING' %}
     <div class="flex items-center gap-2 mt-2 md:mt-1">

@@ -6,37 +6,30 @@ from spiderfoot.services import mcp_auth as m
 
 
 class TestMcpAuth(unittest.TestCase):
-    def test_token_round_trip_and_storage(self):
+    def test_token_format_and_hashing(self):
         token, digest, hint, created = m.new_token()
         self.assertTrue(token.startswith('sfmcp_') and len(token) > 40)
         self.assertEqual(hint, token[:10])
         self.assertNotIn(token, digest)
-        saved = m.token_settings(digest, hint, created)
-        self.assertTrue(m.verify(token, saved))
-        self.assertFalse(m.verify(token + 'x', saved))
-        self.assertFalse(m.verify('', saved))
-        self.assertFalse(m.verify(token, {}))
-        self.assertNotIn(token, ''.join(str(v) for v in saved.values()))
+        self.assertEqual(digest, m.hash_token(token))
+        self.assertNotEqual(digest, m.hash_token(token + 'x'))
+        self.assertGreater(created, 0)
 
     def test_tokens_are_unique(self):
         self.assertNotEqual(m.new_token()[0], m.new_token()[0])
 
-    def test_enabled_needs_a_token(self):
+    def test_enabled_is_just_the_switch(self):
+        # The shared token is gone: users hold their own tokens, so only the switch decides
         self.assertFalse(m.enabled({}))
-        self.assertFalse(m.enabled({m.ENABLED: '1'}))
-        self.assertTrue(m.enabled({m.ENABLED: '1', m.TOKEN_HASH: 'abc'}))
-        self.assertFalse(m.enabled({m.ENABLED: '0', m.TOKEN_HASH: 'abc'}))
+        self.assertTrue(m.enabled({m.ENABLED: '1'}))
+        self.assertFalse(m.enabled({m.ENABLED: '0'}))
+        self.assertFalse(m.enabled({m.ENABLED: '0', '_mcp_token_hash': 'abc'}))
+        self.assertTrue(m.enabled({m.ENABLED: '1', '_mcp_token_hash': ''}))
 
     def test_permission_defaults_are_least_privilege(self):
         self.assertEqual(m.permissions({}), {'scan': True, 'delete': False, 'active': False, 'private': False})
         self.assertEqual(m.permissions({m.ALLOW_DELETE: '1', m.ALLOW_SCAN: '0'})['delete'], True)
         self.assertEqual(m.permissions({m.ALLOW_SCAN: '0'})['scan'], False)
-
-    def test_revoke_switches_the_server_off(self):
-        saved = {m.ENABLED: '1', **m.token_settings('h', 'sfmcp_ab12', 5)}
-        saved.update(m.revoked_settings())
-        self.assertFalse(m.enabled(saved))
-        self.assertFalse(m.public_status(saved)['hasToken'])
 
     def test_authorization_header(self):
         self.assertEqual(m.from_authorization_header('Bearer abc'), 'abc')
@@ -51,6 +44,9 @@ class TestMcpAuth(unittest.TestCase):
             with mock.patch.dict(os.environ, {'SF_MCP_PORT': bad}):
                 self.assertEqual(m.listen_port(), 0)
 
-    def test_public_status_never_contains_the_hash(self):
-        saved = {m.ENABLED: '1', **m.token_settings('deadbeef', 'sfmcp_ab12', 7)}
-        self.assertNotIn('deadbeef', str(m.public_status(saved)))
+    def test_public_status_ignores_the_retired_shared_token(self):
+        saved = {m.ENABLED: '1', '_mcp_token_hash': 'deadbeef', '_mcp_token_hint': 'sfmcp_ab12'}
+        status = m.public_status(saved)
+        self.assertNotIn('deadbeef', str(status))
+        self.assertNotIn('hasToken', status)
+        self.assertEqual(set(status), {'enabled', 'permissions', 'listening', 'port'})

@@ -4,6 +4,8 @@ from spiderfoot import SpiderFootHelpers
 
 @pytest.fixture(autouse=True)
 def default_options(request):
+    if request.cls is None:  # plain test functions (outside any class) need none of these options
+        return
     request.cls.default_options = {
         '_debug': False,
         '__logging': True,  # Logging in general

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sign in - SpiderFoot{% endblock %}
+{% block sidebar %}{% endblock %}
+{% block main_class %}p-4 md:p-6{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center">
+  <div class="w-full max-w-sm bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-5 md:p-6 space-y-4">
+    <div class="flex items-center gap-3">
+      <svg class="w-8 h-8 text-sf-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 9V3M12 15v6M9 12H3M15 12h6M9.5 9.5 5 5M14.5 9.5 19 5M9.5 14.5 5 19M14.5 14.5 19 19"/>
+      </svg>
+      <h1 class="text-xl font-semibold text-slate-800 dark:text-slate-100">SpiderFoot</h1>
+    </div>
+
+    {% if message %}
+    <p class="text-sm rounded border p-3 {{ 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400' if failed else 'border-slate-300 dark:border-sf-border text-slate-600 dark:text-slate-300' }}" role="alert">{{ message }}</p>
+    {% endif %}
+
+    {% if sso %}
+    <a href="{{ url_for('auth.login', start=1, next=next) }}"
+       class="flex items-center justify-center min-h-[44px] w-full rounded-md bg-sf-accent text-white text-sm font-medium hover:bg-cyan-500 transition-colors">
+      Sign in with SSO
+    </a>
+    {% else %}
+    <p class="text-sm text-slate-600 dark:text-slate-300">Single sign-on is not set up on this server.</p>
+    {% endif %}
+
+    {% if legacy %}
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      API clients and scripts can keep using HTTP Basic authentication with the accounts in the password file.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

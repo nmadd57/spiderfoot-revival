@@ -1,8 +1,19 @@
 {# Scan table — full card with header + tbody that polls via HTMX #}
 <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden">
 
-  <div class="px-5 py-4 border-b border-slate-200 dark:border-sf-border flex items-center justify-between">
+  <div class="px-3 py-3 sm:px-5 sm:py-4 border-b border-slate-200 dark:border-sf-border flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
     <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent Scans</h2>
+    {% if sign_in_enabled %}
+    {# Which scans: everything I can see, the ones I own, or the ones shared with me #}
+    <nav aria-label="Scan filter" class="order-last sm:order-none w-full sm:w-auto flex flex-wrap gap-1.5">
+      {% set filters = [('', 'All'), ('mine', 'Mine')] + ([] if is_admin else [('shared', 'Shared with me')]) %}
+      {% for key, label in filters %}
+      <a href="/?show={{ key }}" {% if (show or '') == key %}aria-current="true"{% endif %}
+         class="inline-flex items-center min-h-[44px] sm:min-h-0 px-3 py-1 rounded-full border text-xs font-medium transition-colors
+                {% if (show or '') == key %}bg-sf-accent/10 text-sf-accent border-sf-accent{% else %}text-slate-500 dark:text-slate-400 border-slate-300 dark:border-sf-border hover:border-sf-accent{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
     <a href="/newscan"
        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded
               bg-sf-accent text-white hover:bg-cyan-500 transition-colors">
@@ -13,7 +24,7 @@
   <table class="w-full">
     <tbody
       id="scan-tbody"
-      hx-get="/frag/scan-table"
+      hx-get="/frag/scan-table{% if show %}?show={{ show }}{% endif %}"
       hx-trigger="every {{ poll_interval | default('5s') }}"
       hx-swap="innerHTML">
       {% if scans %}

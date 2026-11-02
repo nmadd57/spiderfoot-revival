@@ -91,6 +91,16 @@ class Env:
         dbh.scanLogEvent(scan_id, 'DEBUG', 'details', 'sfp_dnsresolve')
         return scan_id
 
+    def make_user(self, name, groups=(), role='user', subject=None):
+        """A signed-in account (the role is computed from the groups at use, so ``role`` is informational)."""
+        return self.db().userUpsert(subject or f'oidc|{name}', username=name, email=f'{name}@example.test', display_name=name.title(),
+                                    groups=list(groups), role=role, login=False)
+
+    def token_for(self, user_id, name='test', expires=None):
+        token, digest, hint, _ = mcp_auth.new_token()
+        self.db().mcpTokenCreate(user_id, name, digest, hint, expires)
+        return token
+
     def rpc(self, method, params=None, rid=1):
         return {'jsonrpc': '2.0', 'id': rid, 'method': method, 'params': params or {}}
 
@@ -149,10 +159,11 @@ def env(tmp_path):
     app = create_app(config=config)
     app.config['TESTING'] = True
     app.config['SF_USERS'] = {}
-    token, digest, hint, created = mcp_auth.new_token()
-    e = Env(app, db_path, token)
-    e.db().configSet({**mcp_auth.token_settings(digest, hint, created), 'sfp_keyed:api_key': SECRET,
-                      '_ai_openrouter_key': OTHER_SECRET, '_mcp_enabled': '1'})
+    e = Env(app, db_path, None)
+    # The default caller is the synthetic administrator of an installation without sign-in
+    e.admin = e.db().userUpsert('local:admin', username='admin', display_name='Administrator', role='admin', login=False)
+    e.token = e.token_for(e.admin['id'])
+    e.db().configSet({'sfp_keyed:api_key': SECRET, '_ai_openrouter_key': OTHER_SECRET, '_mcp_enabled': '1'})
     e.fake_process = FakeProcess(e)
     with mock.patch('spiderfoot.services.tools.tool_installed', return_value=False), \
             mock.patch('spiderfoot.mcp.guardrails.resolver', return_value=[]), \

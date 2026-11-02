@@ -1,15 +1,17 @@
 {# Settings > Agent (MCP): lets an agent (an MCP client) list modules, build and run scans and read results over the
-   Model Context Protocol. st = mcp_auth.public_status(): no secrets, only the token hint and creation time.
-   The token itself exists in the page only in the one-time box right after it is generated. #}
+   Model Context Protocol, acting as the signed-in user. st = mcp_auth.public_status() plus isAdmin/sso: no secrets.
+   tokens = the signed-in user's own personal tokens (name, hint, dates; never the token or its hash). A new token exists
+   in the page only in the one-time box right after it is generated. #}
 
-<div class="space-y-6 min-w-0" x-data='mcpSettings({{ st | tojson }})'>
+<div class="space-y-6 min-w-0" x-data='mcpSettings({{ st | tojson }}, {{ tokens | tojson }})'>
 
   <div>
     <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Agent (MCP)</h2>
     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
       Lets an agent list modules, build and run scans, and read their results over the
       <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer" class="text-sf-accent hover:underline">Model Context Protocol</a>.
-      It runs on its own port and needs an access token. It never exposes API keys or settings.
+      It runs on its own port and acts as <strong>you</strong>: it sees and changes the same scans you can, and nothing else.
+      It never exposes API keys or settings.
     </p>
   </div>
 
@@ -19,7 +21,7 @@
       <p class="text-sm text-slate-700 dark:text-slate-200">
         <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5 align-middle"></span>
         Listening on port <span class="font-mono font-semibold" x-text="st.port"></span>.
-        <span x-text="st.enabled ? 'Agents with the token can connect.' : 'Switched off, so every request is refused.'"></span>
+        <span x-text="st.enabled ? 'Agents with a valid token can connect.' : 'Switched off by an administrator, so every request is refused.'"></span>
       </p>
     </template>
     <template x-if="!st.listening">
@@ -33,13 +35,13 @@
       </div>
     </template>
 
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center justify-between gap-3" x-show="st.isAdmin">
       <div class="min-w-0">
         <p class="text-sm font-medium text-slate-800 dark:text-slate-100" id="mcp-enable-label">Enable agent access</p>
-        <p class="text-xs text-slate-500 dark:text-slate-400" x-show="!st.hasToken">Generate a token first.</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">For everyone. Users create their own tokens below.</p>
       </div>
       <button type="button" role="switch" :aria-checked="st.enabled ? 'true' : 'false'" aria-labelledby="mcp-enable-label"
-              @click="setEnabled(!st.enabled)" :disabled="busy || (!st.hasToken && !st.enabled)" class="mcp-switch"
+              @click="setEnabled(!st.enabled)" :disabled="busy" class="mcp-switch"
               :class="st.enabled ? 'mcp-switch-on' : ''">
         <span class="mcp-knob"></span>
       </button>
@@ -47,15 +49,12 @@
     <p class="text-sm text-red-500" x-show="msg.enable" x-text="msg.enable" role="alert"></p>
   </section>
 
-  {# ------------------------------------------------------------ Token #}
+  {# ------------------------------------------------------------ Tokens #}
   <section class="mcp-card space-y-3">
-    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Access token</h3>
-
-    <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!st.hasToken">No token yet. Agents cannot connect until you generate one.</p>
-    <p class="text-sm text-slate-600 dark:text-slate-300 sf-break" x-show="st.hasToken">
-      Current token <span class="font-mono" x-text="st.tokenHint + '…'"></span>
-      <span class="text-slate-500 dark:text-slate-400" x-show="st.tokenCreated" x-text="'created ' + created()"></span>.
-      Only a fingerprint is stored, so the token cannot be shown again.
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Your access tokens</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      A token lets an agent act as you. It has your access at the time it is used: if your groups change, so does what it can do.
+      Only a fingerprint is stored, so a token cannot be shown again. <span x-show="st.sso">Agents that can sign in through your identity provider can also present their SSO access token instead.</span>
     </p>
 
     {# One-time reveal #}
@@ -68,57 +67,73 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-2" x-show="!confirm">
-      <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy" @click="st.hasToken ? confirm = 'rotate' : generate()"
-              x-text="st.hasToken ? 'Rotate token' : 'Generate token'"></button>
-      <button type="button" class="mcp-btn mcp-btn-danger" x-show="st.hasToken" :disabled="busy" @click="confirm = 'revoke'">Revoke</button>
-    </div>
-
-    <div x-show="confirm" x-cloak class="rounded border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
-      <p class="text-sm text-amber-700 dark:text-amber-400" x-show="confirm === 'rotate'">
-        Rotating signs out every agent using the current token, immediately. The new token has to be given to them.
-      </p>
-      <p class="text-sm text-amber-700 dark:text-amber-400" x-show="confirm === 'revoke'">
-        Revoking deletes the token and switches agent access off. Agents lose access immediately.
-      </p>
-      <div class="flex flex-wrap gap-2">
-        <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy" @click="confirm === 'revoke' ? revoke() : generate()"
-                x-text="confirm === 'revoke' ? 'Yes, revoke' : 'Yes, rotate'"></button>
-        <button type="button" class="mcp-btn mcp-btn-secondary" :disabled="busy" @click="confirm = ''">Cancel</button>
-      </div>
-    </div>
+    <form @submit.prevent="generate()" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem_auto] gap-2">
+      <input class="mcp-input" x-model.trim="newName" maxlength="60" placeholder="Name, for example laptop agent" aria-label="Token name">
+      <select class="mcp-input" x-model.number="newDays" aria-label="Lifetime">
+        <option :value="30">30 days</option>
+        <option :value="90">90 days</option>
+        <option :value="365">1 year</option>
+        <option :value="0">No expiry</option>
+      </select>
+      <button type="submit" class="mcp-btn mcp-btn-primary" :disabled="busy">Generate token</button>
+    </form>
     <p class="text-sm text-red-500" x-show="msg.token" x-text="msg.token" role="alert"></p>
+
+    <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!tokens.length">You have no tokens yet.</p>
+    <ul class="divide-y divide-slate-100 dark:divide-sf-border" x-show="tokens.length">
+      <template x-for="t in tokens" :key="t.id">
+        <li class="py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-800 dark:text-slate-100 sf-break"><span x-text="t.name"></span>
+              <span class="ml-1 text-xs font-normal text-red-500" x-show="t.expired">expired</span></p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 sf-break">
+              <span class="font-mono" x-text="t.hint + '…'"></span>
+              &middot; created <span x-text="when(t.created)"></span>
+              &middot; <span x-text="t.last_used ? 'used ' + when(t.last_used) : 'never used'"></span>
+              &middot; <span x-text="t.expires ? 'expires ' + when(t.expires) : 'no expiry'"></span>
+            </p>
+          </div>
+          <div class="flex gap-2" x-show="confirmId !== t.id">
+            <button type="button" class="mcp-btn mcp-btn-danger" :disabled="busy" @click="confirmId = t.id" :aria-label="'Revoke ' + t.name">Revoke</button>
+          </div>
+          <div class="flex gap-2" x-show="confirmId === t.id" x-cloak>
+            <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy" @click="revoke(t.id)">Yes, revoke</button>
+            <button type="button" class="mcp-btn mcp-btn-secondary" :disabled="busy" @click="confirmId = 0">Cancel</button>
+          </div>
+        </li>
+      </template>
+    </ul>
   </section>
 
   {# ------------------------------------------------------------ Permissions #}
   <section class="mcp-card space-y-3">
     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">What an agent may do</h3>
-    <p class="text-sm text-slate-500 dark:text-slate-400">Reading modules, scans and results is always allowed with a valid token.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">These limits are set by an administrator and apply to every agent. Within them, an agent can only touch the scans you can: view lets it read, edit lets it stop and rerun, and only the owner of a scan can delete it.</p>
 
     <div class="mcp-chk space-y-1 text-sm text-slate-700 dark:text-slate-200">
       <label class="flex items-start gap-3">
-        <input type="checkbox" x-model="perm.scan">
+        <input type="checkbox" x-model="perm.scan" :disabled="!st.isAdmin">
         <span><span class="font-medium">Start, stop and rerun scans</span>
           <span class="block text-xs text-slate-500 dark:text-slate-400">Without this an agent can only read.</span></span>
       </label>
       <label class="flex items-start gap-3">
-        <input type="checkbox" x-model="perm.delete">
+        <input type="checkbox" x-model="perm.delete" :disabled="!st.isAdmin">
         <span><span class="font-medium">Delete scans</span>
           <span class="block text-xs text-slate-500 dark:text-slate-400">Removes a scan and all of its data. This cannot be undone.</span></span>
       </label>
       <label class="flex items-start gap-3">
-        <input type="checkbox" x-model="perm.active">
+        <input type="checkbox" x-model="perm.active" :disabled="!st.isAdmin">
         <span><span class="font-medium">Allow active/invasive modules such as nmap, nuclei and port scans</span>
           <span class="block text-xs text-slate-500 dark:text-slate-400">These send traffic to the target. Even when allowed, the agent has to confirm each call.</span></span>
       </label>
       <label class="flex items-start gap-3">
-        <input type="checkbox" x-model="perm.private">
+        <input type="checkbox" x-model="perm.private" :disabled="!st.isAdmin">
         <span><span class="font-medium">Allow private, loopback and LAN targets</span>
           <span class="block text-xs text-slate-500 dark:text-slate-400">Lets an agent scan hosts on this machine and your local network.</span></span>
       </label>
     </div>
 
-    <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex items-center gap-3 flex-wrap" x-show="st.isAdmin">
       <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy || !dirty()" @click="savePerms()">Save permissions</button>
       <span class="text-sm" :class="msg.permOk ? 'text-green-600' : 'text-red-500'" x-text="msg.perm" role="status"></span>
     </div>
@@ -128,7 +143,7 @@
   <section class="mcp-card space-y-3">
     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Connect an agent</h3>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Add this to the MCP client configuration and replace <span class="font-mono">&lt;your token&gt;</span> with the token.
+      Add this to the MCP client configuration and replace <span class="font-mono">&lt;your token&gt;</span> with one of your tokens.
       <span x-show="!st.listening" class="text-amber-600 dark:text-amber-400">The port is unknown until <span class="font-mono">SF_MCP_PORT</span> is set.</span>
     </p>
 
@@ -197,26 +212,34 @@
   .mcp-code { overflow-x:auto; max-width:100%; padding:.75rem; border-radius:.375rem; font-size:.75rem; line-height:1.5;
               background:rgb(15 23 42 / .06); font-family:ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre; }
   .dark .mcp-code { background:rgb(255 255 255 / .06); }
+  .mcp-input { min-height:44px; padding:.4rem .6rem; border-radius:.375rem; font-size:.875rem; min-width:0; max-width:100%;
+               border:1px solid rgb(148 163 184 / .6); background:transparent; color:inherit; }
+  .mcp-input:focus { outline:2px solid var(--color-sf-accent, #06b6d4); outline-offset:1px; }
+  .dark .mcp-input option { background:#1e293b; color:#e2e8f0; }
+  @media (min-width: 768px) { .mcp-input { min-height:36px; } }
   .mcp-chk label { min-height:44px; padding:.25rem 0; cursor:pointer; }
   .mcp-chk input[type=checkbox] { width:20px; height:20px; flex-shrink:0; margin-top:.125rem; }
 </style>
 
 <script>
-function mcpSettings(initial) {
+function mcpSettings(initial, initialTokens) {
   const csrf = () => window.__SF_CSRF_TOKEN__ || (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
   const asPerm = (p) => ({ scan: !!p.scan, delete: !!p.delete, active: !!p.active, private: !!p.private });
   return {
     st: initial,
+    tokens: initialTokens || [],
     perm: asPerm(initial.permissions),
     token: '',          // only ever set from the response that creates it; cleared on "I have saved it"
+    newName: '',
+    newDays: 90,
+    confirmId: 0,
     copied: false,
     copiedWhat: '',
-    confirm: '',
     busy: false,
     msg: { enable: '', token: '', perm: '', permOk: true },
 
-    created() {
-      try { return new Date(this.st.tokenCreated * 1000).toLocaleString(); } catch (e) { return ''; }
+    when(ts) {
+      try { return new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return ''; }
     },
     dirty() {
       const p = this.st.permissions;
@@ -240,13 +263,13 @@ function mcpSettings(initial) {
         + " -H 'Accept: application/json, text/event-stream' -d '" + body + "'";
     },
 
-    async call(path, body) {
+    async call(method, path, body) {
       this.busy = true;
       try {
         const r = await fetch('/api/mcp/' + path, {
-          method: 'POST',
+          method,
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
-          body: JSON.stringify(body || {}),
+          body: method === 'GET' || method === 'DELETE' ? undefined : JSON.stringify(body || {}),
         });
         let d = {};
         try { d = await r.json(); } catch (e) { d = {}; }
@@ -259,36 +282,34 @@ function mcpSettings(initial) {
       }
     },
     apply(d) {
-      const { token, ...status } = d;
-      this.st = status;
-      this.perm = asPerm(status.permissions);
+      this.st = Object.assign({}, this.st, d);
+      this.perm = asPerm(this.st.permissions);
     },
 
     async setEnabled(on) {
       this.msg.enable = '';
-      const r = await this.call('settings', { enabled: on });
+      const r = await this.call('POST', 'settings', { enabled: on });
       if (r.ok) this.apply(r.data); else this.msg.enable = r.error;
     },
     async generate() {
       this.msg.token = '';
-      this.confirm = '';
-      const r = await this.call('token', {});
+      const r = await this.call('POST', 'tokens', { name: this.newName || 'Agent', days: this.newDays });
       if (!r.ok) { this.msg.token = r.error; return; }
       this.token = r.data.token || '';
+      this.tokens = r.data.tokens || [];
+      this.newName = '';
       this.copied = false;
-      this.apply(r.data);
     },
-    async revoke() {
+    async revoke(id) {
       this.msg.token = '';
-      this.confirm = '';
-      const r = await this.call('token/revoke', {});
+      this.confirmId = 0;
+      const r = await this.call('DELETE', 'tokens/' + id);
       if (!r.ok) { this.msg.token = r.error; return; }
-      this.token = '';
-      this.apply(r.data);
+      this.tokens = r.data.tokens || [];
     },
     async savePerms() {
       this.msg.perm = '';
-      const r = await this.call('settings', {
+      const r = await this.call('POST', 'settings', {
         allow_scan: !!this.perm.scan, allow_delete: !!this.perm.delete,
         allow_active: !!this.perm.active, allow_private: !!this.perm.private });
       this.msg.permOk = r.ok;

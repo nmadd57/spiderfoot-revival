@@ -26,6 +26,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 import openpyxl
 
 from spiderfoot import SpiderFootDb, SpiderFootHelpers, __version__
+from spiderfoot.services import access, identity, scan_listing
 from spiderfoot.services.preset_service import serialize_preset, validate_module_names
 
 api_bp = Blueprint('api', __name__)
@@ -104,8 +105,28 @@ def _csv_safe(value) -> str:
     return s
 
 
-def search_base(id=None, eventType=None, value=None):
-    """Core search logic (mirrors SpiderFootWebUi.searchBase)."""
+def _search_scope(scan_id):
+    """(refusal, allowed) for a search: administrators search everything; others only scans they can view.
+
+    ``refusal`` is a response when the named scan is not viewable; ``allowed`` is the set of scan ids a
+    search across all scans may return (None: no limit).
+    """
+    user = identity.current_user()
+    if user is None or user.is_admin:
+        return None, None
+    dbh, settings = get_db(), identity.request_settings()
+    if scan_id:
+        if not access.can(user, scan_id, 'view', dbh, settings.unowned_visible):
+            return jsonify_error('404', 'Scan not found.'), None
+        return None, None
+    return None, access.visible_scans(user, dbh, settings.unowned_visible)
+
+
+def search_base(id=None, eventType=None, value=None, allowed=None):
+    """Core search logic (mirrors SpiderFootWebUi.searchBase).
+
+    ``allowed`` limits the results to those scan ids (None: no limit).
+    """
     retdata = []
 
     if not id and not eventType and not value:
@@ -138,6 +159,8 @@ def search_base(id=None, eventType=None, value=None):
         return retdata
 
     for row in data:
+        if allowed is not None and row[12] not in allowed:
+            continue
         lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
         escapeddata = html.escape(row[1])
         escapedsrc = html.escape(row[2])
@@ -279,7 +302,9 @@ def query():
 def scanlist():
     """List all scans."""
     dbh = get_db()
-    data = dbh.scanInstanceList()
+    user, settings = identity.current_user(), identity.request_settings()
+    data = access.filter_scan_list(user, dbh.scanInstanceList(), dbh, settings.unowned_visible)
+    info = scan_listing.annotate([r[0] for r in data], user, dbh, settings)
     retdata = []
 
     for row in data:
@@ -303,7 +328,9 @@ def scanlist():
         else:
             finished = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[5]))
 
-        retdata.append([row[0], row[1], row[2], created, started, finished, row[6], row[7], riskmatrix])
+        # owner name and your access level come after the columns the command line client reads
+        retdata.append([row[0], row[1], row[2], created, started, finished, row[6], row[7], riskmatrix,
+                        info[row[0]]['owner'], info[row[0]]['level']])
 
     return jsonify(retdata)
 
@@ -1034,12 +1061,13 @@ def normalize_target(scantarget, target_type=None):
 
 
 def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase='', config=None, dbh=None,
-                    logging_queue=None, target_type=None):
+                    logging_queue=None, target_type=None, owner=None):
     """Validate the request, pick the modules and spawn the scan process.
 
     The one implementation behind the /startscan route and the MCP create_scan tool. Needs an
     application context (module availability is read the way the New Scan page reads it).
-    Returns a ScanStartResult; never raises for bad input.
+    ``owner`` is the id of the user who owns the new scan (None: unowned). Returns a ScanStartResult;
+    never raises for bad input.
     """
     from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
@@ -1075,6 +1103,8 @@ def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase=''
         return ScanStartResult(error="Unrecognised target type.")
 
     cfg = deepcopy(config)
+    if owner is not None:
+        cfg['__scan_owner'] = owner
     sf = SpiderFoot(cfg)
 
     modlist = list()
@@ -1161,20 +1191,55 @@ def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase=''
         if wait >= 30:
             return ScanStartResult(error=f"Scan [{scanId}] failed to initialize within 30 seconds.")
 
+    if owner is not None and dbh.scanOwnerGet(scanId) is None:
+        dbh.scanOwnerSet(scanId, owner)
+
     return ScanStartResult(ok=True, scan_id=scanId, target=scantarget, target_type=targetType, modules=modlist, dropped=dropped)
+
+
+def new_scan_owner(dbh=None):
+    """Id of the user who owns a scan started now (None for the administrator of an installation without sign-in)."""
+    user = identity.current_user()
+    if user is None or (user.local and user.id is None and user.subject == 'local:admin'):
+        return None
+    return identity.ensure_user_id(user, dbh or get_db())
+
+
+def _apply_share_with(dbh, scan_id, owner):
+    """Grants asked for in the new scan form: ``share_with`` is a JSON list of {type, principal, level}."""
+    raw = request.values.get('share_with', '')
+    if not raw or owner is None:
+        return
+    try:
+        wanted = json.loads(raw)
+    except ValueError:
+        return
+    for item in wanted[:50] if isinstance(wanted, list) else []:
+        try:
+            ptype, principal, level = str(item['type']), str(item['principal']).strip(), str(item['level'])
+            if ptype == 'user' and (not principal.isdigit() or not dbh.userGet(int(principal)) or int(principal) == owner):
+                continue
+            if ptype == 'group' and not 0 < len(principal) <= 200:
+                continue
+            dbh.aclSet(scan_id, ptype, principal, level, owner)
+        except (KeyError, TypeError, ValueError):
+            continue
 
 
 @api_bp.route('/startscan', methods=['POST'])
 def startscan():
     """Initiate a new scan."""
+    dbh = get_db()
+    owner = new_scan_owner(dbh)
     res = start_scan_core(
         request.values.get('scanname', ''),
         request.values.get('scantarget', ''),
         request.values.get('modulelist', ''),
         request.values.get('typelist', ''),
         request.values.get('usecase', ''),
-        config=get_config(), dbh=get_db(), logging_queue=get_logging_queue())
+        config=get_config(), dbh=dbh, logging_queue=get_logging_queue(), owner=owner)
     if res.ok:
+        _apply_share_with(dbh, res.scan_id, owner)
         return jsonify(["SUCCESS", res.scan_id])
     if res.status:
         return jsonify_error(res.status, res.error)
@@ -1192,6 +1257,9 @@ def rerunscan():
     config = get_config()
     cfg = deepcopy(config)
     dbh = SpiderFootDb(cfg)
+    owner = new_scan_owner(dbh)
+    if owner is not None:
+        cfg['__scan_owner'] = owner
     info = dbh.scanInstanceGet(id)
 
     if not info:
@@ -1234,6 +1302,9 @@ def rerunscan():
         if wait >= 30:
             return jsonify(["ERROR", f"Scan [{scanId}] failed to initialize within 30 seconds."])
 
+    if owner is not None and dbh.scanOwnerGet(scanId) is None:
+        dbh.scanOwnerSet(scanId, owner)
+
     return jsonify(["SUCCESS", scanId])
 
 
@@ -1248,6 +1319,9 @@ def rerunscanmulti():
     config = get_config()
     cfg = deepcopy(config)
     dbh = SpiderFootDb(cfg)
+    owner = new_scan_owner(dbh)
+    if owner is not None:
+        cfg['__scan_owner'] = owner
     scan_ids = []
 
     for id in ids.split(","):
@@ -1291,6 +1365,8 @@ def rerunscanmulti():
             if wait >= 30:
                 return jsonify(["ERROR", f"Scan [{scanId}] failed to initialize within 30 seconds."])
 
+        if owner is not None and dbh.scanOwnerGet(scanId) is None:
+            dbh.scanOwnerSet(scanId, owner)
         scan_ids.append(scanId)
 
     return jsonify(["SUCCESS", scan_ids])
@@ -1305,8 +1381,11 @@ def search():
     eventType = request.values.get('eventType', None)
     value = request.values.get('value', None)
 
+    refusal, allowed = _search_scope(id)
+    if refusal is not None:
+        return refusal
     try:
-        return jsonify(search_base(id, eventType, value))
+        return jsonify(search_base(id, eventType, value, allowed))
     except Exception:
         return jsonify([])
 
@@ -1905,7 +1984,10 @@ def scansearchresultexport():
     filetype = request.values.get('filetype', 'csv')
     dialect = request.values.get('dialect', 'excel')
 
-    data = search_base(id, eventType, value)
+    refusal, allowed = _search_scope(id)
+    if refusal is not None:
+        return refusal
+    data = search_base(id, eventType, value, allowed)
 
     if not data:
         return Response('', status=204)
