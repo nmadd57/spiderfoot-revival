@@ -565,4 +565,8 @@ def settings_section():
             monthly_cost=monthly_cost,
         )
 
+    elif section == 'mcp':
+        from spiderfoot.services import mcp_auth
+        return render_template('fragments/settings_mcp.html', st=mcp_auth.public_status(saved_config))
+
     return '<p class="text-sm text-slate-400 p-6">Unknown section.</p>'

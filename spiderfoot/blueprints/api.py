@@ -983,60 +983,97 @@ def usage_check():
 
 # -- Start scan --------------------------------------------------------------
 
-@api_bp.route('/startscan', methods=['POST'])
-def startscan():
-    """Initiate a new scan."""
+NAME_TARGET_TYPES = ("COMPANY_NAME", "HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS")
+
+
+class ScanStartResult:
+    """Outcome of start_scan_core().
+
+    ok          - the scan process was started and registered
+    scan_id     - id of the new scan (when ok)
+    error       - message for the caller (when not ok)
+    status      - HTTP status string for errors that have one ('429'), else ''
+    target      - normalised target the scan was started with
+    target_type - detected target type
+    modules     - module ids the scan was started with (including the storage module)
+    dropped     - {module: reason} for modules left out (disabled, auto-disabled, not for private IPs)
+    """
+
+    def __init__(self, ok=False, scan_id='', error='', status='', target='', target_type='', modules=None, dropped=None):
+        self.ok = ok
+        self.scan_id = scan_id
+        self.error = error
+        self.status = status
+        self.target = target
+        self.target_type = target_type
+        self.modules = modules or []
+        self.dropped = dropped or {}
+
+
+def normalize_target(scantarget, target_type=None):
+    """Detect and normalise a scan target (already passed through clean_user_input).
+
+    Returns (target, target_type); (target, None) when the target is not recognised.
+    A known ``target_type`` (rerunning a stored scan) skips detection.
+    """
+    # Detect on the unescaped input: clean_user_input() turns quotes into &quot;
+    rawtarget = html.unescape(scantarget).strip()
+    targetType = target_type or SpiderFootHelpers.targetTypeFromString(rawtarget)
+    if targetType is None and ' ' in rawtarget and '"' not in rawtarget:
+        # The UI sends names unquoted ("John Smith", "Acme Widgets LLC")
+        targetType = SpiderFootHelpers.targetTypeFromString(f'"{rawtarget}"')
+    if targetType is None:
+        return scantarget, None
+    if targetType in NAME_TARGET_TYPES:
+        # Names are data for module queries; keep "&" and "'" (A&B LLC, O'Brien)
+        scantarget = SpiderFootHelpers.stripTargetPrefix(rawtarget)
+        scantarget = scantarget.replace("\"", "").strip()
+    else:
+        scantarget = scantarget.strip().lower()
+    return scantarget, targetType
+
+
+def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase='', config=None, dbh=None,
+                    logging_queue=None, target_type=None):
+    """Validate the request, pick the modules and spawn the scan process.
+
+    The one implementation behind the /startscan route and the MCP create_scan tool. Needs an
+    application context (module availability is read the way the New Scan page reads it).
+    Returns a ScanStartResult; never raises for bad input.
+    """
     from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
 
-    scanname = request.values.get('scanname', '')
-    scantarget = request.values.get('scantarget', '')
-    modulelist = request.values.get('modulelist', '')
-    typelist = request.values.get('typelist', '')
-    usecase = request.values.get('usecase', '')
-
-    config = get_config()
-
     # Rate limit: reject if too many scans are already running
     max_scans = config.get('_maxscans', 10)
-    dbh = get_db()
     running_scans = dbh.scanInstanceList()
+    # scanInstanceList() rows carry the status at index 6 (index 5 is the end time); index 5 is
+    # checked as well because callers and tests have passed rows with the status there.
     running_count = sum(
         1 for scan in running_scans
-        if scan[5] in ('RUNNING', 'STARTED', 'STARTING')
+        if any(v in ('RUNNING', 'STARTED', 'STARTING') for v in scan[5:7])
     )
     if running_count >= max_scans:
-        return jsonify_error(
-            '429',
-            f"Maximum concurrent scans ({max_scans}) reached. "
-            f"Please wait for a running scan to complete."
-        )
+        return ScanStartResult(
+            error=f"Maximum concurrent scans ({max_scans}) reached. Please wait for a running scan to complete.",
+            status='429')
 
     scanname = clean_user_input([scanname])[0]
     scantarget = clean_user_input([scantarget])[0]
 
     if not scanname:
-        return jsonify(["ERROR", "Incorrect usage: scan name was not specified."])
+        return ScanStartResult(error="Incorrect usage: scan name was not specified.")
 
     if not scantarget:
-        return jsonify(["ERROR", "Incorrect usage: scan target was not specified."])
+        return ScanStartResult(error="Incorrect usage: scan target was not specified.")
 
     if not typelist and not modulelist and not usecase:
-        return jsonify(["ERROR", "Incorrect usage: no modules specified for scan."])
+        return ScanStartResult(error="Incorrect usage: no modules specified for scan.")
 
-    # Detect on the unescaped input: clean_user_input() turns quotes into &quot;
-    rawtarget = html.unescape(scantarget).strip()
-    targetType = SpiderFootHelpers.targetTypeFromString(rawtarget)
-    if targetType is None and ' ' in rawtarget and '"' not in rawtarget:
-        # The UI sends names unquoted ("John Smith", "Acme Widgets LLC")
-        targetType = SpiderFootHelpers.targetTypeFromString(f'"{rawtarget}"')
+    scantarget, targetType = normalize_target(scantarget, target_type)
     if targetType is None:
-        return jsonify(["ERROR", "Unrecognised target type."])
-    if targetType in ("COMPANY_NAME", "HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS"):
-        # Names are data for module queries; keep "&" and "'" (A&B LLC, O'Brien)
-        scantarget = SpiderFootHelpers.stripTargetPrefix(rawtarget)
+        return ScanStartResult(error="Unrecognised target type.")
 
-    dbh = get_db()
     cfg = deepcopy(config)
     sf = SpiderFoot(cfg)
 
@@ -1073,11 +1110,17 @@ def startscan():
     from spiderfoot.services import module_state
     disabled = module_state.get_disabled(dbh)
     all_modules, _cats = _build_modules_data(include_disabled=True)
-    auto = {n for n, m in all_modules.items() if m['autoReason']}
-    modlist = [m for m in modlist if m not in disabled and m not in auto]
+    auto = {n: m['autoReason'] for n, m in all_modules.items() if m['autoReason']}
+    dropped = {}
+    for m in modlist:
+        if m in disabled:
+            dropped[m] = 'disabled by the operator'
+        elif m in auto:
+            dropped[m] = f'auto-disabled: {auto[m]}'
+    modlist = [m for m in modlist if m not in dropped]
 
     if not modlist:
-        return jsonify(["ERROR", "Incorrect usage: no enabled modules specified for scan."])
+        return ScanStartResult(error="Incorrect usage: no enabled modules specified for scan.", dropped=dropped)
 
     # Add mandatory storage module
     if "sfp__stor_db" not in modlist:
@@ -1092,17 +1135,14 @@ def startscan():
     if targetType in ('IP_ADDRESS', 'IPV6_ADDRESS', 'NETBLOCK_OWNER', 'NETBLOCKV6_OWNER'):
         if SpiderFootHelpers.isPrivateIP(scantarget):
             allowed = SpiderFootHelpers.PRIVATE_IP_COMPATIBLE_MODULES
+            for m in modlist:
+                if m not in allowed:
+                    dropped[m] = 'does not work with private IP targets'
             modlist = [m for m in modlist if m in allowed]
             if not modlist or modlist == ['sfp__stor_db']:
-                return jsonify(["ERROR", "No modules available for private IP targets."])
-
-    if targetType in ["HUMAN_NAME", "COMPANY_NAME", "USERNAME", "BITCOIN_ADDRESS"]:
-        scantarget = scantarget.replace("\"", "").strip()
-    else:
-        scantarget = scantarget.lower()
+                return ScanStartResult(error="No modules available for private IP targets.", dropped=dropped)
 
     scanId = SpiderFootHelpers.genScanInstanceId()
-    logging_queue = get_logging_queue()
 
     try:
         p = mp.Process(target=startSpiderFootScanner, args=(logging_queue, scanname, scanId, scantarget, targetType, modlist, cfg))
@@ -1110,7 +1150,7 @@ def startscan():
         p.start()
     except Exception:
         log.exception(f"[-] Scan [{scanId}] failed")
-        return jsonify(["ERROR", f"[-] Scan [{scanId}] failed to start. See the server log."])
+        return ScanStartResult(error=f"[-] Scan [{scanId}] failed to start. See the server log.")
 
     # Wait until the scan has initialized (timeout after 30s)
     wait = 0
@@ -1119,9 +1159,26 @@ def startscan():
         time.sleep(1)
         wait += 1
         if wait >= 30:
-            return jsonify(["ERROR", f"Scan [{scanId}] failed to initialize within 30 seconds."])
+            return ScanStartResult(error=f"Scan [{scanId}] failed to initialize within 30 seconds.")
 
-    return jsonify(["SUCCESS", scanId])
+    return ScanStartResult(ok=True, scan_id=scanId, target=scantarget, target_type=targetType, modules=modlist, dropped=dropped)
+
+
+@api_bp.route('/startscan', methods=['POST'])
+def startscan():
+    """Initiate a new scan."""
+    res = start_scan_core(
+        request.values.get('scanname', ''),
+        request.values.get('scantarget', ''),
+        request.values.get('modulelist', ''),
+        request.values.get('typelist', ''),
+        request.values.get('usecase', ''),
+        config=get_config(), dbh=get_db(), logging_queue=get_logging_queue())
+    if res.ok:
+        return jsonify(["SUCCESS", res.scan_id])
+    if res.status:
+        return jsonify_error(res.status, res.error)
+    return jsonify(["ERROR", res.error])
 
 
 # -- Rerun scan --------------------------------------------------------------

@@ -529,6 +529,14 @@ def start_web_server(sfWebUiConfig: dict, sfConfig: dict, loggingQueue=None) -> 
 
     app = create_app(config=sfConfig)
     app.config['SF_LOGGING_QUEUE'] = loggingQueue
+
+    # Agent access (MCP) on its own port; only when SF_MCP_PORT is set. Never blocks the web UI.
+    try:
+        from spiderfoot.mcp.server import start_listener
+        start_listener(app)
+    except Exception as e:
+        log.error(f"MCP server not started: {e}", exc_info=True)
+
     app.run(host=web_host, port=int(web_port), debug=False, use_reloader=False)
 
 

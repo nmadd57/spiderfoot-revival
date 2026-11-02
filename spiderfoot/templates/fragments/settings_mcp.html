@@ -1,0 +1,318 @@
+{# Settings > Agent (MCP): lets an agent (an MCP client) list modules, build and run scans and read results over the
+   Model Context Protocol. st = mcp_auth.public_status(): no secrets, only the token hint and creation time.
+   The token itself exists in the page only in the one-time box right after it is generated. #}
+
+<div class="space-y-6 min-w-0" x-data='mcpSettings({{ st | tojson }})'>
+
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Agent (MCP)</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      Lets an agent list modules, build and run scans, and read their results over the
+      <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer" class="text-sf-accent hover:underline">Model Context Protocol</a>.
+      It runs on its own port and needs an access token. It never exposes API keys or settings.
+    </p>
+  </div>
+
+  {# ------------------------------------------------------------ Status + switch #}
+  <section class="mcp-card space-y-3">
+    <template x-if="st.listening">
+      <p class="text-sm text-slate-700 dark:text-slate-200">
+        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5 align-middle"></span>
+        Listening on port <span class="font-mono font-semibold" x-text="st.port"></span>.
+        <span x-text="st.enabled ? 'Agents with the token can connect.' : 'Switched off, so every request is refused.'"></span>
+      </p>
+    </template>
+    <template x-if="!st.listening">
+      <div class="rounded border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400 space-y-1 sf-break">
+        <p class="font-medium">The MCP listener is off.</p>
+        <p>
+          Set <span class="font-mono">SF_MCP_PORT</span> (for example <span class="font-mono">SF_MCP_PORT=5093</span>) in the container
+          environment, publish that port, and restart SpiderFoot. What you save here is kept, but nothing can connect until then.
+          Optionally set <span class="font-mono">SF_MCP_HOST</span> to choose the interface (default <span class="font-mono">0.0.0.0</span>).
+        </p>
+      </div>
+    </template>
+
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100" id="mcp-enable-label">Enable agent access</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400" x-show="!st.hasToken">Generate a token first.</p>
+      </div>
+      <button type="button" role="switch" :aria-checked="st.enabled ? 'true' : 'false'" aria-labelledby="mcp-enable-label"
+              @click="setEnabled(!st.enabled)" :disabled="busy || (!st.hasToken && !st.enabled)" class="mcp-switch"
+              :class="st.enabled ? 'mcp-switch-on' : ''">
+        <span class="mcp-knob"></span>
+      </button>
+    </div>
+    <p class="text-sm text-red-500" x-show="msg.enable" x-text="msg.enable" role="alert"></p>
+  </section>
+
+  {# ------------------------------------------------------------ Token #}
+  <section class="mcp-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Access token</h3>
+
+    <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!st.hasToken">No token yet. Agents cannot connect until you generate one.</p>
+    <p class="text-sm text-slate-600 dark:text-slate-300 sf-break" x-show="st.hasToken">
+      Current token <span class="font-mono" x-text="st.tokenHint + '…'"></span>
+      <span class="text-slate-500 dark:text-slate-400" x-show="st.tokenCreated" x-text="'created ' + created()"></span>.
+      Only a fingerprint is stored, so the token cannot be shown again.
+    </p>
+
+    {# One-time reveal #}
+    <div x-show="token" x-cloak class="rounded border border-green-500/40 bg-green-500/5 p-3 space-y-2">
+      <p class="text-sm font-medium text-green-700 dark:text-green-400">Copy this token now. It cannot be shown again.</p>
+      <code class="block font-mono text-sm break-all rounded bg-slate-100 dark:bg-sf-elevated p-2 select-all" x-text="token"></code>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="mcp-btn mcp-btn-primary" @click="copyToken()"><span x-text="copied ? 'Copied' : 'Copy'"></span></button>
+        <button type="button" class="mcp-btn mcp-btn-secondary" @click="token = ''; copied = false">I have saved it</button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2" x-show="!confirm">
+      <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy" @click="st.hasToken ? confirm = 'rotate' : generate()"
+              x-text="st.hasToken ? 'Rotate token' : 'Generate token'"></button>
+      <button type="button" class="mcp-btn mcp-btn-danger" x-show="st.hasToken" :disabled="busy" @click="confirm = 'revoke'">Revoke</button>
+    </div>
+
+    <div x-show="confirm" x-cloak class="rounded border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
+      <p class="text-sm text-amber-700 dark:text-amber-400" x-show="confirm === 'rotate'">
+        Rotating signs out every agent using the current token, immediately. The new token has to be given to them.
+      </p>
+      <p class="text-sm text-amber-700 dark:text-amber-400" x-show="confirm === 'revoke'">
+        Revoking deletes the token and switches agent access off. Agents lose access immediately.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy" @click="confirm === 'revoke' ? revoke() : generate()"
+                x-text="confirm === 'revoke' ? 'Yes, revoke' : 'Yes, rotate'"></button>
+        <button type="button" class="mcp-btn mcp-btn-secondary" :disabled="busy" @click="confirm = ''">Cancel</button>
+      </div>
+    </div>
+    <p class="text-sm text-red-500" x-show="msg.token" x-text="msg.token" role="alert"></p>
+  </section>
+
+  {# ------------------------------------------------------------ Permissions #}
+  <section class="mcp-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">What an agent may do</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Reading modules, scans and results is always allowed with a valid token.</p>
+
+    <div class="mcp-chk space-y-1 text-sm text-slate-700 dark:text-slate-200">
+      <label class="flex items-start gap-3">
+        <input type="checkbox" x-model="perm.scan">
+        <span><span class="font-medium">Start, stop and rerun scans</span>
+          <span class="block text-xs text-slate-500 dark:text-slate-400">Without this an agent can only read.</span></span>
+      </label>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" x-model="perm.delete">
+        <span><span class="font-medium">Delete scans</span>
+          <span class="block text-xs text-slate-500 dark:text-slate-400">Removes a scan and all of its data. This cannot be undone.</span></span>
+      </label>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" x-model="perm.active">
+        <span><span class="font-medium">Allow active/invasive modules such as nmap, nuclei and port scans</span>
+          <span class="block text-xs text-slate-500 dark:text-slate-400">These send traffic to the target. Even when allowed, the agent has to confirm each call.</span></span>
+      </label>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" x-model="perm.private">
+        <span><span class="font-medium">Allow private, loopback and LAN targets</span>
+          <span class="block text-xs text-slate-500 dark:text-slate-400">Lets an agent scan hosts on this machine and your local network.</span></span>
+      </label>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" class="mcp-btn mcp-btn-primary" :disabled="busy || !dirty()" @click="savePerms()">Save permissions</button>
+      <span class="text-sm" :class="msg.permOk ? 'text-green-600' : 'text-red-500'" x-text="msg.perm" role="status"></span>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Connect #}
+  <section class="mcp-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Connect an agent</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Add this to the MCP client configuration and replace <span class="font-mono">&lt;your token&gt;</span> with the token.
+      <span x-show="!st.listening" class="text-amber-600 dark:text-amber-400">The port is unknown until <span class="font-mono">SF_MCP_PORT</span> is set.</span>
+    </p>
+
+    <div class="relative">
+      <pre class="mcp-code" tabindex="0"><code x-text="clientConfig()"></code></pre>
+      <button type="button" class="mcp-btn mcp-btn-secondary mt-2" @click="copyText(clientConfig(), 'config')"><span x-text="copiedWhat === 'config' ? 'Copied' : 'Copy config'"></span></button>
+    </div>
+
+    <p class="text-sm text-slate-500 dark:text-slate-400">Quick check from a terminal:</p>
+    <div>
+      <pre class="mcp-code" tabindex="0"><code x-text="curlExample()"></code></pre>
+      <button type="button" class="mcp-btn mcp-btn-secondary mt-2" @click="copyText(curlExample(), 'curl')"><span x-text="copiedWhat === 'curl' ? 'Copied' : 'Copy command'"></span></button>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Tools #}
+  <section class="mcp-card space-y-3">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Tools an agent gets</h3>
+    <dl class="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm">
+      {% set tools = [
+        ('list_modules', 'List modules, with their categories and what they need.'),
+        ('get_module', 'Details and options of one module (never API keys).'),
+        ('list_presets', 'Ready-made module selections for common goals.'),
+        ('suggest_modules', 'Suggest modules for a target and a goal.'),
+        ('validate_target', 'Check a target and say what type it is.'),
+        ('list_event_types', 'The kinds of data a scan can produce.'),
+        ('list_scans', 'List scans and their status.'),
+        ('get_scan', 'Status and settings of one scan.'),
+        ('get_scan_summary', 'Counts of results by type for a scan.'),
+        ('get_scan_events', 'Read the results of a scan, filtered and paged.'),
+        ('get_scan_correlations', 'Correlation findings for a scan.'),
+        ('get_scan_log', 'The log of a scan.'),
+        ('create_scan', 'Build and start a scan (needs the scan permission).'),
+        ('stop_scan', 'Stop a running scan (needs the scan permission).'),
+        ('rerun_scan', 'Run a finished scan again (needs the scan permission).'),
+        ('delete_scan', 'Delete a scan and its data (needs the delete permission).'),
+      ] %}
+      {% for name, desc in tools %}
+      <dt class="font-mono text-xs sm:text-sm pt-2 sm:pt-0.5 text-slate-800 dark:text-slate-100 sf-break">{{ name }}</dt>
+      <dd class="text-slate-500 dark:text-slate-400 sm:py-0.5">{{ desc }}</dd>
+      {% endfor %}
+    </dl>
+  </section>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+  .mcp-card { border:1px solid rgb(148 163 184 / .35); border-radius:.5rem; padding:.75rem; }
+  @media (min-width: 768px) { .mcp-card { padding:1rem; } }
+  .mcp-btn { padding:.5rem 1rem; border-radius:.375rem; font-size:.875rem; min-height:44px; flex:1 1 9rem; text-align:center; }
+  @media (min-width: 768px) { .mcp-btn { min-height:0; flex:0 0 auto; } }
+  .mcp-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .mcp-btn-primary { background:var(--color-sf-accent, #06b6d4); color:#fff; }
+  .mcp-btn-secondary { border:1px solid rgb(148 163 184 / .6); }
+  .mcp-btn-secondary:hover:not(:disabled) { border-color:var(--color-sf-accent, #06b6d4); }
+  .mcp-btn-danger { border:1px solid rgb(239 68 68 / .6); color:rgb(239 68 68); }
+  .mcp-btn-danger:hover:not(:disabled) { background:rgb(239 68 68 / .1); }
+  .mcp-switch { position:relative; flex-shrink:0; width:3rem; height:1.75rem; border-radius:9999px; background:rgb(148 163 184 / .5);
+                transition:background .15s; }
+  .mcp-switch::after { content:''; position:absolute; inset:-8px 0; }  /* 44px tap target */
+  .mcp-switch:disabled { opacity:.5; cursor:not-allowed; }
+  .mcp-switch-on { background:var(--color-sf-accent, #06b6d4); }
+  .mcp-knob { position:absolute; top:.125rem; left:.125rem; width:1.5rem; height:1.5rem; border-radius:9999px; background:#fff;
+              transition:transform .15s; }
+  .mcp-switch-on .mcp-knob { transform:translateX(1.25rem); }
+  .mcp-code { overflow-x:auto; max-width:100%; padding:.75rem; border-radius:.375rem; font-size:.75rem; line-height:1.5;
+              background:rgb(15 23 42 / .06); font-family:ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre; }
+  .dark .mcp-code { background:rgb(255 255 255 / .06); }
+  .mcp-chk label { min-height:44px; padding:.25rem 0; cursor:pointer; }
+  .mcp-chk input[type=checkbox] { width:20px; height:20px; flex-shrink:0; margin-top:.125rem; }
+</style>
+
+<script>
+function mcpSettings(initial) {
+  const csrf = () => window.__SF_CSRF_TOKEN__ || (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  const asPerm = (p) => ({ scan: !!p.scan, delete: !!p.delete, active: !!p.active, private: !!p.private });
+  return {
+    st: initial,
+    perm: asPerm(initial.permissions),
+    token: '',          // only ever set from the response that creates it; cleared on "I have saved it"
+    copied: false,
+    copiedWhat: '',
+    confirm: '',
+    busy: false,
+    msg: { enable: '', token: '', perm: '', permOk: true },
+
+    created() {
+      try { return new Date(this.st.tokenCreated * 1000).toLocaleString(); } catch (e) { return ''; }
+    },
+    dirty() {
+      const p = this.st.permissions;
+      return ['scan', 'delete', 'active', 'private'].some(k => !!this.perm[k] !== !!p[k]);
+    },
+    hostPart() {
+      const h = window.location.hostname || 'localhost';
+      return h.indexOf(':') >= 0 ? '[' + h + ']' : h;
+    },
+    endpoint() {
+      return 'http://' + this.hostPart() + ':' + (this.st.port || '<port>') + '/mcp';
+    },
+    clientConfig() {
+      return JSON.stringify({ mcpServers: { spiderfoot: { type: 'http', url: this.endpoint(),
+        headers: { Authorization: 'Bearer <your token>' } } } }, null, 2);
+    },
+    curlExample() {
+      const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
+        protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'curl', version: '1' } } });
+      return "curl -s '" + this.endpoint() + "' -H 'Authorization: Bearer <your token>' -H 'Content-Type: application/json'"
+        + " -H 'Accept: application/json, text/event-stream' -d '" + body + "'";
+    },
+
+    async call(path, body) {
+      this.busy = true;
+      try {
+        const r = await fetch('/api/mcp/' + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+          body: JSON.stringify(body || {}),
+        });
+        let d = {};
+        try { d = await r.json(); } catch (e) { d = {}; }
+        if (!r.ok) return { ok: false, error: (d && d.error) || 'Request failed.' };
+        return { ok: true, data: d };
+      } catch (e) {
+        return { ok: false, error: 'Request failed.' };
+      } finally {
+        this.busy = false;
+      }
+    },
+    apply(d) {
+      const { token, ...status } = d;
+      this.st = status;
+      this.perm = asPerm(status.permissions);
+    },
+
+    async setEnabled(on) {
+      this.msg.enable = '';
+      const r = await this.call('settings', { enabled: on });
+      if (r.ok) this.apply(r.data); else this.msg.enable = r.error;
+    },
+    async generate() {
+      this.msg.token = '';
+      this.confirm = '';
+      const r = await this.call('token', {});
+      if (!r.ok) { this.msg.token = r.error; return; }
+      this.token = r.data.token || '';
+      this.copied = false;
+      this.apply(r.data);
+    },
+    async revoke() {
+      this.msg.token = '';
+      this.confirm = '';
+      const r = await this.call('token/revoke', {});
+      if (!r.ok) { this.msg.token = r.error; return; }
+      this.token = '';
+      this.apply(r.data);
+    },
+    async savePerms() {
+      this.msg.perm = '';
+      const r = await this.call('settings', {
+        allow_scan: !!this.perm.scan, allow_delete: !!this.perm.delete,
+        allow_active: !!this.perm.active, allow_private: !!this.perm.private });
+      this.msg.permOk = r.ok;
+      if (r.ok) { this.apply(r.data); this.msg.perm = 'Saved.'; } else { this.msg.perm = r.error; }
+    },
+
+    async copyText(text, what) {
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { ok = false; }
+      if (ok) { this.copiedWhat = what; setTimeout(() => { if (this.copiedWhat === what) this.copiedWhat = ''; }, 2000); }
+      return ok;
+    },
+    async copyToken() {
+      if (await this.copyText(this.token, 'token')) {
+        this.copied = true;
+      } else {
+        // Clipboard blocked (plain http): select the text so the user can copy it by hand
+        const el = this.$root.querySelector('code.select-all');
+        if (el && window.getSelection) {
+          const range = document.createRange(); range.selectNodeContents(el);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        }
+      }
+    },
+  };
+}
+</script>
