@@ -184,6 +184,9 @@ def _build_module_settings():
         fields = module_options.build_fields(name, raw.get(name, {}), saved)
         m['fields'] = fields
         m['configurable'] = bool(fields)
+        if name == 'sfp_searxng':
+            # configured on its own tab (Settings -> Web Search), like the AI assistant
+            m['fields'], m['configurable'], m['settingsTab'] = [], False, 'search'
         m['stats'] = {**module_status.blank(), **stats.get(name, {})}
         if not m['requiresKey']:
             # a module with no API key has no key problems: drop error text that merely looks like one

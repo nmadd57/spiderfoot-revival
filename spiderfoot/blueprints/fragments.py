@@ -524,6 +524,12 @@ def settings_section():
         return render_template('fragments/settings_modules.html', modules=_build_module_settings(),
                                auto_disable=auto_disable.enabled(config))
 
+    elif section == 'search':
+        from spiderfoot.services import module_options
+        mod = (sf_config.get('__modules__') or {}).get('sfp_searxng', {})
+        fields = {f['opt']: f['value'] for f in module_options.build_fields('sfp_searxng', mod, saved_config)}
+        return render_template('fragments/settings_search.html', v=fields)
+
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)
 

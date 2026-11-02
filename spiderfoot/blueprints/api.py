@@ -771,6 +771,50 @@ def ai_test():
     return jsonify(ai_service.test_connection(base, key, model))
 
 
+def _searxng_saved() -> dict:
+    return (get_config().get('__modules__', {}).get('sfp_searxng', {}).get('opts')) or {}
+
+
+@api_bp.route('/searxng/test', methods=['POST'])
+def searxng_test():
+    """Test a SearXNG instance with the form values (saved or not); a masked auth header falls back to the saved one.
+
+    JSON body: the SearXNG module's connection options.
+    """
+    from sflib import SpiderFoot
+    from spiderfoot.services import searxng
+
+    body = request.get_json(silent=True) or {}
+    saved = _searxng_saved()
+    values = {k: body.get(k, saved.get(k)) for k in ('instance_url', 'auth_header', 'verify_ssl', 'categories', 'engines',
+                                                     'language', 'safesearch', 'time_range')}
+    if str(values.get('auth_header') or '').strip() in ('', '********'):
+        values['auth_header'] = saved.get('auth_header', '')
+    if isinstance(values.get('verify_ssl'), str):
+        values['verify_ssl'] = values['verify_ssl'] not in ('0', 'false', 'False', '')
+    for k in ('instance_url', 'categories', 'engines', 'language', 'time_range'):
+        values[k] = clean_user_input([str(values.get(k) or '')])[0].strip()
+    return jsonify(searxng.test_instance(SpiderFoot(get_config()), values))
+
+
+@api_bp.route('/embeddings/test', methods=['POST'])
+def embeddings_test():
+    """Test the embeddings endpoint with the form values (saved or not) and list its models.
+
+    JSON body: {"embeddings_url", "embeddings_apikey", "embeddings_model"}.
+    """
+    from spiderfoot.services import embeddings
+
+    body = request.get_json(silent=True) or {}
+    saved = _searxng_saved()
+    key = str(body.get('embeddings_apikey') or '').strip()
+    if key in ('', '********'):
+        key = saved.get('embeddings_apikey', '') or ''
+    url = clean_user_input([str(body.get('embeddings_url') if body.get('embeddings_url') is not None
+                                else saved.get('embeddings_url', '') or '')])[0]
+    return jsonify(embeddings.test_connection(url, key, str(body.get('embeddings_model') or '')))
+
+
 _test_locks = {}
 _test_sem = threading.BoundedSemaphore(3)
 

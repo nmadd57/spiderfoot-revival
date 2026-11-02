@@ -4,6 +4,11 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Web Search settings tab; expired sign-in banner
+
+- New Settings -> Web Search tab, laid out like AI Assistant: a SearXNG card (instance URL, auth header, engines, language, pages, search toggles) and an Embeddings card (endpoint URL, model, key, minimum similarity), each with its own Save and Test button. **Test SearXNG** runs a search with the values on the form (saved or not) and reports the result count, sample URLs and any engines that did not answer, or the reason it failed (sign-in page in front of it, JSON disabled, rate limited, unreachable). **Test embeddings** embeds a short text, reports the vector size and latency, lists the endpoint's models and fills the model suggestions (and an empty model field) from them. Auth header and embeddings key stay masked. The SearXNG row on Settings -> Modules now points to this tab.
+- When the SSO session expires, saves and tests used to fail silently (the proxy redirects API calls to the login page). A banner now says the sign-in expired and nothing was saved, with a button to sign in again.
+
 ### SearXNG behind a login
 
 - When the SearXNG URL sits behind an SSO proxy (oauth2-proxy, Authelia, Authentik...) the proxy answers API calls with a 403 or a sign-in page. The error now says so and suggests an address that skips the login, instead of claiming JSON output is disabled. Applies to the shared web search helper and the SearXNG module.

@@ -1,0 +1,194 @@
+{# Settings > Web Search: the SearXNG instance used for web searches and the embeddings endpoint that ranks
+   its phrase-search results. Each card saves and tests on its own. Both are options of sfp_searxng.
+   v = {option: value}; secrets arrive masked as "********" and are never sent back to the page. #}
+
+<div class="space-y-8" x-data='searchSettings({{ v | tojson }})'>
+
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Web Search</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      Web searches (the SearXNG module, Pastebin, Onion.link, social profile finder) run on your own
+      <a href="https://docs.searxng.org/" target="_blank" rel="noopener noreferrer" class="text-sf-accent hover:underline">SearXNG</a>
+      metasearch instance, so no search-engine API key is needed. Optionally an OpenAI-compatible embeddings
+      endpoint ranks phrase-search results by how well they match the scan target.
+    </p>
+  </div>
+
+  {# ------------------------------------------------------------ SearXNG #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">SearXNG</h3>
+
+    <label class="block">
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Instance URL</span>
+      <input type="url" x-model="f.instance_url" placeholder="http://192.168.1.10:8080" autocomplete="off" class="fld font-mono">
+      <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+        Must serve JSON (<span class="font-mono">search.formats</span> in its settings.yml includes <span class="font-mono">json</span>) and must
+        not sit behind a sign-in page: use the instance's own port, or let the proxy skip login for this client.
+      </span>
+    </label>
+
+    <label class="block">
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Auth header <span class="font-normal text-slate-400">(optional)</span></span>
+      <input type="password" x-model="f.auth_header" autocomplete="new-password" placeholder="Authorization: Bearer …" class="fld font-mono"
+             @focus="if (f.auth_header === MASK) f.auth_header = ''" @blur="if (!f.auth_header && v.auth_header === MASK && !cleared.auth_header) f.auth_header = MASK">
+      <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">Sent with every request, as <span class="font-mono">Name: value</span>.
+        <template x-if="v.auth_header === MASK && f.auth_header === MASK"><span class="text-sf-success">A header is set. Click to replace. </span></template>
+        <button type="button" x-show="v.auth_header === MASK && f.auth_header !== ''" @click="cleared.auth_header = true; f.auth_header = ''" class="text-red-400 hover:underline">Remove it</button>
+      </span>
+    </label>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <label class="block"><span class="lbl">Categories</span>
+        <input type="text" x-model="f.categories" class="fld font-mono" placeholder="general"></label>
+      <label class="block"><span class="lbl">Engines <span class="text-slate-400">(blank = instance default)</span></span>
+        <input type="text" x-model="f.engines" class="fld font-mono" placeholder="bing,brave,startpage"></label>
+      <label class="block"><span class="lbl">Language</span>
+        <input type="text" x-model="f.language" class="fld font-mono" placeholder="all"></label>
+      <label class="block"><span class="lbl">Time range</span>
+        <select x-model="f.time_range" class="fld"><option value="">Any</option><option value="day">Day</option><option value="week">Week</option>
+          <option value="month">Month</option><option value="year">Year</option></select></label>
+      <label class="block"><span class="lbl">Safe search</span>
+        <select x-model="f.safesearch" class="fld"><option value="0">Off</option><option value="1">Moderate</option><option value="2">Strict</option></select></label>
+      <label class="block"><span class="lbl">Result pages per search</span>
+        <input type="number" min="1" max="10" x-model="f.pages" class="fld"></label>
+    </div>
+
+    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700 dark:text-slate-200">
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f.verify_ssl === '1'" @change="f.verify_ssl = $event.target.checked ? '1' : '0'"> Verify the instance's TLS certificate</label>
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f.site_search === '1'" @change="f.site_search = $event.target.checked ? '1' : '0'"> List the target's pages (<span class="font-mono">site:</span> search)</label>
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f.phrase_search === '1'" @change="f.phrase_search = $event.target.checked ? '1' : '0'"> Search names, emails, usernames and phones as phrases</label>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('searxng')" :disabled="busy" class="btn-primary">Save SearXNG</button>
+      <button type="button" @click="test('searxng')" :disabled="busy" class="btn-secondary"
+              title="Uses the values above, saved or not">Test SearXNG</button>
+      <span class="text-sm" :class="msg.searxng.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.searxng.save"></span>
+    </div>
+    <div x-show="out.searxng" class="rounded border p-3 text-sm space-y-1"
+         :class="out.searxng && out.searxng.ok ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400' : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400'">
+      <p x-text="out.searxng && out.searxng.message"></p>
+      <template x-for="u in (out.searxng ? out.searxng.urls : [])" :key="u"><p class="font-mono text-xs opacity-80 truncate" x-text="u"></p></template>
+      <p class="text-xs text-amber-600 dark:text-amber-400" x-show="out.searxng && out.searxng.unresponsive && out.searxng.unresponsive.length"
+         x-text="'Engines that did not answer: ' + (out.searxng ? out.searxng.unresponsive.join(', ') : '')"></p>
+    </div>
+  </section>
+
+  {# --------------------------------------------------------- Embeddings #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Embeddings <span class="text-xs font-normal text-slate-400">(optional)</span></h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      An OpenAI-compatible <span class="font-mono">/embeddings</span> API (Ollama, llama.cpp, vLLM, llama-swap, OpenAI...).
+      Phrase-search results are ranked by similarity to the scan target and weak matches are dropped. Leave the URL empty to skip ranking.
+    </p>
+
+    <label class="block">
+      <span class="lbl">Endpoint URL</span>
+      <input type="url" x-model="f.embeddings_url" placeholder="http://192.168.1.10:8642/v1" autocomplete="off" class="fld font-mono">
+    </label>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Model</span>
+        <input type="text" x-model="f.embeddings_model" list="embedding-models" autocomplete="off" class="fld font-mono" placeholder="nomic-embed-text">
+        <datalist id="embedding-models"><template x-for="m in models" :key="m.id"><option :value="m.id" x-text="m.label"></option></template></datalist></label>
+      <label class="block"><span class="lbl">API key <span class="text-slate-400">(if it needs one)</span></span>
+        <input type="password" x-model="f.embeddings_apikey" autocomplete="new-password" class="fld font-mono"
+               @focus="if (f.embeddings_apikey === MASK) f.embeddings_apikey = ''" @blur="if (!f.embeddings_apikey && v.embeddings_apikey === MASK && !cleared.embeddings_apikey) f.embeddings_apikey = MASK">
+        <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+          <template x-if="v.embeddings_apikey === MASK && f.embeddings_apikey === MASK"><span class="text-sf-success">A key is set. Click to replace. </span></template>
+          <button type="button" x-show="v.embeddings_apikey === MASK && f.embeddings_apikey !== ''" @click="cleared.embeddings_apikey = true; f.embeddings_apikey = ''" class="text-red-400 hover:underline">Remove it</button>
+        </span></label>
+    </div>
+    <label class="block max-w-xs"><span class="lbl">Minimum similarity <span class="text-slate-400">(0 keeps everything, only ranks)</span></span>
+      <input type="number" min="0" max="1" step="0.01" x-model="f.min_similarity" class="fld"></label>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('embeddings')" :disabled="busy" class="btn-primary">Save embeddings</button>
+      <button type="button" @click="test('embeddings')" :disabled="busy" class="btn-secondary"
+              title="Embeds a short text and lists the endpoint's models; uses the values above, saved or not">Test embeddings</button>
+      <span class="text-sm" :class="msg.embeddings.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.embeddings.save"></span>
+    </div>
+    <div x-show="out.embeddings" class="rounded border p-3 text-sm space-y-1"
+         :class="out.embeddings && out.embeddings.ok ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400' : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400'">
+      <p x-text="out.embeddings && out.embeddings.message"></p>
+      <p class="text-xs opacity-80" x-show="models.length" x-text="'The model field now suggests the ' + models.length + ' models this endpoint lists.'"></p>
+    </div>
+  </section>
+</div>
+
+<style>
+  .lbl { display:block; font-size:.875rem; font-weight:500; color:rgb(71 85 105); }
+  .dark .lbl { color:rgb(226 232 240); }
+  .fld { display:block; width:100%; margin-top:.25rem; padding:.5rem .75rem; border-radius:.375rem; font-size:.875rem;
+         border:1px solid rgb(148 163 184 / .5); background:transparent; color:inherit; }
+  .btn-primary { padding:.5rem 1rem; border-radius:.375rem; background:var(--color-sf-accent, #06b6d4); color:#fff; font-size:.875rem; }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity:.5; cursor:wait; }
+  .btn-secondary { padding:.5rem 1rem; border-radius:.375rem; font-size:.875rem; border:1px solid rgb(148 163 184 / .6); }
+  .btn-secondary:hover { border-color: var(--color-sf-accent, #06b6d4); }
+</style>
+
+<script>
+function searchSettings(v) {
+  const GROUPS = {
+    searxng: ['instance_url', 'auth_header', 'verify_ssl', 'categories', 'engines', 'language', 'safesearch', 'time_range',
+              'pages', 'site_search', 'phrase_search'],
+    embeddings: ['embeddings_url', 'embeddings_model', 'embeddings_apikey', 'min_similarity'],
+  };
+  const csrf = () => window.__SF_CSRF_TOKEN__ || '';
+  // A sign-in page instead of JSON means the SSO session expired
+  const readJson = async (r) => {
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch (e) { throw new Error('the server did not answer with JSON; your sign-in may have expired, reload the page'); }
+  };
+  return {
+    MASK: '********',
+    v: v, f: { ...v }, cleared: {}, busy: false, models: [],
+    out: { searxng: null, embeddings: null },
+    msg: { searxng: { ok: true, save: '' }, embeddings: { ok: true, save: '' } },
+
+    changed(group) {
+      return GROUPS[group].filter(k => this.f[k] !== undefined && String(this.f[k]) !== String(this.v[k] === undefined ? '' : this.v[k]));
+    },
+    async save(group) {
+      this.busy = true; this.msg[group] = { ok: true, save: 'Saving…' };
+      const opts = {};
+      this.changed(group).forEach(k => { if (this.f[k] !== this.MASK) opts['sfp_searxng:' + k] = this.f[k]; });
+      try {
+        if (!Object.keys(opts).length) { this.msg[group] = { ok: true, save: 'Nothing changed.' }; this.busy = false; return; }
+        const r = await fetch('/api/savesettings', { method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf() },
+          body: new URLSearchParams({ allopts: JSON.stringify(opts) }).toString() });
+        const d = await readJson(r);
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'save failed');
+        // adopt what was saved so the next save only sends new changes; secrets go back to the mask
+        GROUPS[group].forEach(k => {
+          const secret = k === 'auth_header' || k === 'embeddings_apikey';
+          this.v[k] = secret ? (this.f[k] === '' ? '' : this.MASK) : this.f[k];
+          if (secret) { this.f[k] = this.v[k]; this.cleared[k] = false; }
+        });
+        this.msg[group] = { ok: true, save: 'Saved.' };
+      } catch (e) { this.msg[group] = { ok: false, save: 'Save failed: ' + (e.message || e) }; }
+      this.busy = false;
+    },
+    async test(group) {
+      this.busy = true; this.out[group] = null;
+      const body = {};
+      GROUPS[group].forEach(k => { body[k] = this.f[k]; });
+      try {
+        const r = await fetch(group === 'searxng' ? '/api/searxng/test' : '/api/embeddings/test', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() }, body: JSON.stringify(body) });
+        const d = await readJson(r);
+        this.out[group] = d;
+        if (group === 'embeddings' && d.models && d.models.length) {
+          this.models = d.models;
+          if (!String(this.f.embeddings_model || '').trim()) {
+            this.f.embeddings_model = d.models[0].id;
+            d.message += ' The empty model field was set to ' + d.models[0].id + '; press Save embeddings to keep it.';
+          }
+        }
+      } catch (e) { this.out[group] = { ok: false, message: 'Test failed: ' + (e.message || e) }; }
+      this.busy = false;
+    },
+  };
+}
+</script>

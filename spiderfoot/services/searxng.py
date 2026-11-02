@@ -56,14 +56,14 @@ def available(sf) -> bool:
     return bool(config(sf))
 
 
-def search(sf, query: str, pages: int = 0, timeout: int = 0):
+def search(sf, query: str, pages: int = 0, timeout: int = 0, cfg: dict = None):
     """Run ``query`` on the configured instance.
 
     Returns ``{"urls": [...], "webSearchUrl": str, "results": [...]}`` (URLs de-duplicated,
     in rank order), or None when no instance is set up, the instance cannot be used, or there
     were no results. Problems are reported once through ``sf.error``.
     """
-    cfg = config(sf)
+    cfg = cfg or config(sf)
     if not cfg or not query:
         return None
     base = cfg['instance_url']
@@ -72,7 +72,7 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0):
     headers = {'Accept': 'application/json', **parse_header(cfg.get('auth_header'))}
     useragent = (sf.opts or {}).get('_useragent') or 'SpiderFoot'
 
-    seen, results = set(), []
+    seen, results, unresponsive = set(), [], []
     for pageno in range(1, pages + 1):
         params = {'q': query, 'format': 'json', 'pageno': pageno}
         for opt in ('categories', 'engines', 'language', 'time_range'):
@@ -110,6 +110,10 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0):
                 sf.error("SearXNG did not return JSON: check the instance URL and that no bot-protection page "
                          "sits in front of it.")
             return None
+        for eng in data.get('unresponsive_engines') or []:
+            row = f"{eng[0]} ({eng[1]})" if isinstance(eng, (list, tuple)) and len(eng) > 1 else str(eng)
+            if row not in unresponsive:
+                unresponsive.append(row)
         page = [r for r in (data.get('results') or []) if isinstance(r, dict) and r.get('url')]
         new = [r for r in page if r['url'] not in seen]
         if not new:
@@ -118,10 +122,62 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0):
             seen.add(r['url'])
             results.append(r)
     if not results:
-        return None
+        return {'urls': [], 'webSearchUrl': '', 'results': [], 'unresponsive': unresponsive} if cfg.get('_keep_empty') else None
     return {
         'urls': [r['url'] for r in results],
         'webSearchUrl': f"{base}/search?" + urllib.parse.urlencode({'q': query}),
         'results': [{'url': r['url'], 'title': r.get('title') or '', 'content': str(r.get('content') or '')[:300]}
                     for r in results],
+        'unresponsive': unresponsive,
     }
+
+
+class _Probe:
+    """Stands in for the SpiderFoot object during a test so errors can be collected instead of logged."""
+
+    def __init__(self, sf, cfg):
+        self.opts = {**(getattr(sf, 'opts', None) or {}), '__modules__': {MODULE: {'opts': cfg}}}
+        self._sf = sf
+        self.errors = []
+
+    def fetchUrl(self, *a, **kw):
+        return self._sf.fetchUrl(*a, **kw)
+
+    def error(self, msg, *a, **kw):
+        self.errors.append(str(msg))
+
+
+def test_instance(sf, values: dict) -> dict:
+    """Try a SearXNG instance with the settings on the form (saved or not).
+
+    Returns {ok, message, count, urls, unresponsive, ms}. A reply with no results is reported as a
+    warning (the instance answers, but its engines may be blocked).
+    """
+    import time
+
+    url = str(values.get('instance_url') or '').strip().rstrip('/')
+    if not url:
+        return {'ok': False, 'message': 'Enter the SearXNG instance URL first.', 'count': 0, 'urls': [], 'unresponsive': []}
+    if '://' not in url:
+        url = 'http://' + url
+    cfg = {**values, 'instance_url': url, 'pages': 1, '_keep_empty': True}
+    probe = _Probe(sf, cfg)
+    t0 = time.time()
+    res = search(probe, 'example domain', pages=1, timeout=20, cfg=cfg)
+    ms = int((time.time() - t0) * 1000)
+    out = {'ok': False, 'message': '', 'count': 0, 'urls': [], 'unresponsive': [], 'ms': ms}
+    if probe.errors:
+        out['message'] = probe.errors[0]
+        return out
+    if res is None:
+        out['message'] = f"The instance at {url} did not answer the search (no response or an error status)."
+        return out
+    out['unresponsive'] = res.get('unresponsive') or []
+    out['count'], out['urls'] = len(res['urls']), res['urls'][:3]
+    if res['urls']:
+        out['ok'] = True
+        out['message'] = f"Connected to {url}: {out['count']} results in {ms} ms."
+    else:
+        out['message'] = (f"Connected to {url} and JSON works, but the test search found nothing. "
+                          "Its search engines may be blocked or rate limited.")
+    return out
