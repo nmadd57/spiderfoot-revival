@@ -16,6 +16,7 @@ import io
 import json
 import logging
 import os
+import socket
 import sys
 import tempfile
 import time
@@ -32,6 +33,15 @@ from spiderfoot.net import host as hostutil
 
 # For hiding the SSL warnings coming from the requests lib
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # noqa: DUO131
+
+
+def _prefer_ipv4(getaddrinfo):
+    """Wrap ``socket.getaddrinfo`` so IPv4 addresses come before IPv6 ones (stable order otherwise)."""
+    def ipv4_first(*args, **kwargs):
+        results = getaddrinfo(*args, **kwargs)
+        return sorted(results, key=lambda r: 0 if r[0] == socket.AF_INET else 1)
+    ipv4_first._ipv4_first = True
+    return ipv4_first
 
 
 class SpiderFoot:
@@ -67,6 +77,10 @@ class SpiderFoot:
             res = dns.resolver.Resolver()
             res.nameservers = [self.opts['_dnsserver']]
             dns.resolver.override_system_resolver(res)
+            # dnspython's resolver returns AAAA records first; on a host with no working IPv6 (a
+            # WireGuard egress, most containers) each unreachable address costs a full connect timeout
+            if not getattr(socket.getaddrinfo, '_ipv4_first', False):
+                socket.getaddrinfo = _prefer_ipv4(socket.getaddrinfo)
 
         # Instantiate extracted modules
         self._http = SpiderFootHttp(self.opts, self.log)

@@ -4,6 +4,10 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Fix: very slow requests with a custom DNS server
+
+- With a custom DNS server set (Settings -> General -> DNS), the resolver override returned AAAA (IPv6) records first. On a host without working IPv6, such as a container behind a WireGuard tunnel, every unreachable IPv6 address cost a full connect timeout, so a single HTTP request to a host with eight IPv6 addresses took four minutes. IPv4 addresses are now tried first. Every module that makes HTTP requests benefits.
+
 ### Google and Bing modules removed
 
 - Removed `sfp_googlesearch`, `sfp_googlemaps`, `sfp_bingsearch` and `sfp_bingsharedip`, and the `googleIterate`/`bingIterate` helpers with their Google Custom Search and Bing Search API code (Google closes the Custom Search JSON API on 2027-01-01; Bing's was retired in August 2025). Web search is now only `SpiderFoot.webSearch`, backed by the SearXNG instance set up on the SearXNG module; `sfp_pastebin`, `sfp_onioncity` and `sfp_socialprofiles` lost their Google/Bing key options. `sfp_openstreetmap` is the geocoder; `sfp_searxng` does `site:` listings.
