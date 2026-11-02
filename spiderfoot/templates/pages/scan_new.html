@@ -10,6 +10,15 @@
 
 {% block content %}
 
+<style>
+  /* Phone-only tweaks for the New Scan page (desktop keeps the original look) */
+  @media (max-width: 767.98px) {
+    .sf-sub { color: #64748b; }
+    .dark .sf-sub { color: #94a3b8; }
+    .sf-launchbar { bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)); }
+  }
+</style>
+
 {# Pass module data via a script tag to avoid HTML attribute escaping issues.
    tojson escapes <, >, & via markupsafe — safe against </script> injection. #}
 <script>
@@ -21,16 +30,16 @@
 <div class="max-w-4xl mx-auto"
      x-data="scanForm(window.__SF_MODULES__, window.__SF_PRESETS__)">
 
-  <h1 class="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-6">New Scan</h1>
+  <h1 class="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-4 md:mb-6">New Scan</h1>
 
   {# ================================================================ Target card #}
-  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-6 mb-4">
+  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4 md:p-6 mb-4">
 
     {# Target input #}
     <div class="mb-4">
-      <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+      <label for="sf-target" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         Target
-        <span class="relative group inline-block ml-1 cursor-help">
+        <span class="relative group hidden md:inline-block ml-1 cursor-help">
           <span class="text-slate-400 dark:text-slate-500 text-xs">&#9432;</span>
           <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1.5 text-xs text-slate-200 bg-slate-800 dark:bg-slate-700 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
             Domain, IP, subnet, email, phone, username, person or business name
@@ -38,20 +47,27 @@
         </span>
       </label>
       <div class="relative">
-        <textarea x-model="target"
+        <textarea x-model="target" id="sf-target"
                   rows="2"
+                  :placeholder="window.matchMedia('(min-width: 768px)').matches
+                    ? 'e.g. example.com, 192.168.1.0/24, user@email.com\nOne target per line for batch scanning'
+                    : 'e.g. example.com'"
                   @input="autoResizeTextarea($event.target)"
                   class="w-full px-3 py-2.5 rounded-md border border-slate-300 dark:border-sf-border
                          bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                          placeholder-slate-400 dark:placeholder-slate-500
                          focus:outline-none focus:ring-2 focus:ring-sf-accent/50 focus:border-sf-accent
-                         text-sm font-mono resize-none overflow-hidden"
+                         text-sm font-mono resize-none overflow-hidden min-h-[7rem] md:min-h-0"
                   placeholder="e.g. example.com, 192.168.1.0/24, user@email.com&#10;One target per line for batch scanning"></textarea>
+
+        <p class="md:hidden mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Domain, IP, subnet, email, phone, username, person or business name. One target per line for batch scanning.
+        </p>
 
         {# Target count + type badges #}
         <div class="mt-2 flex flex-wrap gap-1.5" x-show="parsedTargets.length > 0">
           <template x-for="(t, i) in parsedTargets" :key="i">
-            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border max-w-full sf-break"
                   :class="t.type
                     ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
                     : 'bg-red-500/10 text-red-400 border-red-500/20'">
@@ -60,7 +76,7 @@
             </span>
           </template>
         </div>
-        <div class="mt-1 text-xs text-slate-500" x-show="parsedTargets.length > 1"
+        <div class="mt-1 text-xs text-slate-500 sf-sub" x-show="parsedTargets.length > 1"
              x-text="`${parsedTargets.length} targets — each will launch as a separate scan`"></div>
       </div>
     </div>
@@ -68,7 +84,7 @@
     {# Collapsible help: supported target types #}
     <div x-data="{ showHelp: false }" class="mb-4">
       <button type="button" @click="showHelp = !showHelp"
-              class="text-xs text-sf-accent hover:text-cyan-300 transition-colors flex items-center gap-1">
+              class="text-sm md:text-xs text-sf-accent hover:text-cyan-300 transition-colors flex items-center gap-1.5 md:gap-1 min-h-[44px] md:min-h-0">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -78,56 +94,56 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7"/>
         </svg>
       </button>
-      <div x-show="showHelp" x-transition class="mt-3 grid grid-cols-2 gap-2">
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.globe_alt(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Domain</span>
-          <span class="text-xs text-slate-400">e.g. example.com — subdomains, DNS, whois, tech stack</span>
+      <div x-show="showHelp" x-transition class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.globe_alt(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Domain</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. example.com — subdomains, DNS, whois, tech stack</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.signal(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">IP Address</span>
-          <span class="text-xs text-slate-400">e.g. 1.2.3.4 — geolocation, ASN, ports, reputation</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.signal(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">IP Address</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. 1.2.3.4 — geolocation, ASN, ports, reputation</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.share(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Subnet</span>
-          <span class="text-xs text-slate-400">e.g. 192.168.1.0/24 — scan an entire CIDR range</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.share(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Subnet</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. 192.168.1.0/24 — scan an entire CIDR range</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.link(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Email</span>
-          <span class="text-xs text-slate-400">e.g. user@example.com — breaches, social profiles, domain</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.link(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Email</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. user@example.com — breaches, social profiles, domain</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.information_circle(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Phone</span>
-          <span class="text-xs text-slate-400">e.g. +1234567890 — carrier, location, linked accounts</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.information_circle(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Phone</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. +1234567890 — carrier, location, linked accounts</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.eye(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Username</span>
-          <span class="text-xs text-slate-400">e.g. johndoe — check 500+ sites for matching accounts</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.eye(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Username</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. johndoe — check 500+ sites for matching accounts</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.magnifying_glass(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Person</span>
-          <span class="text-xs text-slate-400">e.g. John Doe — name-based OSINT across public records</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.magnifying_glass(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Person</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. John Doe — name-based OSINT across public records</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.building_office(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Business</span>
-          <span class="text-xs text-slate-400">e.g. Acme Widgets LLC or business: Acme — SEC, state registries, LEI</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.building_office(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Business</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. Acme Widgets LLC or business: Acme — SEC, state registries, LEI</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.chart_bar(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">ASN</span>
-          <span class="text-xs text-slate-400">e.g. AS13335 — map all prefixes and domains for an ASN</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.chart_bar(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">ASN</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. AS13335 — map all prefixes and domains for an ASN</span>
         </div>
-        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
-          <span class="text-cyan-400/70 shrink-0">{{ icons.link(class="w-3.5 h-3.5") }}</span>
-          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0">Bitcoin</span>
-          <span class="text-xs text-slate-400">e.g. 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa — blockchain address tracing</span>
+        <div class="flex items-start md:items-center gap-2 px-3 py-2.5 md:py-2 rounded-md bg-slate-800/40 border border-sf-border/50">
+          <span class="text-cyan-400/70 shrink-0 mt-0.5 md:mt-0">{{ icons.link(class="w-3.5 h-3.5") }}</span>
+          <span class="text-cyan-400 text-xs font-mono w-20 shrink-0 md:mt-0 mt-0.5">Bitcoin</span>
+          <span class="text-xs text-slate-400 min-w-0 sf-break">e.g. 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa — blockchain address tracing</span>
         </div>
       </div>
     </div>
@@ -136,7 +152,7 @@
     <div>
       <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         Scan Name <span class="font-normal text-slate-400 dark:text-slate-500">(optional)</span>
-        <span class="relative group inline-block ml-1 cursor-help">
+        <span class="relative group hidden md:inline-block ml-1 cursor-help">
           <span class="text-slate-400 dark:text-slate-500 text-xs">&#9432;</span>
           <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1.5 text-xs text-slate-200 bg-slate-800 dark:bg-slate-700 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
             A label for this scan — defaults to the target if left blank
@@ -149,18 +165,19 @@
                     bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                     placeholder-slate-400 dark:placeholder-slate-500
                     focus:outline-none focus:ring-2 focus:ring-sf-accent/50 focus:border-sf-accent
-                    text-sm"
+                    text-sm min-h-[44px] md:min-h-0"
              placeholder="e.g. Recon - example.com">
+      <p class="md:hidden mt-1.5 text-xs text-slate-500 dark:text-slate-400">A label for this scan. Defaults to the target if left blank.</p>
     </div>
 
   </div>
 
   {# ================================================================ Use-case tabs #}
-  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-6 mb-4">
+  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4 md:p-6 mb-4">
 
-    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 md:mb-3">
       Scan Type
-      <span class="relative group inline-block ml-1 cursor-help">
+      <span class="relative group hidden md:inline-block ml-1 cursor-help">
         <span class="text-slate-400 dark:text-slate-500 text-xs">&#9432;</span>
         <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1.5 text-xs text-slate-200 bg-slate-800 dark:bg-slate-700 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
           Presets that auto-select relevant modules — choose Custom to pick manually
@@ -168,7 +185,9 @@
       </span>
     </p>
 
-    <div class="flex gap-2 flex-wrap">
+    <p class="md:hidden mb-3 text-xs text-slate-500 dark:text-slate-400">Presets auto-select relevant modules. Choose Custom to pick manually.</p>
+
+    <div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
       {# Tab helper macro-style: repeated for each use case #}
       {% for uc, label, desc in [
           ('builtin:footprint',   'Footprint',   'Discover public info about a target'),
@@ -181,21 +200,21 @@
               :class="activePresetId === '{{ uc }}'
                 ? 'bg-sf-accent text-white border-sf-accent shadow-sm'
                 : 'bg-white dark:bg-sf-elevated text-slate-600 dark:text-slate-300 border-slate-300 dark:border-sf-border hover:border-sf-accent hover:text-sf-accent'"
-              class="px-4 py-2 rounded-md border text-sm font-medium transition-colors duration-150">
+              class="px-3 md:px-4 py-2 min-h-[44px] md:min-h-0 rounded-md border text-sm font-medium text-center transition-colors duration-150">
         {{ label }}
-        <span class="block text-xs font-normal opacity-70">{{ desc }}</span>
+        <span class="block text-xs font-normal opacity-70 sf-break">{{ desc }}</span>
       </button>
       {% endfor %}
     </div>
 
     {# More ▾ dropdown — shows all presets including user ones #}
-    <div class="relative inline-block ml-2"
+    <div class="relative block mt-2 md:mt-0 md:inline-block md:ml-2"
          x-data="{ menuOpen: false }"
          @click.outside="menuOpen = false"
          @keydown.escape.window="menuOpen = false">
       <button type="button"
               @click="menuOpen = !menuOpen"
-              class="px-4 py-2 rounded-md border border-slate-300 dark:border-sf-border
+              class="w-full md:w-auto min-h-[44px] md:min-h-0 px-4 py-2 rounded-md border border-slate-300 dark:border-sf-border
                      text-sm font-medium text-slate-600 dark:text-slate-300
                      hover:border-sf-accent hover:text-sf-accent
                      bg-white dark:bg-sf-elevated transition-colors duration-150">
@@ -208,18 +227,19 @@
       </button>
 
       <div x-show="menuOpen" x-cloak x-transition
-           class="absolute z-30 mt-1 w-80 right-0
+           class="absolute z-30 mt-1 left-0 right-0 md:left-auto md:w-80
+                  max-h-[60vh] overflow-y-auto md:max-h-none md:overflow-hidden
                   bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border
-                  rounded-md shadow-lg overflow-hidden">
+                  rounded-md shadow-lg">
 
-        <div class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider
+        <div class="px-3 pt-3 md:pt-2 pb-1 text-xs md:text-[10px] md:leading-normal font-semibold uppercase tracking-wider
                     text-slate-400 dark:text-slate-500">Built-in</div>
         <template x-for="p in presets.filter(p => p.kind === 'builtin')" :key="p.id">
           <button type="button"
                   @click="applyPreset(p.id); menuOpen = false"
-                  class="w-full text-left px-3 py-2 flex items-start gap-2
+                  class="w-full text-left px-3 py-3 md:py-2 min-h-[44px] md:min-h-0 flex items-start gap-2
                          hover:bg-slate-100 dark:hover:bg-sf-elevated transition-colors">
-            <span class="mt-1 w-3 h-3 rounded-full border-2 shrink-0"
+            <span class="mt-1 w-3.5 h-3.5 md:w-3 md:h-3 rounded-full border-2 shrink-0"
                   :class="activePresetId === p.id
                     ? 'border-sf-accent bg-sf-accent'
                     : 'border-slate-300 dark:border-slate-600'"></span>
@@ -227,28 +247,28 @@
               <span class="text-sm font-medium text-slate-700 dark:text-slate-200"
                     x-text="p.name"></span>
               <span x-show="p.is_default"
-                    class="ml-1 text-[10px] text-amber-400">★ default</span>
-              <span class="block text-xs text-slate-400" x-text="p.description"></span>
-              <span class="block text-[11px] text-slate-500 mt-0.5"
+                    class="ml-1 text-xs md:text-[10px] md:leading-normal text-amber-400">★ default</span>
+              <span class="block text-xs text-slate-400 sf-sub" x-text="p.description"></span>
+              <span class="block text-xs md:text-[11px] md:leading-normal text-slate-500 sf-sub mt-0.5"
                     x-text="`${p.module_count} module${p.module_count === 1 ? '' : 's'}`"></span>
             </span>
           </button>
         </template>
 
         <div class="border-t border-slate-200 dark:border-sf-border mt-1"></div>
-        <div class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider
+        <div class="px-3 pt-3 md:pt-2 pb-1 text-xs md:text-[10px] md:leading-normal font-semibold uppercase tracking-wider
                     text-slate-400 dark:text-slate-500">Yours</div>
         <template x-if="presets.filter(p => p.kind === 'user').length === 0">
-          <p class="px-3 py-2 text-xs text-slate-400">
+          <p class="px-3 py-2 text-xs text-slate-400 sf-sub">
             No saved presets yet. Use "Save current as preset" below the modules to save your selection.
           </p>
         </template>
         <template x-for="p in presets.filter(p => p.kind === 'user')" :key="p.id">
           <button type="button"
                   @click="applyPreset(p.id); menuOpen = false"
-                  class="w-full text-left px-3 py-2 flex items-start gap-2
+                  class="w-full text-left px-3 py-3 md:py-2 min-h-[44px] md:min-h-0 flex items-start gap-2
                          hover:bg-slate-100 dark:hover:bg-sf-elevated transition-colors">
-            <span class="mt-1 w-3 h-3 rounded-full border-2 shrink-0"
+            <span class="mt-1 w-3.5 h-3.5 md:w-3 md:h-3 rounded-full border-2 shrink-0"
                   :class="activePresetId === p.id
                     ? 'border-sf-accent bg-sf-accent'
                     : 'border-slate-300 dark:border-slate-600'"></span>
@@ -256,8 +276,8 @@
               <span class="text-sm font-medium text-slate-700 dark:text-slate-200"
                     x-text="p.name"></span>
               <span x-show="p.is_default"
-                    class="ml-1 text-[10px] text-amber-400">★ default</span>
-              <span class="block text-[11px] text-slate-500 mt-0.5"
+                    class="ml-1 text-xs md:text-[10px] md:leading-normal text-amber-400">★ default</span>
+              <span class="block text-xs md:text-[11px] md:leading-normal text-slate-500 sf-sub mt-0.5"
                     x-text="`${p.module_count} module${p.module_count === 1 ? '' : 's'}`"></span>
             </span>
           </button>
@@ -266,7 +286,7 @@
         <div class="border-t border-slate-200 dark:border-sf-border"></div>
         <button type="button"
                 @click="manageOpen = true; menuOpen = false"
-                class="w-full text-left px-3 py-2 text-xs text-sf-accent
+                class="w-full text-left px-3 py-3 md:py-2 min-h-[44px] md:min-h-0 text-sm md:text-xs text-sf-accent
                        hover:bg-sf-accent/10 transition-colors">
           Manage presets →
         </button>
@@ -274,7 +294,7 @@
     </div>
 
     {# State indicator — three states: clean preset, dirty preset, ad-hoc Custom #}
-    <div class="mt-3 text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2">
+    <div class="mt-3 text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
       <template x-if="activePresetId === '__custom__'">
         <span><span class="font-medium text-slate-600 dark:text-slate-300">Custom</span>
               · <span x-text="totalEnabled()"></span> modules</span>
@@ -284,7 +304,7 @@
               preset applied · <span x-text="totalEnabled()"></span> modules</span>
       </template>
       <template x-if="activePresetId !== '__custom__' && isDirty">
-        <span class="flex items-center gap-2">
+        <span class="flex flex-wrap items-center gap-x-2">
           <span>Custom (based on
             <span class="font-medium" x-text="activePreset ? activePreset.name : ''"></span>)
             · <span x-text="totalEnabled()"></span> modules ·
@@ -292,7 +312,7 @@
           </span>
           <button type="button"
                   @click="applyPreset(activePresetId)"
-                  class="text-sf-accent hover:text-cyan-300 underline-offset-2 hover:underline">
+                  class="text-sf-accent hover:text-cyan-300 underline-offset-2 hover:underline py-2 md:py-0 min-h-[44px] md:min-h-0 text-left">
             Reset to <span x-text="activePreset ? activePreset.name : ''"></span>
           </button>
         </span>
@@ -303,14 +323,14 @@
        module names not present in this codebase (e.g. preset imported from a
        newer/older fork). #}
     <div x-show="droppedModules.length > 0" x-cloak
-         class="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px]
+         class="mt-2 flex md:inline-flex items-start md:items-center gap-1.5 md:gap-1 px-2.5 md:px-2 py-2 md:py-1 text-xs md:text-[11px] md:leading-normal
                 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300"
-         :title="`Modules in this preset that no longer exist: ${droppedModules.join(', ')}`">
-      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+         :title="`Modules in this preset that are not shown on this page (no API key set, tool not installed, turned off in Settings, or removed): ${droppedModules.join(', ')}`">
+      <svg class="w-4 h-4 md:w-3 md:h-3 shrink-0 mt-px md:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
       </svg>
-      <span x-text="`${droppedModules.length} module${droppedModules.length === 1 ? '' : 's'} in this preset are no longer available`"></span>
+      <span x-text="`${droppedModules.length} module${droppedModules.length === 1 ? '' : 's'} in this preset ${droppedModules.length === 1 ? 'is' : 'are'} not shown here (no API key, tool missing, or turned off)`"></span>
     </div>
 
     {# Save controls — visible only when something is saveable. Local Alpine
@@ -326,7 +346,7 @@
         <button type="button"
                 x-show="activePreset && activePreset.kind === 'user' && isDirty"
                 @click="updateActivePreset()"
-                class="px-3 py-1.5 text-xs rounded-md border border-sf-accent
+                class="px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-xs rounded-md border border-sf-accent
                        text-sf-accent hover:bg-sf-accent/10 transition-colors">
           Update "<span x-text="activePreset ? activePreset.name : ''"></span>"
         </button>
@@ -337,7 +357,7 @@
                         (activePreset && activePreset.kind === 'builtin' && isDirty) ||
                         (activePreset && activePreset.kind === 'user' && isDirty)"
                 @click="saveOpen = true; saveName = ''; saveDesc = ''"
-                class="px-3 py-1.5 text-xs rounded-md border border-slate-300 dark:border-sf-border
+                class="px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-xs rounded-md border border-slate-300 dark:border-sf-border
                        text-slate-600 dark:text-slate-300 hover:border-sf-accent hover:text-sf-accent
                        transition-colors">
           Save as new preset…
@@ -350,24 +370,24 @@
                   bg-slate-50 dark:bg-sf-elevated/40">
         <input type="text" x-model="saveName" maxlength="60"
                placeholder="Preset name (e.g. My recon)"
-               class="w-full px-2 py-1.5 mb-2 rounded border border-slate-300 dark:border-sf-border
+               class="w-full px-3 md:px-2 py-2.5 md:py-1.5 mb-2 rounded border border-slate-300 dark:border-sf-border
                       bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                       text-sm focus:outline-none focus:ring-2 focus:ring-sf-accent/50">
         <textarea x-model="saveDesc" rows="2" maxlength="200"
                   placeholder="Description (optional)"
-                  class="w-full px-2 py-1.5 mb-2 rounded border border-slate-300 dark:border-sf-border
+                  class="w-full px-3 md:px-2 py-2.5 md:py-1.5 mb-2 rounded border border-slate-300 dark:border-sf-border
                          bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                          text-sm focus:outline-none focus:ring-2 focus:ring-sf-accent/50"></textarea>
         <div class="flex gap-2">
           <button type="button"
                   @click="(async () => { if (await savePresetAs(saveName, saveDesc)) { saveOpen = false; saveName = ''; saveDesc = ''; } })()"
-                  class="px-3 py-1.5 text-xs bg-sf-accent text-white rounded-md
+                  class="px-4 md:px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-xs bg-sf-accent text-white rounded-md
                          hover:bg-cyan-400 transition-colors">
             Save
           </button>
           <button type="button"
                   @click="saveOpen = false"
-                  class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700
+                  class="px-4 md:px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-xs text-slate-500 hover:text-slate-700
                          dark:hover:text-slate-300 transition-colors">
             Cancel
           </button>
@@ -378,17 +398,17 @@
   </div>
 
   {# ================================================================ Module groups #}
-  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-6 mb-6">
+  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4 md:p-6 mb-6">
 
     <div class="mb-4">
       <div class="flex items-center justify-between mb-1">
         <p class="text-sm font-medium text-slate-700 dark:text-slate-300">
           Modules
         </p>
-        <span class="text-xs text-slate-400 dark:text-slate-500"
+        <span class="text-xs text-slate-400 dark:text-slate-500 sf-sub"
               x-text="`${totalEnabled()} module${totalEnabled() === 1 ? '' : 's'} enabled`"></span>
       </div>
-      <p class="text-xs text-slate-400 dark:text-slate-500 mb-3">
+      <p class="text-xs text-slate-400 dark:text-slate-500 sf-sub mb-3">
         Each module queries a different data source. Expand a category to enable or disable individual modules.
         Modules marked <span class="text-amber-400">KEY NEEDED</span> require an API key in
         <a href="/opts" class="text-sf-accent hover:underline">Settings</a>.
@@ -396,7 +416,7 @@
 
       {# Private IP warning banner #}
       <div x-show="isPrivateTarget" x-transition x-cloak
-           class="mb-3 px-3 py-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-300">
+           class="mb-3 px-3 py-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-300 leading-relaxed md:leading-4">
         <span class="font-semibold">Private IP detected.</span>
         Modules that query external services (Shodan, VirusTotal, etc.) have been disabled — they have no data on private IPs.
         Only direct-connect modules (port scan, SSL cert, local tools) remain available.
@@ -410,13 +430,14 @@
         <input type="text"
                x-model="moduleSearch"
                placeholder="Search modules (e.g. bbot, shodan, dns, email)..."
+               :placeholder="window.matchMedia('(min-width: 768px)').matches ? 'Search modules (e.g. bbot, shodan, dns, email)...' : 'Search modules...'"
                class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                      text-slate-800 dark:text-slate-100 text-sm pl-9 pr-3 py-2
+                      text-slate-800 dark:text-slate-100 text-sm pl-9 pr-11 md:pr-3 py-2 min-h-[44px] md:min-h-0
                       focus:outline-none focus:ring-2 focus:ring-sf-accent focus:border-transparent">
         <button x-show="moduleSearch" x-cloak
                 @click="moduleSearch = ''"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                title="Clear search">
+                class="absolute right-0 md:right-3 top-1/2 -translate-y-1/2 w-11 h-11 md:w-auto md:h-auto flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                title="Clear search" aria-label="Clear search">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
           </svg>
@@ -425,15 +446,15 @@
     </div>
 
     {% if auto_hidden %}
-    <p class="text-xs text-slate-400 dark:text-slate-500 mb-3">
+    <p class="text-xs text-slate-400 dark:text-slate-500 sf-sub mb-3">
       {{ auto_hidden }} module{{ '' if auto_hidden == 1 else 's' }} hidden automatically (no API key set, or over quota/limit).
       <a href="/opts" class="text-sf-accent hover:underline" onclick="localStorage.setItem('sf_settings_section','modules')">See Settings &rarr; Modules</a>.
     </p>
     {% endif %}
 
     {# Pricing filter (module meta "pricing") #}
-    <div class="flex flex-wrap items-center gap-2 mb-3">
-      <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">Show:</span>
+    <div class="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center mb-3">
+      <span class="col-span-2 md:col-span-1 text-xs text-slate-400 dark:text-slate-500 sf-sub mr-1">Show:</span>
       <template x-for="opt in [
           {id: 'free_any', label: 'Free / free tier'},
           {id: 'free',     label: 'Free, no key'},
@@ -444,14 +465,14 @@
                 :class="pricingFilter === opt.id
                   ? 'bg-sf-accent/15 text-sf-accent border-cyan-500/30'
                   : 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-sf-border hover:bg-slate-100 dark:hover:bg-sf-elevated'"
-                class="px-3 py-1 text-xs font-medium rounded-full border transition-colors duration-150">
+                class="px-3 py-2 md:py-1 min-h-[44px] md:min-h-0 text-sm md:text-xs font-medium text-center leading-tight md:leading-4 rounded-xl md:rounded-full border transition-colors duration-150">
           <span x-text="opt.label"></span>
           <span class="opacity-60" x-text="'(' + pricingCount(opt.id) + ')'"></span>
         </button>
       </template>
       <button type="button" x-show="pricingFilter === 'free_any' || pricingFilter === 'free'" x-cloak
               @click="enableByPricing(pricingFilter)"
-              class="px-3 py-1 text-xs font-medium rounded-full border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              class="col-span-2 md:col-span-1 px-3 py-2 md:py-1 min-h-[44px] md:min-h-0 text-sm md:text-xs font-medium rounded-xl md:rounded-full border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
               title="Enable all shown modules that don't need an unconfigured API key">
         Enable these
       </button>
@@ -462,40 +483,40 @@
       <template x-if="filteredModules().length > 0">
         <div class="border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden divide-y divide-slate-100 dark:divide-sf-border/60">
           <template x-for="[key, mod] in filteredModules()" :key="key">
-            <div class="flex items-start gap-3 px-4 py-2.5 transition-colors duration-100"
+            <div class="flex items-start gap-3 px-3 md:px-4 py-3 md:py-2.5 min-h-[56px] md:min-h-0 transition-colors duration-100"
                  @click="if (!mod.blockedPrivateIp) modules[key].enabled = !modules[key].enabled"
                  :class="mod.blockedPrivateIp ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-sf-elevated/60'">
-              <div class="relative mt-0.5 shrink-0 pointer-events-none">
+              <div class="relative mt-1 md:mt-0.5 shrink-0 pointer-events-none">
                 <input type="checkbox"
                        :checked="modules[key].enabled"
                        class="sr-only peer">
-                <div class="w-9 h-5 rounded-full border-2 transition-colors duration-200
+                <div class="w-11 h-6 md:w-9 md:h-5 rounded-full border-2 transition-colors duration-200
                             border-slate-300 dark:border-slate-600
                             peer-checked:border-sf-accent peer-checked:bg-sf-accent
                             bg-white dark:bg-sf-elevated"></div>
-                <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow
+                <div class="absolute top-0.5 left-0.5 w-5 h-5 md:w-4 md:h-4 rounded-full bg-white shadow
                             transition-transform duration-200
-                            peer-checked:translate-x-4"></div>
+                            peer-checked:translate-x-5 md:peer-checked:translate-x-4"></div>
               </div>
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug"
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug sf-break"
                      x-text="mod.name"></p>
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none"
+                  <span class="text-xs md:text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none"
                         x-text="mod.category"></span>
             {% include 'components/pricing_badge.html' %}
                   <span x-show="mod.requiresKey && mod.keyConfigured"
-                        class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20 leading-none">
+                        class="text-xs md:text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20 leading-none">
                     API
                   </span>
                   <a x-show="mod.requiresKey && !mod.keyConfigured"
                      href="/opts" @click.stop
-                     class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none hover:bg-amber-500/20 transition-colors"
+                     class="text-xs md:text-[10px] px-1.5 py-2 md:py-0.5 -my-1.5 md:my-0 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 leading-none hover:bg-amber-500/20 transition-colors"
                      title="Go to Settings to configure this API key">
                     KEY NEEDED &rarr;
                   </a>
                 </div>
-                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5 leading-snug"
+                <p class="text-xs text-slate-400 dark:text-slate-500 sf-sub mt-0.5 leading-snug sf-break"
                    x-text="mod.summary" :title="mod.summary"></p>
               </div>
             </div>
@@ -503,7 +524,7 @@
         </div>
       </template>
       <template x-if="filteredModules().length === 0">
-        <p class="text-sm text-slate-400 dark:text-slate-500 text-center py-4">No modules match your search or filter.</p>
+        <p class="text-sm text-slate-400 dark:text-slate-500 sf-sub text-center py-4">No modules match your search or filter.</p>
       </template>
     </div>
 
@@ -517,28 +538,31 @@
         {# Header #}
         <div @click="toolsOpen = !toolsOpen"
              role="button"
-             class="w-full flex items-center justify-between px-4 py-3 cursor-pointer
+             class="w-full flex flex-wrap md:flex-nowrap items-center justify-between gap-x-2 gap-y-1 md:gap-0 px-3 md:px-4 py-3 cursor-pointer
                     bg-gradient-to-r from-slate-50 to-slate-100 dark:from-sf-elevated dark:to-sf-surface
                     hover:from-slate-100 hover:to-slate-200 dark:hover:from-slate-700/60 dark:hover:to-sf-elevated
                     transition-colors duration-150 text-left select-none">
-          <div class="flex items-center gap-3 min-w-0">
+          <div class="contents md:flex md:items-center md:gap-3 md:min-w-0">
+           <span class="order-1 md:order-none flex-1 min-w-0 flex items-center gap-3 md:flex-none">
             <svg class="w-4 h-4 text-sf-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.192-.14 1.743"/>
             </svg>
             <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Local Tools</span>
-            <span class="text-xs font-mono px-2 py-0.5 rounded-full
+           </span>
+            <span class="order-4 md:order-none text-xs font-mono px-2 py-0.5 rounded-full
                          bg-sf-accent/10 text-sf-accent border border-sf-accent/20"
                   x-text="localToolsEnabledCount() + '/' + localToolsTotalCount() + ' ON'">
             </span>
           </div>
+          <span class="order-3 md:order-none basis-full h-0 md:hidden" aria-hidden="true"></span>
 
-          <div class="flex items-center gap-2 shrink-0 ml-3">
-            <span class="text-[10px] text-slate-400 dark:text-slate-500 hidden sm:inline">Run on this machine</span>
+          <div class="contents md:flex md:items-center md:gap-2 md:shrink-0 md:ml-3">
+            <span class="text-[10px] text-slate-400 dark:text-slate-500 hidden md:inline">Run on this machine</span>
             <button type="button" @click.stop="toggleAllTools(true)"
-                    class="text-xs px-2 py-0.5 rounded text-sf-accent hover:bg-sf-accent/10 transition-colors duration-100">All</button>
+                    class="order-4 md:order-none ml-auto md:ml-0 min-h-[44px] min-w-[56px] md:min-h-0 md:min-w-0 text-sm md:text-xs px-3 md:px-2 py-0.5 rounded text-sf-accent hover:bg-sf-accent/10 transition-colors duration-100">All</button>
             <button type="button" @click.stop="toggleAllTools(false)"
-                    class="text-xs px-2 py-0.5 rounded text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-100">None</button>
-            <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform duration-200"
+                    class="order-4 md:order-none min-h-[44px] min-w-[56px] md:min-h-0 md:min-w-0 text-sm md:text-xs px-3 md:px-2 py-0.5 rounded text-slate-400 dark:text-slate-500 sf-sub hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-100">None</button>
+            <svg class="order-2 md:order-none w-5 h-5 md:w-4 md:h-4 shrink-0 text-slate-400 dark:text-slate-500 transition-transform duration-200"
                  :class="toolsOpen ? 'rotate-180' : ''"
                  fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/>
@@ -547,36 +571,36 @@
         </div>
 
         {# Tools grouped by their original category #}
-        <div x-show="toolsOpen" x-transition class="px-4 py-3 space-y-4 bg-white/50 dark:bg-sf-base/30">
-          <p class="text-xs text-slate-400 dark:text-slate-500">
+        <div x-show="toolsOpen" x-transition class="px-3 md:px-4 py-3 space-y-4 bg-white/50 dark:bg-sf-base/30">
+          <p class="text-xs text-slate-400 dark:text-slate-500 sf-sub">
             These modules run tools installed on the SpiderFoot server (nmap, bbot, whatweb, etc.) rather than querying external APIs.
             They also appear in their respective categories below — toggling here syncs both.
           </p>
 
           <template x-for="[catName, catMods] in localToolsByCategory()" :key="catName">
             <div>
-              <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5" x-text="catName"></p>
+              <p class="text-xs md:text-[10px] md:leading-normal font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 sf-sub mb-1.5" x-text="catName"></p>
               <div class="space-y-0 divide-y divide-slate-100 dark:divide-sf-border/40 border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden">
                 <template x-for="[key, mod] in catMods" :key="key">
-                  <label class="flex items-start gap-3 px-3 py-2 cursor-pointer
+                  <label class="flex items-start gap-3 px-3 py-3 md:py-2 min-h-[56px] md:min-h-0 cursor-pointer
                                 hover:bg-slate-50 dark:hover:bg-sf-elevated/60
                                 transition-colors duration-100 bg-white dark:bg-sf-surface">
-                    <div class="relative mt-0.5 shrink-0">
+                    <div class="relative mt-1 md:mt-0.5 shrink-0">
                       <input type="checkbox"
                              :checked="mod.enabled"
                              @change="modules[key].enabled = $event.target.checked"
                              class="sr-only peer">
-                      <div class="w-9 h-5 rounded-full border-2 transition-colors duration-200
+                      <div class="w-11 h-6 md:w-9 md:h-5 rounded-full border-2 transition-colors duration-200
                                   border-slate-300 dark:border-slate-600
                                   peer-checked:border-sf-accent peer-checked:bg-sf-accent
                                   bg-white dark:bg-sf-elevated"></div>
-                      <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow
+                      <div class="absolute top-0.5 left-0.5 w-5 h-5 md:w-4 md:h-4 rounded-full bg-white shadow
                                   transition-transform duration-200
-                                  peer-checked:translate-x-4"></div>
+                                  peer-checked:translate-x-5 md:peer-checked:translate-x-4"></div>
                     </div>
                     <div class="min-w-0 flex-1">
-                      <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug" x-text="mod.name"></p>
-                      <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5 leading-snug truncate"
+                      <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug sf-break" x-text="mod.name"></p>
+                      <p class="text-xs text-slate-400 dark:text-slate-500 sf-sub mt-0.5 leading-snug sf-break md:truncate"
                          x-text="mod.summary" :title="mod.summary"></p>
                     </div>
                   </label>
@@ -604,25 +628,25 @@
   {# Opens when manageOpen=true (set by the More dropdown footer).
      Click outside or Escape to close. #}
   <div x-show="manageOpen" x-cloak x-transition.opacity
-       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+       class="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/50 pb-14 md:pb-0"
        @click.self="manageOpen = false; pendingDeleteId = null"
        @keydown.escape.window="manageOpen = false; pendingDeleteId = null">
-    <div class="bg-white dark:bg-sf-surface w-full max-w-2xl mx-4 rounded-lg
+    <div class="bg-white dark:bg-sf-surface w-full max-w-2xl mx-2 md:mx-4 rounded-lg
                 border border-slate-200 dark:border-sf-border shadow-xl
-                max-h-[85vh] overflow-y-auto">
+                max-h-[80vh] md:max-h-[85vh] overflow-y-auto">
 
-      <div class="px-5 py-4 border-b border-slate-200 dark:border-sf-border
+      <div class="px-4 md:px-5 py-3 md:py-4 border-b border-slate-200 dark:border-sf-border
                   flex items-center justify-between">
         <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">
           Manage presets
         </h2>
         <button type="button" @click="manageOpen = false; pendingDeleteId = null"
-                class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">
+                class="w-11 h-11 md:w-auto md:h-auto -mr-2 md:mr-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none" aria-label="Close">
           &times;
         </button>
       </div>
 
-      <div class="p-5 space-y-6">
+      <div class="p-4 md:p-5 space-y-6">
 
         {# Yours section #}
         <div>
@@ -631,10 +655,10 @@
             <p class="text-sm text-slate-400 italic">No saved presets yet.</p>
           </template>
           <template x-for="p in presets.filter(p => p.kind === 'user')" :key="p.id">
-            <div class="flex items-center gap-3 py-2 border-b border-slate-100 dark:border-sf-border/50 last:border-b-0">
+            <div class="flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1 py-2 border-b border-slate-100 dark:border-sf-border/50 last:border-b-0">
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="p.name"></p>
-                <p class="text-xs text-slate-400" x-text="`${p.module_count} modules`"></p>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-200 sf-break" x-text="p.name"></p>
+                <p class="text-xs text-slate-400 sf-sub" x-text="`${p.module_count} modules`"></p>
               </div>
               <button type="button"
                       @click="setDefaultPreset(p.id)"
@@ -642,14 +666,14 @@
                       :class="p.is_default
                         ? 'text-amber-400 cursor-default'
                         : 'text-slate-400 hover:text-amber-400'"
-                      class="text-xs px-2 py-1 transition-colors"
+                      class="text-sm md:text-xs px-2 py-1 min-h-[44px] md:min-h-0 transition-colors"
                       :title="p.is_default ? 'Current default' : 'Set as default'">
                 &#9733; <span x-text="p.is_default ? 'Default' : 'Set default'"></span>
               </button>
               <template x-if="pendingDeleteId !== p.id">
                 <button type="button"
                         @click="pendingDeleteId = p.id"
-                        class="text-xs px-2 py-1 text-red-400 hover:text-red-500 transition-colors">
+                        class="text-sm md:text-xs px-2 py-1 min-h-[44px] md:min-h-0 text-red-400 hover:text-red-500 transition-colors">
                   Delete
                 </button>
               </template>
@@ -657,12 +681,12 @@
                 <span class="flex items-center gap-1">
                   <button type="button"
                           @click="deletePreset(p.id)"
-                          class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+                          class="text-sm md:text-xs px-2 py-1 min-h-[44px] md:min-h-0 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
                     Confirm delete
                   </button>
                   <button type="button"
                           @click="pendingDeleteId = null"
-                          class="text-xs px-2 py-1 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                          class="text-sm md:text-xs px-2 py-1 min-h-[44px] md:min-h-0 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                     Cancel
                   </button>
                 </span>
@@ -672,7 +696,7 @@
           <template x-if="presets.some(p => p.is_default)">
             <button type="button"
                     @click="clearDefaultPreset()"
-                    class="mt-3 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    class="mt-3 text-sm md:text-xs min-h-[44px] md:min-h-0 text-left text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
               Clear default (use last-used / Footprint instead)
             </button>
           </template>
@@ -685,10 +709,10 @@
             Built-ins are read-only. You can mark any of them as your default.
           </p>
           <template x-for="p in presets.filter(p => p.kind === 'builtin')" :key="p.id">
-            <div class="flex items-center gap-3 py-2 border-b border-slate-100 dark:border-sf-border/50 last:border-b-0">
+            <div class="flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1 py-2 border-b border-slate-100 dark:border-sf-border/50 last:border-b-0">
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="p.name"></p>
-                <p class="text-xs text-slate-400" x-text="p.description || `${p.module_count} modules`"></p>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-200 sf-break" x-text="p.name"></p>
+                <p class="text-xs text-slate-400 sf-sub" x-text="p.description || `${p.module_count} modules`"></p>
               </div>
               <button type="button"
                       @click="setDefaultPreset(p.id)"
@@ -696,7 +720,7 @@
                       :class="p.is_default
                         ? 'text-amber-400 cursor-default'
                         : 'text-slate-400 hover:text-amber-400'"
-                      class="text-xs px-2 py-1 transition-colors">
+                      class="text-sm md:text-xs px-2 py-1 min-h-[44px] md:min-h-0 transition-colors">
                 &#9733; <span x-text="p.is_default ? 'Default' : 'Set default'"></span>
               </button>
             </div>
@@ -711,24 +735,31 @@
        :class="toastType === 'error'
          ? 'bg-red-900/90 border-red-500/30 text-red-200'
          : 'bg-green-900/90 border-green-500/30 text-green-200'"
-       class="fixed bottom-6 right-6 z-50 max-w-md px-4 py-3 rounded-lg border shadow-lg text-sm"
+       class="fixed bottom-36 left-3 right-3 md:left-auto md:bottom-6 md:right-6 z-[60] md:max-w-md px-4 py-3 rounded-lg border shadow-lg text-sm"
        x-cloak>
     <div class="flex items-start gap-2">
       <span class="shrink-0 mt-0.5" x-text="toastType === 'error' ? '\u26A0' : '\u2714'"></span>
       <span x-text="toastMsg"></span>
-      <button @click="toastMsg = ''" class="ml-2 shrink-0 opacity-60 hover:opacity-100">&times;</button>
+      <button @click="toastMsg = ''" class="ml-auto md:ml-2 shrink-0 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 opacity-60 hover:opacity-100" aria-label="Dismiss">&times;</button>
     </div>
   </div>
 
   {# ================================================================ Launch button #}
-  <div class="flex justify-end">
+  <div class="sf-launchbar sticky z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 md:static md:mx-0 md:p-0 md:z-auto
+              bg-white/95 dark:bg-sf-base/95 backdrop-blur border-t border-slate-200 dark:border-sf-border
+              md:bg-transparent md:dark:bg-transparent md:backdrop-blur-none md:border-0
+              flex flex-col md:flex-row md:justify-end gap-1.5">
+    <p x-show="parsedTargets.length === 0 && !submitting" x-cloak
+       class="md:hidden text-xs text-center text-slate-500 dark:text-slate-400">Enter a target above to launch a scan.</p>
+    <p x-show="parsedTargets.length > 0 && totalEnabled() === 0 && !submitting" x-cloak
+       class="md:hidden text-xs text-center text-slate-500 dark:text-slate-400">Enable at least one module to launch.</p>
     <button type="button"
             @click="submitScan()"
             :disabled="totalEnabled() === 0 || parsedTargets.length === 0 || submitting"
             :class="totalEnabled() === 0 || parsedTargets.length === 0 || submitting
               ? 'opacity-50 cursor-not-allowed bg-sf-accent'
               : 'bg-sf-accent hover:bg-cyan-400'"
-            class="px-8 py-2.5 text-white rounded-md font-medium text-sm
+            class="w-full md:w-auto min-h-[48px] md:min-h-0 px-4 md:px-8 py-2.5 text-white rounded-md font-medium text-sm
                    transition-colors duration-150 shadow-sm">
       <template x-if="submitting">
         <span class="inline-flex items-center gap-2">

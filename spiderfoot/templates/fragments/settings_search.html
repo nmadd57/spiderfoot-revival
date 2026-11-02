@@ -15,7 +15,7 @@
   </div>
 
   {# ------------------------------------------------------------ SearXNG #}
-  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-4">
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">SearXNG</h3>
 
     <label class="block">
@@ -53,7 +53,7 @@
         <input type="number" min="1" max="10" x-model="f.pages" class="fld"></label>
     </div>
 
-    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700 dark:text-slate-200">
+    <div class="sf-chk flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700 dark:text-slate-200">
       <label class="flex items-center gap-2"><input type="checkbox" :checked="f.verify_ssl === '1'" @change="f.verify_ssl = $event.target.checked ? '1' : '0'"> Verify the instance's TLS certificate</label>
       <label class="flex items-center gap-2"><input type="checkbox" :checked="f.site_search === '1'" @change="f.site_search = $event.target.checked ? '1' : '0'"> List the target's pages (<span class="font-mono">site:</span> search)</label>
       <label class="flex items-center gap-2"><input type="checkbox" :checked="f.phrase_search === '1'" @change="f.phrase_search = $event.target.checked ? '1' : '0'"> Search names, emails, usernames and phones as phrases</label>
@@ -65,7 +65,7 @@
               title="Uses the values above, saved or not">Test SearXNG</button>
       <span class="text-sm" :class="msg.searxng.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.searxng.save"></span>
     </div>
-    <div x-show="out.searxng" class="rounded border p-3 text-sm space-y-1"
+    <div x-show="out.searxng" class="rounded border p-3 text-sm space-y-1 break-words sf-break"
          :class="out.searxng && out.searxng.ok ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400' : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400'">
       <p x-text="out.searxng && out.searxng.message"></p>
       <template x-for="u in (out.searxng ? out.searxng.urls : [])" :key="u"><p class="font-mono text-xs opacity-80 truncate" x-text="u"></p></template>
@@ -75,7 +75,7 @@
   </section>
 
   {# --------------------------------------------------------- Embeddings #}
-  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-4">
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Embeddings <span class="text-xs font-normal text-slate-400">(optional)</span></h3>
     <p class="text-sm text-slate-500 dark:text-slate-400">
       An OpenAI-compatible <span class="font-mono">/embeddings</span> API (Ollama, llama.cpp, vLLM, llama-swap, OpenAI...).
@@ -98,7 +98,7 @@
           <button type="button" x-show="v.embeddings_apikey === MASK && f.embeddings_apikey !== ''" @click="cleared.embeddings_apikey = true; f.embeddings_apikey = ''" class="text-red-400 hover:underline">Remove it</button>
         </span></label>
     </div>
-    <label class="block max-w-xs"><span class="lbl">Minimum similarity <span class="text-slate-400">(0 keeps everything, only ranks)</span></span>
+    <label class="block md:max-w-xs"><span class="lbl">Minimum similarity <span class="text-slate-400">(0 keeps everything, only ranks)</span></span>
       <input type="number" min="0" max="1" step="0.01" x-model="f.min_similarity" class="fld"></label>
 
     <div class="flex items-center gap-3 flex-wrap">
@@ -107,7 +107,7 @@
               title="Embeds a short text and lists the endpoint's models; uses the values above, saved or not">Test embeddings</button>
       <span class="text-sm" :class="msg.embeddings.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.embeddings.save"></span>
     </div>
-    <div x-show="out.embeddings" class="rounded border p-3 text-sm space-y-1"
+    <div x-show="out.embeddings" class="rounded border p-3 text-sm space-y-1 break-words sf-break"
          :class="out.embeddings && out.embeddings.ok ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400' : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400'">
       <p x-text="out.embeddings && out.embeddings.message"></p>
       <p class="text-xs opacity-80" x-show="models.length" x-text="'The model field now suggests the ' + models.length + ' models this endpoint lists.'"></p>
@@ -124,6 +124,12 @@
   .btn-primary:disabled, .btn-secondary:disabled { opacity:.5; cursor:wait; }
   .btn-secondary { padding:.5rem 1rem; border-radius:.375rem; font-size:.875rem; border:1px solid rgb(148 163 184 / .6); }
   .btn-secondary:hover { border-color: var(--color-sf-accent, #06b6d4); }
+  @media (max-width: 767px) {
+    .fld { min-height:44px; }
+    .btn-primary, .btn-secondary { min-height:44px; flex:1 1 9rem; text-align:center; }
+    .sf-chk label { min-height:44px; align-items:center; }
+    .sf-chk input[type=checkbox] { width:20px; height:20px; flex-shrink:0; }
+  }
 </style>
 
 <script>

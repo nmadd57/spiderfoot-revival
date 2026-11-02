@@ -20,16 +20,20 @@
   {% set label_text = 'Info' %}
 {% endif %}
 
-<div class="flex items-start gap-3 py-3 border-b border-slate-100 dark:border-sf-border last:border-b-0">
+<div x-data="{ open: false }" class="flex items-start gap-3 py-3.5 md:py-3 border-b border-slate-100 dark:border-sf-border last:border-b-0">
   <span class="inline-block w-2.5 h-2.5 rounded-full {{ dot_color }} mt-1.5 flex-shrink-0"></span>
   <div class="flex-1 min-w-0">
-    <div class="flex items-center gap-2 mb-0.5">
+    <div class="flex flex-wrap md:flex-nowrap items-center gap-x-2 gap-y-0.5 mb-0.5">
       <span class="text-xs font-semibold uppercase tracking-wider {{ label_color }}">{{ label_text }}</span>
-      <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ finding.title }}</span>
+      <span class="text-sm font-medium text-slate-800 dark:text-slate-100 sf-break md:truncate basis-full md:basis-auto min-w-0">{{ finding.title }}</span>
     </div>
-    <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="{{ finding.description }}">{{ finding.description }}</p>
+    <p :class="open ? '' : 'max-md:line-clamp-3'" class="text-sm md:text-xs text-slate-500 dark:text-slate-400 sf-break md:truncate" title="{{ finding.description }}">{{ finding.description }}</p>
+    <p class="md:hidden text-xs text-slate-500 dark:text-slate-400 mt-1 sf-break">Rule: {{ finding.rule_name }}</p>
+    <button type="button" @click="open = !open"
+            class="md:hidden inline-flex items-center min-h-[44px] text-sm text-sf-accent"
+            x-text="open ? 'Show less' : 'Show more'">Show more</button>
   </div>
-  <span class="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap flex-shrink-0">
+  <span class="hidden md:inline text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap flex-shrink-0">
     {{ finding.rule_name }}
   </span>
 </div>

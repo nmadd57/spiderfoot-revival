@@ -38,51 +38,61 @@
 {% endif %}
 
 <tr class="border-t border-slate-100 dark:border-sf-border hover:bg-slate-50 dark:hover:bg-sf-elevated transition-colors">
-  <td class="px-4 py-3" colspan="6">
-    <div class="flex items-center justify-between mb-1">
-      <div class="flex items-center gap-3">
-        <span class="inline-block w-2 h-2 rounded-full {{ dot_class }}" style="{{ dot_extra }}"></span>
-        <span class="font-mono text-sm text-slate-800 dark:text-slate-100">{{ scan.target }}</span>
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ badge_class }}">
+  <td class="px-3 py-3 sm:px-4" colspan="6">
+    {# Phones: target + status, then counts, then big action buttons. md and up: the original single row. #}
+    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:mb-1">
+      <div class="flex items-center gap-2 md:gap-3 min-w-0">
+        <span class="inline-block w-2.5 h-2.5 md:w-2 md:h-2 rounded-full shrink-0 {{ dot_class }}" style="{{ dot_extra }}"></span>
+        <a href="/scaninfo?id={{ scan.id }}"
+           class="font-mono text-base md:text-sm text-slate-800 dark:text-slate-100 min-w-0 truncate md:overflow-visible md:whitespace-normal"
+           title="{{ scan.target }}">{{ scan.target }}</a>
+        <span class="inline-flex items-center shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium {{ badge_class }}">
           {{ badge_label }}
         </span>
       </div>
-      <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 text-xs text-slate-500 dark:text-slate-400">
         {# Event count + type breakdown #}
-        <span class="font-mono tabular-nums">{{ "{:,}".format(scan.num_results) }} events</span>
-        {% for tc in scan.type_counts %}
-        <span class="text-slate-400 dark:text-slate-500">&middot;</span>
-        <span>{{ "{:,}".format(tc.count) }} {{ tc.label }}</span>
-        {% endfor %}
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm md:text-xs md:gap-x-3">
+          <span class="font-mono tabular-nums">{{ "{:,}".format(scan.num_results) }} events</span>
+          {% for tc in scan.type_counts %}
+          <span class="text-slate-400 dark:text-slate-500">&middot;</span>
+          <span>{{ "{:,}".format(tc.count) }} {{ tc.label }}</span>
+          {% endfor %}
 
-        {# Time #}
-        <span class="text-slate-400 dark:text-slate-500">&middot;</span>
-        {% if scan.started %}
-        <span class="whitespace-nowrap">{{ scan.started | int | datetimeformat }}</span>
-        {% else %}
-        <span>&mdash;</span>
-        {% endif %}
+          {# Time #}
+          <span class="text-slate-400 dark:text-slate-500">&middot;</span>
+          {% if scan.started %}
+          <span class="whitespace-nowrap">{{ scan.started | int | datetimeformat }}</span>
+          {% else %}
+          <span>&mdash;</span>
+          {% endif %}
+        </div>
 
-        {# Actions #}
-        <a href="/scaninfo?id={{ scan.id }}"
-           class="text-sf-accent hover:text-cyan-300 font-medium ml-2">View &rarr;</a>
-        {% if s == 'RUNNING' %}
-        <button hx-post="/api/stopscan?id={{ scan.id }}" hx-confirm="Stop this scan?"
-                hx-swap="none"
-                class="text-sf-warning hover:text-amber-300 font-medium">Stop</button>
-        {% endif %}
-        <button hx-post="/api/scandelete?id={{ scan.id }}" hx-confirm="Delete this scan and all its data?"
-                hx-target="closest tr" hx-swap="delete swap:0.3s"
-                class="text-sf-critical hover:text-red-300 font-medium">Delete</button>
+        {# Actions: full-size tap targets on phones, plain links on desktop #}
+        <div class="flex items-stretch gap-2 md:items-center md:gap-3">
+          <a href="/scaninfo?id={{ scan.id }}"
+             class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
+                    border border-sf-accent/40 md:border-0 text-sm md:text-xs text-sf-accent hover:text-cyan-300 font-medium md:ml-2">View &rarr;</a>
+          {% if s == 'RUNNING' %}
+          <button hx-post="/api/stopscan?id={{ scan.id }}" hx-confirm="Stop this scan?"
+                  hx-swap="none"
+                  class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
+                         border border-sf-warning/40 md:border-0 text-sm md:text-xs text-sf-warning hover:text-amber-300 font-medium">Stop</button>
+          {% endif %}
+          <button hx-post="/api/scandelete?id={{ scan.id }}" hx-confirm="Delete this scan and all its data?"
+                  hx-target="closest tr" hx-swap="delete swap:0.3s"
+                  class="flex-1 md:flex-none inline-flex items-center justify-center min-h-[44px] md:min-h-0 px-3 md:px-0 rounded-md md:rounded-none
+                         border border-sf-critical/40 md:border-0 text-sm md:text-xs text-sf-critical hover:text-red-300 font-medium">Delete</button>
+        </div>
       </div>
     </div>
     {# Progress bar for running scans #}
     {% if scan.progress is not none and s == 'RUNNING' %}
-    <div class="flex items-center gap-2 mt-1">
-      <div class="flex-1 h-[3px] bg-slate-200 dark:bg-sf-elevated rounded-full overflow-hidden">
+    <div class="flex items-center gap-2 mt-2 md:mt-1">
+      <div class="flex-1 h-1 md:h-[3px] bg-slate-200 dark:bg-sf-elevated rounded-full overflow-hidden">
         <div class="h-full bg-sf-accent rounded-full transition-all duration-500" style="width:{{ scan.progress }}%"></div>
       </div>
-      <span class="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums min-w-[28px] text-right">{{ scan.progress }}%</span>
+      <span class="text-xs md:text-[10px] text-slate-400 dark:text-slate-500 tabular-nums min-w-[28px] text-right">{{ scan.progress }}%</span>
     </div>
     {% endif %}
   </td>

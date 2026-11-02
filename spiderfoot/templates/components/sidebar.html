@@ -1,6 +1,6 @@
 {% import 'components/icons.html' as icons %}
 {# Collapsible sidebar -- expands on hover from 56px to 200px #}
-<aside class="sidebar fixed top-0 left-0 h-screen bg-white dark:bg-sf-surface border-r border-slate-200 dark:border-sf-border z-50 flex flex-col overflow-hidden">
+<aside class="sidebar fixed top-0 left-0 h-screen bg-white dark:bg-sf-surface border-r border-slate-200 dark:border-sf-border z-50 hidden md:flex flex-col overflow-hidden">
 
   {# ---- Logo / brand ---- #}
   <div class="flex items-center h-14 px-4 border-b border-slate-200 dark:border-sf-border shrink-0">
@@ -91,3 +91,27 @@
   </div>
 
 </aside>
+
+{# ---- Phone navigation: a bottom bar replaces the hover sidebar below 768px (no hover on touch) ---- #}
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 flex items-stretch bg-white dark:bg-sf-surface border-t border-slate-200 dark:border-sf-border"
+     style="padding-bottom: env(safe-area-inset-bottom, 0px)" aria-label="Main navigation">
+  {% set mobile_items = [
+    ('DASHBOARD', url_for('ui.dashboard'), 'Dashboard', 'home'),
+    ('NEWSCAN', url_for('ui.newscan'), 'New Scan', 'plus'),
+    ('SETTINGS', url_for('ui.settings'), 'Settings', 'cog_6_tooth'),
+  ] %}
+  {% for pid, href, label, icon in mobile_items %}
+  <a href="{{ href }}" {% if page_id == pid %}aria-current="page"{% endif %}
+     class="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-xs font-medium transition-colors
+            {% if page_id == pid %}text-sf-accent{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+    {{ icons[icon](class="w-6 h-6") }}
+    <span>{{ label }}</span>
+  </a>
+  {% endfor %}
+  <button data-theme-toggle type="button" title="Toggle theme" aria-label="Toggle theme"
+          class="flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-xs font-medium text-slate-500 dark:text-slate-400">
+    <span class="icon-sun">{{ icons.sun(class="w-6 h-6") }}</span>
+    <span class="icon-moon hidden">{{ icons.moon(class="w-6 h-6") }}</span>
+    <span>Theme</span>
+  </button>
+</nav>

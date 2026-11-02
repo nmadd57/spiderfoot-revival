@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}SpiderFoot{% endblock %}</title>
 
@@ -58,7 +58,7 @@
 
   {% include 'components/sidebar.html' %}
 
-  <main class="ml-14 p-6 transition-[margin] duration-200">
+  <main class="p-3 sm:p-4 md:ml-14 md:p-6 pb-24 md:pb-6 transition-[margin] duration-200 min-w-0">
     {% block content %}{% endblock %}
   </main>
 

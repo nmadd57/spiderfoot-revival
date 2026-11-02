@@ -8,7 +8,7 @@
      active_cache  - cached row dict for the selected model, or None
 #}
 {% if ai_enabled %}
-<div class="rounded-lg border border-gray-200 dark:border-gray-800 p-4 mt-4"
+<div class="rounded-lg border border-gray-200 dark:border-gray-800 p-3 md:p-4 mt-4 mb-4 md:mb-0 min-w-0"
      x-data="{
         model: '{{ default_model }}',
         streaming: false,
@@ -29,11 +29,11 @@
           });
         }
      }">
-  <div class="flex items-center gap-2 mb-3">
-    <span class="font-semibold">AI Summary</span>
+  <div class="flex flex-wrap items-center gap-2 mb-3">
+    <span class="font-semibold w-full sm:w-auto">AI Summary</span>
     {% include 'components/model_picker.html' with context %}
     <button type="button"
-            class="px-3 py-1 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
+            class="px-3 py-1 min-h-[44px] md:min-h-0 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
             :disabled="streaming"
             @click="startStream(content && content.length > 0)">
       <span x-show="!streaming && (!content || content.length === 0)">Generate</span>
@@ -47,7 +47,7 @@
   <p x-show="error" class="text-red-600 text-sm mt-2" x-text="error"></p>
 
   {% if active_cache %}
-  <p class="text-xs text-gray-500 mt-3">
+  <p class="text-xs text-gray-500 mt-3 sf-break">
     {{ active_cache.prompt_tokens or 0 }} prompt tokens ·
     {{ active_cache.completion_tokens or 0 }} completion ·
     {% if active_cache.cost_usd is not none %}${{ '%.4f'|format(active_cache.cost_usd) }}{% else %}cost unavailable{% endif %} ·

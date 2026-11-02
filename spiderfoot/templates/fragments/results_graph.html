@@ -1,25 +1,50 @@
 {# Graph tab — interactive Cytoscape rendering of scan results #}
 {# scan_id: current scan ID #}
 
-<div class="flex flex-col"
-     style="height: calc(100vh - 220px); min-height: 600px;"
+<style>
+  /* Desktop: fixed-height canvas + side panel. Phones: natural height, canvas on top, details panel below. */
+  .sf-graph-wrap { height: calc(100vh - 220px); min-height: 600px; }
+  .sf-graph-main { min-height: 0; }
+  @media (max-width: 767px) {
+    .sf-graph-wrap { height: auto; min-height: 0; }
+    .sf-graph-main { flex-direction: column; }
+    .sf-graph-canvas-box { flex: none !important; height: 62vh; height: 62svh; min-height: 340px; touch-action: none; }
+  }
+</style>
+<div class="flex flex-col sf-graph-wrap"
      x-data="scanGraph('{{ scan_id }}')"
      x-init="init()">
 
   {# Toolbar #}
-  <div class="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-white dark:bg-sf-surface">
+  <div class="flex flex-wrap items-center gap-2 px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-white dark:bg-sf-surface"
+       x-data="{ ctl: false }">
 
-    <div class="flex items-center gap-2 min-w-0 flex-1">
+    <div class="flex flex-wrap md:flex-nowrap items-center gap-2 min-w-0 flex-1">
       <input type="text" x-model="search" @input.debounce.250ms="applySearch()"
              placeholder="Search nodes..."
-             class="w-56 max-w-full text-sm rounded-md px-3 py-1.5
+             class="w-full md:w-56 max-w-full min-h-[44px] md:min-h-0 text-sm rounded-md px-3 py-1.5
                     border border-slate-300 dark:border-sf-border
                     bg-white dark:bg-sf-elevated
                     text-slate-800 dark:text-slate-100
                     focus:outline-none focus:ring-2 focus:ring-sf-accent">
 
+      {# Phones: the secondary controls sit behind a toggle so the canvas keeps the screen #}
+      <div class="md:hidden flex items-center justify-between gap-2 w-full">
+        <button type="button" @click="ctl = !ctl" :aria-expanded="ctl"
+                class="inline-flex items-center justify-center gap-1.5 min-h-[44px] text-sm px-3 rounded-md
+                       bg-slate-100 dark:bg-sf-elevated text-slate-700 dark:text-slate-200
+                       border border-slate-300 dark:border-sf-border">
+          <span>Layout &amp; tools</span>
+          <svg class="w-4 h-4 transition-transform" :class="ctl ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </button>
+        <span class="text-sm text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
+          <span x-text="visibleNodes"></span> / <span x-text="totalNodes"></span> nodes
+        </span>
+      </div>
+
+      <div :class="ctl ? 'flex' : 'hidden'" class="md:contents flex-wrap items-center gap-2 w-full">
       <select x-model="layoutName" @change="runLayout()"
-              class="text-sm rounded-md px-2 py-1.5
+              class="min-h-[44px] md:min-h-0 flex-1 md:flex-none min-w-0 text-sm rounded-md px-2 py-1.5
                      border border-slate-300 dark:border-sf-border
                      bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-100">
         <option value="fcose">Organic (fcose)</option>
@@ -30,7 +55,7 @@
       </select>
 
       <button @click="fit()" type="button"
-              class="text-xs px-2 py-1.5 rounded-md
+              class="inline-flex items-center justify-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1.5 rounded-md
                      bg-slate-100 dark:bg-sf-elevated
                      text-slate-700 dark:text-slate-200
                      border border-slate-300 dark:border-sf-border
@@ -39,7 +64,7 @@
       </button>
 
       <a :href="`/api/scanviz?id={{ scan_id }}&gexf=1`"
-         class="text-xs px-2 py-1.5 rounded-md
+         class="inline-flex items-center justify-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1.5 rounded-md
                 bg-slate-100 dark:bg-sf-elevated
                 text-slate-700 dark:text-slate-200
                 border border-slate-300 dark:border-sf-border
@@ -50,7 +75,7 @@
       {# Reset positions cached in sessionStorage and re-run layout. #}
       <button @click="resetLayout()" type="button"
               title="Discard saved positions and re-run the layout"
-              class="text-xs px-2 py-1.5 rounded-md
+              class="inline-flex items-center justify-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1.5 rounded-md
                      bg-slate-100 dark:bg-sf-elevated
                      text-slate-700 dark:text-slate-200
                      border border-slate-300 dark:border-sf-border
@@ -61,7 +86,7 @@
       {# Only shown if user manually hid nodes via right-click. #}
       <button x-show="hiddenNodeIds.size > 0" x-cloak
               @click="unhideAll()" type="button"
-              class="text-xs px-2 py-1.5 rounded-md
+              class="inline-flex items-center justify-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1.5 rounded-md
                      bg-amber-100 dark:bg-amber-900/40
                      text-amber-800 dark:text-amber-200
                      border border-amber-300 dark:border-amber-700
@@ -76,7 +101,7 @@
               :title="collapseHubs
                 ? `Currently hiding ${collapsedLeafCount} leaf nodes under ${collapsibleHubCount} hubs. Click hubs (+N) to peek individually.`
                 : 'Re-collapse leaf children of high-degree hubs.'"
-              class="text-xs px-2 py-1.5 rounded-md border"
+              class="inline-flex items-center justify-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1.5 rounded-md border"
               :class="collapseHubs
                 ? 'bg-sf-accent/10 dark:bg-sf-accent/20 text-sf-accent border-sf-accent/40 hover:bg-sf-accent/20'
                 : 'bg-slate-100 dark:bg-sf-elevated text-slate-700 dark:text-slate-200 border-slate-300 dark:border-sf-border hover:bg-slate-200 dark:hover:bg-sf-border'">
@@ -86,27 +111,28 @@
 
       {# Min-degree slider — hide weakly-connected nodes. Root is never hidden. #}
       <div x-show="maxDegree > 1" x-cloak
-           class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300"
+           class="flex items-center gap-2 md:gap-1.5 w-full md:w-auto min-h-[44px] md:min-h-0 text-sm md:text-xs text-slate-600 dark:text-slate-300"
            title="Hide nodes with fewer than N connections. Root is always shown.">
         <span>Min deg</span>
         <input type="range" min="0" :max="Math.min(maxDegree, 20)" step="1"
                x-model.number="minDegree"
                @input="applyVisibility()"
-               class="w-20 accent-sf-accent">
+               class="flex-1 md:flex-none md:w-20 accent-sf-accent">
         <span class="font-mono w-4 text-right" x-text="minDegree"></span>
+      </div>
       </div>
     </div>
 
-    <div class="text-xs text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
+    <div class="hidden md:block text-xs text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
       <span x-text="visibleNodes"></span> / <span x-text="totalNodes"></span> nodes
     </div>
   </div>
 
   {# Category filter chips #}
-  <div class="flex flex-wrap gap-1.5 px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-slate-50 dark:bg-sf-elevated/50">
+  <div class="flex flex-wrap gap-2 md:gap-1.5 px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-slate-50 dark:bg-sf-elevated/50">
     <template x-for="cat in categories" :key="cat.key">
       <button type="button" @click="toggleCategory(cat.key)"
-              class="text-xs px-2 py-1 rounded-full border transition-colors"
+              class="inline-flex items-center min-h-[44px] md:min-h-0 text-sm md:text-xs px-3 md:px-2 py-1 rounded-full border transition-colors"
               :class="hiddenCats.has(cat.key)
                 ? 'bg-transparent border-slate-300 dark:border-sf-border text-slate-400 dark:text-slate-500 line-through opacity-60'
                 : 'border-transparent text-white'"
@@ -118,9 +144,9 @@
   </div>
 
   {# Main: graph + side panel #}
-  <div class="flex flex-1" style="min-height: 0;">
+  <div class="flex flex-1 sf-graph-main">
     {# Graph canvas #}
-    <div class="relative bg-slate-50 dark:bg-sf-bg" style="flex: 1 1 0%; min-width: 0;">
+    <div class="relative bg-slate-50 dark:bg-sf-bg sf-graph-canvas-box" style="flex: 1 1 0%; min-width: 0;">
       <div id="graph-canvas" style="position: absolute; inset: 0;"
            @contextmenu.prevent></div>
 
@@ -147,14 +173,15 @@
     </div>
 
     {# Side panel #}
-    <aside class="w-80 shrink-0 border-l border-slate-200 dark:border-sf-border bg-white dark:bg-sf-surface overflow-y-auto">
+    <aside class="w-full md:w-80 md:shrink-0 border-t md:border-t-0 md:border-l border-slate-200 dark:border-sf-border bg-white dark:bg-sf-surface overflow-y-auto max-h-80 md:max-h-none">
       <template x-if="selected">
         <div class="p-4">
           <div class="flex items-start justify-between mb-3">
             <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected node</p>
             <button @click="clearSelection()" type="button"
-                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    class="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -m-3 md:m-0 md:min-w-0 md:min-h-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    aria-label="Clear selection">
+              <svg class="w-5 h-5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
               </svg>
             </button>
@@ -170,11 +197,11 @@
           <p class="text-sm font-mono text-slate-800 dark:text-slate-100 mb-3" x-text="selected.degree"></p>
 
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Neighbors</p>
-          <ul class="text-xs space-y-1 max-h-64 overflow-y-auto">
+          <ul class="text-sm md:text-xs space-y-1 max-h-64 overflow-y-auto">
             <template x-for="n in selected.neighbors" :key="n.id">
               <li>
                 <button @click="focusNode(n.id)" type="button"
-                        class="text-left hover:text-sf-accent w-full truncate"
+                        class="text-left hover:text-sf-accent w-full truncate min-h-[44px] md:min-h-0"
                         :title="n.label + ' (' + n.type + ')'">
                   <span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
                         :style="`background-color: ${categoryColor(n.type)}`"></span>
@@ -190,7 +217,8 @@
         <div class="p-4">
           <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Graph</p>
           <p class="text-sm text-slate-600 dark:text-slate-300">
-            Click a node to inspect it. Drag to pan, scroll to zoom.
+            <span class="md:hidden">Tap a node to inspect it. Drag to pan, pinch to zoom.</span>
+            <span class="hidden md:inline">Click a node to inspect it. Drag to pan, scroll to zoom.</span>
           </p>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-3">
             Categories with no nodes are hidden. Toggle the chips above to filter.
@@ -206,22 +234,22 @@
        @keydown.escape.window="ctx.open = false"
        :style="`position: fixed; left: ${ctx.x}px; top: ${ctx.y}px; z-index: 50;`"
        class="bg-white dark:bg-sf-surface border border-slate-300 dark:border-sf-border rounded-md shadow-lg py-1 min-w-[180px] text-slate-800 dark:text-slate-100">
-    <div class="px-3 py-1 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate" x-text="ctx.label"></div>
+    <div class="px-3 py-1 text-xs md:text-[10px] md:leading-[inherit] uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate" x-text="ctx.label"></div>
     <div class="border-t border-slate-200 dark:border-sf-border my-1"></div>
     <button @click="ctxFocusNeighborhood()" type="button"
-            class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
+            class="block w-full text-left px-3 py-3 md:py-1.5 text-sm md:text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
       Focus neighborhood
     </button>
     <button @click="ctxHideNode()" type="button"
-            class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
+            class="block w-full text-left px-3 py-3 md:py-1.5 text-sm md:text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
       Hide this node
     </button>
     <button @click="ctxHideNeighborhood()" type="button"
-            class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
+            class="block w-full text-left px-3 py-3 md:py-1.5 text-sm md:text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
       Hide non-neighbors
     </button>
     <button @click="ctxCopyValue()" type="button"
-            class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
+            class="block w-full text-left px-3 py-3 md:py-1.5 text-sm md:text-xs hover:bg-slate-100 dark:hover:bg-sf-elevated">
       Copy value
     </button>
   </div>

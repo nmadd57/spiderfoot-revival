@@ -92,3 +92,16 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.3);
   border-color: rgba(6, 182, 212, 0.5);
 }
+
+
+/* ---- Small screens ---- */
+@media (max-width: 767px) {
+  html { -webkit-text-size-adjust: 100%; }
+  /* 16px form controls stop iOS Safari from zooming the page when a field is focused */
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px; }
+  /* Opt-in: let a long target, URL or hash wrap anywhere instead of widening the page */
+  .sf-break { overflow-wrap: anywhere; }
+  /* Native momentum scrolling for horizontally scrollable strips (tabs, wide tables) */
+  .sf-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .sf-scroll-x::-webkit-scrollbar { display: none; }
+}

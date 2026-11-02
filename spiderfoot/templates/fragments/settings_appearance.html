@@ -11,11 +11,11 @@
     {# Operations theme (dark) #}
     <button type="button"
             onclick="setTheme('dark')"
-            class="theme-card group relative text-left rounded-xl border-2 overflow-hidden transition-all duration-150
+            class="theme-card group relative w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-150
                    border-transparent hover:border-sf-accent focus:outline-none focus:border-sf-accent"
             id="theme-dark-card">
       {# Preview area #}
-      <div class="h-32 bg-[#0a0e17] p-3 flex flex-col gap-2">
+      <div class="h-24 sm:h-32 bg-[#0a0e17] p-3 flex flex-col gap-2">
         <div class="flex items-center gap-1.5">
           <div class="w-2 h-2 rounded-full bg-[#334155]"></div>
           <div class="h-1.5 w-20 rounded bg-[#334155]"></div>
@@ -32,7 +32,7 @@
       </div>
       {# Label #}
       <div class="px-4 py-3 bg-white dark:bg-sf-elevated border-t border-slate-200 dark:border-sf-border">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3 md:gap-0">
           <div>
             <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Operations</p>
             <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Dark theme — easier on the eyes in low light.</p>
@@ -50,11 +50,11 @@
     {# Analyst theme (light) #}
     <button type="button"
             onclick="setTheme('light')"
-            class="theme-card group relative text-left rounded-xl border-2 overflow-hidden transition-all duration-150
+            class="theme-card group relative w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-150
                    border-transparent hover:border-sf-accent focus:outline-none focus:border-sf-accent"
             id="theme-light-card">
       {# Preview area #}
-      <div class="h-32 bg-slate-100 p-3 flex flex-col gap-2">
+      <div class="h-24 sm:h-32 bg-slate-100 p-3 flex flex-col gap-2">
         <div class="flex items-center gap-1.5">
           <div class="w-2 h-2 rounded-full bg-slate-300"></div>
           <div class="h-1.5 w-20 rounded bg-slate-300"></div>
@@ -71,7 +71,7 @@
       </div>
       {# Label #}
       <div class="px-4 py-3 bg-white dark:bg-sf-elevated border-t border-slate-200 dark:border-sf-border">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3 md:gap-0">
           <div>
             <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Analyst</p>
             <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Light theme — clear and readable in bright environments.</p>
@@ -89,11 +89,11 @@
     {# Auto theme (system preference) #}
     <button type="button"
             onclick="setTheme('auto')"
-            class="theme-card group relative text-left rounded-xl border-2 overflow-hidden transition-all duration-150
+            class="theme-card group relative w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-150
                    border-transparent hover:border-sf-accent focus:outline-none focus:border-sf-accent"
             id="theme-auto-card">
       {# Preview area — split dark/light #}
-      <div class="h-32 flex overflow-hidden">
+      <div class="h-24 sm:h-32 flex overflow-hidden">
         <div class="w-1/2 bg-[#0a0e17] p-3 flex flex-col gap-2">
           <div class="flex items-center gap-1">
             <div class="w-1.5 h-1.5 rounded-full bg-[#334155]"></div>
@@ -119,7 +119,7 @@
       </div>
       {# Label #}
       <div class="px-4 py-3 bg-white dark:bg-sf-elevated border-t border-slate-200 dark:border-sf-border">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3 md:gap-0">
           <div>
             <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Auto</p>
             <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Follows your operating system preference.</p>

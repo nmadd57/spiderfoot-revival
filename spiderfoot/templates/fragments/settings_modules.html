@@ -1,6 +1,6 @@
 {# Settings > Modules: one place for every module. Enable/disable, API keys and other options,
    binary paths, usage limits and quota, plus status and errors from past scans. #}
-<div x-data='modulesPage({{ modules | tojson }}, {{ 'true' if auto_disable else 'false' }})' x-init="init()">
+<div class="sf-mods" x-data='modulesPage({{ modules | tojson }}, {{ 'true' if auto_disable else 'false' }})' x-init="init()">
 
   <div class="flex items-start justify-between mb-4 gap-4 flex-wrap">
     <div class="min-w-0">
@@ -11,37 +11,44 @@
         Disabled modules are hidden from New Scan and never run, even from the API.
       </p>
     </div>
-    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap pt-1"
+    <span class="text-sm md:text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap md:pt-1"
           x-text="enabledCount() + ' of ' + all.length + ' enabled'"></span>
   </div>
 
-  <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3 cursor-pointer">
-    <input type="checkbox" :checked="auto" @change="setAuto($event.target.checked)" class="rounded border-slate-300 dark:border-sf-border">
-    Automatically disable modules that need an API key (or tool) but have none, or that are over their quota/limit
-    <span class="text-slate-400">(they come back by themselves once fixed)</span>
+  <label class="flex items-start md:items-center gap-3 md:gap-2 text-sm md:text-xs text-slate-600 dark:text-slate-300 mb-3 cursor-pointer">
+    <input type="checkbox" :checked="auto" @change="setAuto($event.target.checked)" class="mt-0.5 md:mt-0 rounded border-slate-300 dark:border-sf-border">
+    <span class="min-w-0">Automatically disable modules that need an API key (or tool) but have none, or that are over their quota/limit
+    <span class="text-slate-400">(they come back by themselves once fixed)</span></span>
   </label>
 
   <div class="flex gap-2 mb-3 items-center flex-wrap">
     <input type="search" x-model="q" placeholder="Search modules…"
-           class="flex-1 min-w-[12rem] rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-surface
+           class="w-full md:w-auto flex-1 min-w-[12rem] rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-surface
                   text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sf-accent">
+    <div class="grid grid-cols-2 gap-2 w-full md:contents">
     <button type="button" @click="checkAll()" :disabled="checking" class="btn" x-text="checking ? 'Checking quotas…' : 'Check all quotas'"
             title="Ask every vendor with a configured key for its remaining quota (AbuseIPDB's check uses one request)"></button>
     <button type="button" @click="refresh()" class="btn">Reload</button>
     <button type="button" onclick="window.location='/api/optsexport?pattern=api_key'" class="btn" title="Download your API keys as a .cfg file">Export keys</button>
     <input type="file" id="import-cfg-input" accept=".cfg,.txt,.conf" class="hidden" @change="importKeys($event.target)">
     <button type="button" onclick="document.getElementById('import-cfg-input').click()" class="btn" title="Import a .cfg exported from SpiderFoot">Import keys</button>
+    </div>
   </div>
 
-  {# Filters #}
-  <div class="space-y-2 mb-4 text-xs">
+  {# Filters: collapsed behind a button on phones, always shown from md up #}
+  <div x-data="{ fo: false }">
+  <button type="button" @click="fo = !fo" :aria-expanded="fo" class="btn md:hidden w-full mb-3 flex items-center justify-between">
+    <span>Filters<span x-show="Object.values(filters).filter(Boolean).length" x-text="' (' + Object.values(filters).filter(Boolean).length + ' active)'"></span></span>
+    <svg class="w-4 h-4 transition-transform" :class="fo ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/></svg>
+  </button>
+  <div class="space-y-3 md:space-y-2 mb-4 text-sm md:text-xs" :class="fo ? '' : 'hidden md:block'">
     <template x-for="grp in filterGroups" :key="grp.id">
-      <div class="flex flex-wrap items-center gap-1.5">
-        <span class="w-16 text-slate-500 dark:text-slate-400" x-text="grp.label"></span>
+      <div class="flex flex-wrap items-center gap-2 md:gap-1.5">
+        <span class="w-full sm:w-16 text-slate-500 dark:text-slate-400" x-text="grp.label"></span>
         <template x-for="opt in grp.options" :key="opt.id">
           <button type="button" @click="toggleFilter(grp.id, opt.id)"
                   :class="filters[grp.id] === opt.id ? opt.on : 'border-slate-300 dark:border-sf-border text-slate-500 dark:text-slate-400 hover:border-slate-400'"
-                  class="px-2.5 py-1 rounded-full border transition-colors">
+                  class="flex md:block items-center gap-1 min-h-[40px] md:min-h-0 px-3 md:px-2.5 py-1 rounded-full border transition-colors">
             <span x-text="opt.label"></span>
             <span class="opacity-60" x-text="'(' + count(grp.id, opt.id) + ')'"></span>
           </button>
@@ -49,15 +56,18 @@
       </div>
     </template>
   </div>
+  </div>
 
   <div class="flex items-center gap-2 mb-3 flex-wrap">
-    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="shown().length + ' shown'"></span>
+    <span class="text-sm md:text-xs text-slate-500 dark:text-slate-400" x-text="shown().length + ' shown'"></span>
+    <div class="grid grid-cols-2 gap-2 w-full md:contents">
     <button type="button" @click="setMany(shown(), true)" class="btn">Enable shown</button>
     <button type="button" @click="setMany(shown(), false)" class="btn">Disable shown</button>
     <button type="button" @click="setMany(shown(), true, 'default_off')" class="btn" title="Pre-select on New Scan">Default on (shown)</button>
     <button type="button" @click="setMany(shown(), false, 'default_off')" class="btn" title="Do not pre-select on New Scan">Default off (shown)</button>
-    <span class="text-xs text-red-500" x-text="err"></span>
-    <span class="text-xs text-sf-success" x-text="note"></span>
+    </div>
+    <span class="text-sm md:text-xs text-red-500" x-text="err"></span>
+    <span class="text-sm md:text-xs text-sf-success" x-text="note"></span>
   </div>
 
   <div class="divide-y divide-slate-200 dark:divide-sf-border border border-slate-200 dark:border-sf-border rounded-lg">
@@ -65,42 +75,45 @@
       <div class="px-3 py-2">
 
         {# ---- row ---- #}
-        <div class="flex items-center gap-3" :class="(m.disabled || (m.autoReason && auto)) ? 'opacity-70' : ''">
+        <div class="flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1" :class="(m.disabled || (m.autoReason && auto)) ? 'opacity-70' : ''">
           <button type="button" role="switch" :aria-checked="!m.disabled" @click="setMany([m], m.disabled)" title="Enable / disable this module"
                   :class="m.disabled ? 'bg-slate-300 dark:bg-slate-600' : 'bg-sf-accent'"
-                  class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors">
+                  class="sf-hit relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors">
             <span :class="m.disabled ? 'translate-x-0.5' : 'translate-x-4'"
                   class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white transition-transform"></span>
           </button>
 
-          <div class="min-w-0 flex-1 cursor-pointer" @click="toggle(m)">
+          {# phone only: the name sits beside the switch and the Test button, chips and summary go on the next line #}
+          <span class="md:hidden flex-1 min-w-0 sf-break text-sm font-medium text-slate-800 dark:text-slate-100 cursor-pointer" @click="toggle(m)" x-text="m.name"></span>
+
+          <div class="min-w-0 cursor-pointer order-last basis-full pl-12 md:pl-0 md:order-none md:basis-0 md:flex-1" @click="toggle(m)">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-sm font-medium text-slate-800 dark:text-slate-100" x-text="m.name"></span>
-              <span x-show="m.pricing === 'free'" class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/50 leading-none">FREE</span>
-              <span x-show="m.pricing === 'free_key'" class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/50 leading-none">FREE TIER</span>
-              <span x-show="m.pricing === 'paid'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
-              <span x-show="m.pricing === 'local'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded border leading-none" :class="pill(status(m).k)" x-text="status(m).label"></span>
-              <span x-show="m.requiresKey && m.keyConfigured && !m.keyIssue" class="text-[10px] text-sf-success">key set</span>
-              <span x-show="tests[m.id]" class="text-[10px] px-1.5 py-0.5 rounded border leading-none"
+              <span class="hidden md:inline text-sm font-medium text-slate-800 dark:text-slate-100" x-text="m.name"></span>
+              <span x-show="m.pricing === 'free'" class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/50 leading-none">FREE</span>
+              <span x-show="m.pricing === 'free_key'" class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/50 leading-none">FREE TIER</span>
+              <span x-show="m.pricing === 'paid'" class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/50 leading-none">PAID</span>
+              <span x-show="m.pricing === 'local'" class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 leading-none">LOCAL</span>
+              <span class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded border leading-none" :class="pill(status(m).k)" x-text="status(m).label"></span>
+              <span x-show="m.requiresKey && m.keyConfigured && !m.keyIssue" class="text-[12px] md:text-[10px] text-sf-success">key set</span>
+              <span x-show="tests[m.id]" class="text-[12px] md:text-[10px] px-1.5 py-0.5 rounded border leading-none"
                     :class="tests[m.id] ? testPill(tests[m.id].status) : ''" x-text="tests[m.id] ? ('test ' + testWord(tests[m.id].status)) : ''"></span>
-              <span x-show="m.has_limits" class="text-[10px] text-sf-accent">limits</span>
-              <span x-show="overLimit(m)" class="text-[10px] text-red-500">limit reached</span>
+              <span x-show="m.has_limits" class="text-[12px] md:text-[10px] text-sf-accent">limits</span>
+              <span x-show="overLimit(m)" class="text-[12px] md:text-[10px] text-red-500">limit reached</span>
             </div>
-            <p class="text-xs text-slate-400 dark:text-slate-500 truncate" x-text="m.summary"></p>
-            <p x-show="status(m).detail" class="text-[11px] truncate" :class="status(m).k === 'bad' ? 'text-red-400' : 'text-amber-500'"
+            <p class="text-xs text-slate-400 dark:text-slate-500 line-clamp-2 md:line-clamp-none md:truncate" x-text="m.summary"></p>
+            <p x-show="status(m).detail" class="text-[12px] md:text-[11px] md:truncate" :class="status(m).k === 'bad' ? 'text-red-400' : 'text-amber-500'"
                x-text="status(m).detail"></p>
           </div>
 
           <div class="text-right text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono cursor-pointer hidden sm:block" @click="toggle(m)">
             <div x-show="m.canLimit"><span x-text="m.calls_today || 0"></span><span x-show="m.limits && m.limits.per_day" x-text="' / ' + (m.limits && m.limits.per_day)"></span> today</div>
-            <div x-show="m.quota && m.quota.ok" class="text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
+            <div x-show="m.quota && m.quota.ok" class="text-[12px] md:text-[11px]" :class="quotaLow(m) ? 'text-amber-500' : 'text-sf-success'"
                  x-text="m.quota && m.quota.ok ? ('quota: ' + quotaShort(m.quota)) : ''"></div>
           </div>
-          <button type="button" @click="runTest(m, true)" :disabled="testing === m.id" class="btn shrink-0"
+          <button type="button" @click="runTest(m, true)" :disabled="testing === m.id" class="btn shrink-0 min-w-[4.5rem] md:min-w-0"
                   :title="m.id.startsWith('sfp_tool_') ? 'Start the tool with a version flag to check it works' : 'Run this module against a sample and show what it returns'"
                   x-text="testing === m.id ? 'Testing…' : 'Test'"></button>
-          <button type="button" @click="toggle(m)" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0" :title="open === m.id ? 'Close' : 'Open'">
+          <button type="button" @click="toggle(m)" class="inline-flex items-center justify-center w-10 h-11 -mr-2 md:w-auto md:h-auto md:mr-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0" :title="open === m.id ? 'Close' : 'Open'">
             <svg class="w-4 h-4 transition-transform" :class="open === m.id ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/>
             </svg>
@@ -112,15 +125,15 @@
 
           {# Left: settings #}
           <div class="min-w-0">
-            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2" x-text="m.summary"></p>
+            <p class="text-sm md:text-xs text-slate-500 dark:text-slate-400 mb-2 sf-break" x-text="m.summary"></p>
 
             <template x-if="m.configurable">
               <div>
                 <template x-for="grp in fieldGroups(m)" :key="grp.id">
                   <div class="mb-3">
-                    <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" x-text="grp.label"></p>
+                    <p class="text-sm md:text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" x-text="grp.label"></p>
                     <template x-for="f in grp.fields" :key="f.opt">
-                      <label class="block text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      <label class="block text-sm md:text-xs text-slate-500 dark:text-slate-400 mb-3 md:mb-2">
                         <span x-text="f.label" class="block mb-0.5"></span>
                         <template x-if="f.kind === 'bool'">
                           <select x-model="edit[f.opt]" class="inp">
@@ -139,44 +152,44 @@
                           <input type="text" autocomplete="off" x-model="edit[f.opt]" class="inp font-mono"
                                  :placeholder="f.kind === 'list' ? 'comma separated' : (f.group === 'tool' ? 'e.g. /usr/local/bin/' : '')">
                         </template>
-                        <span x-show="f.kind === 'secret' && f.value === MASK && edit[f.opt] === MASK" class="text-[11px] text-sf-success">Set. Click to replace.</span>
+                        <span x-show="f.kind === 'secret' && f.value === MASK && edit[f.opt] === MASK" class="text-[12px] md:text-[11px] text-sf-success">Set. Click to replace.</span>
                         <button type="button" x-show="f.kind === 'secret' && f.value === MASK && edit[f.opt] !== ''" @click.prevent="cleared[f.opt] = true; edit[f.opt] = ''"
-                                class="text-[11px] text-red-400 hover:underline">Remove this key</button>
-                        <span x-show="f.kind === 'secret' && cleared[f.opt] && edit[f.opt] === ''" class="text-[11px] text-amber-500">Will be removed when you save.</span>
+                                class="text-[12px] md:text-[11px] text-red-400 hover:underline">Remove this key</button>
+                        <span x-show="f.kind === 'secret' && cleared[f.opt] && edit[f.opt] === ''" class="text-[12px] md:text-[11px] text-amber-500">Will be removed when you save.</span>
                       </label>
                     </template>
                   </div>
                 </template>
 
-                <div class="flex gap-2 flex-wrap items-center">
+                <div class="flex gap-2 flex-wrap items-center sf-btnrow">
                   <button type="button" @click="saveOptions(m)" :disabled="busy || !dirty(m)" class="btn">Save settings</button>
                   <button type="button" x-show="m.provider_opts" @click="check(m, false)" :disabled="busy" class="btn"
                           x-text="newKeyEntered(m) ? 'Test key' : 'Check quota'"></button>
                   <button type="button" x-show="m.provider_opts && newKeyEntered(m)" @click="check(m, true)" :disabled="busy" class="btn">Test &amp; save key</button>
-                  <span class="text-xs text-sf-success" x-text="saved"></span>
+                  <span class="text-sm md:text-xs text-sf-success" x-text="saved"></span>
                 </div>
-                <div x-show="result" class="mt-2 text-xs rounded border p-2"
+                <div x-show="result" class="mt-2 text-sm md:text-xs rounded border p-2 sf-break"
                      :class="result && result.valid === false ? 'border-red-500/50 text-red-400' : (result && result.ok ? 'border-green-500/50 text-green-400' : 'border-slate-500/40 text-slate-400')">
                   <p x-text="result && result.message"></p>
                   <p class="font-mono" x-show="result && quotaLine(result)" x-text="result && quotaLine(result)"></p>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-2" x-show="m.requiresKey && !m.provider_opts">
+                <p class="text-[12px] md:text-[11px] text-slate-400 mt-2" x-show="m.requiresKey && !m.provider_opts">
                   This vendor has no quota or key-test endpoint wired up; calls are counted locally and any rate-limit headers are shown.
                 </p>
               </div>
             </template>
             <template x-if="!m.configurable && m.settingsTab">
-              <p class="text-xs text-slate-500 dark:text-slate-400">
+              <p class="text-sm md:text-xs text-slate-500 dark:text-slate-400">
                 This module is set up on its own tab.
-                <button type="button" class="text-sf-accent hover:underline"
+                <button type="button" class="text-sf-accent hover:underline py-2 md:py-0"
                         @click="document.querySelector('nav button[hx-get*=&quot;section=' + m.settingsTab + '&quot;]').click()">Open Web Search settings</button>
               </p>
             </template>
             <template x-if="!m.configurable && !m.settingsTab">
-              <p class="text-xs text-slate-400">This module has no settings. Use the switch to enable or disable it.</p>
+              <p class="text-sm md:text-xs text-slate-400">This module has no settings. Use the switch to enable or disable it.</p>
             </template>
 
-            <label class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-3 cursor-pointer">
+            <label class="flex items-center gap-2 md:gap-1.5 min-h-[44px] md:min-h-0 text-sm md:text-xs text-slate-500 dark:text-slate-400 mt-1 md:mt-3 cursor-pointer">
               <input type="checkbox" :checked="!m.defaultOff" @change="setMany([m], !$event.target.checked, 'default_off')">
               Pre-select on New Scan
             </label>
@@ -184,14 +197,14 @@
 
           {# Right: status and usage #}
           <div class="min-w-0">
-            <div class="mb-3 rounded border border-slate-300 dark:border-sf-border p-2 text-xs">
+            <div class="mb-3 rounded border border-slate-300 dark:border-sf-border p-2 text-sm md:text-xs">
               <p class="font-semibold text-slate-600 dark:text-slate-300 mb-1">Test</p>
               <div class="flex gap-2 items-center flex-wrap">
                 <input type="text" x-model="testTarget" :placeholder="m.id.startsWith('sfp_tool_') ? 'Tool modules only start the binary' : 'Target (optional): domain, IP, email…'"
                        :disabled="m.id.startsWith('sfp_tool_')" class="inp flex-1 min-w-[10rem] font-mono" style="margin-top:0" @keydown.enter="runTest(m, false)">
                 <button type="button" @click="runTest(m, false)" :disabled="testing === m.id" class="btn" x-text="testing === m.id ? 'Testing…' : 'Run test'"></button>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1" x-show="!tests[m.id] && testing !== m.id">
+              <p class="text-[12px] md:text-[11px] text-slate-400 mt-1" x-show="!tests[m.id] && testing !== m.id">
                 Leave the target empty to use a harmless sample. A test makes real calls with your key (usually 1–3) and counts toward your limits. Nothing is saved.
               </p>
               <template x-if="tests[m.id]">
@@ -207,12 +220,12 @@
                   </template>
                   <div x-show="tests[m.id].requests.length" class="mt-1 font-mono text-slate-400">
                     <template x-for="(r, i) in tests[m.id].requests" :key="i">
-                      <p class="truncate" x-text="'HTTP ' + (r.code || 'no reply') + '  ' + r.host + r.path"></p>
+                      <p class="break-all md:truncate" x-text="'HTTP ' + (r.code || 'no reply') + '  ' + r.host + r.path"></p>
                     </template>
                   </div>
                   <div x-show="tests[m.id].events.length" class="mt-1 font-mono text-slate-500 dark:text-slate-400">
                     <template x-for="(e, i) in tests[m.id].events" :key="i">
-                      <p class="truncate" x-text="e.type + '  ' + e.data"></p>
+                      <p class="break-all md:truncate" x-text="e.type + '  ' + e.data"></p>
                     </template>
                     <p x-show="tests[m.id].eventCount > tests[m.id].events.length" x-text="'… and ' + (tests[m.id].eventCount - tests[m.id].events.length) + ' more'"></p>
                   </div>
@@ -220,22 +233,22 @@
               </template>
             </div>
 
-            <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Status</p>
-            <div class="text-xs mb-2">
+            <p class="text-sm md:text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Status</p>
+            <div class="text-sm md:text-xs mb-2">
               <span class="px-1.5 py-0.5 rounded border" :class="pill(status(m).k)" x-text="status(m).label"></span>
             </div>
-            <div x-show="m.keyIssue" class="mb-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-xs">
+            <div x-show="m.keyIssue" class="mb-2 rounded border border-red-500/40 bg-red-500/10 p-2 text-sm md:text-xs sf-break">
               <p class="font-semibold text-red-400" x-text="keyIssueLabel(m)"></p>
               <p class="text-slate-500 dark:text-slate-400 mt-0.5" x-text="m.keyIssue ? m.keyIssue.detail : ''"></p>
               <p class="text-slate-400 mt-0.5" x-text="m.keyIssue ? ('seen ' + m.keyIssue.hits + '× in scans, last ' + when(m.keyIssue.seen)) : ''"></p>
               <p class="text-slate-400 mt-0.5">Clears when you change or successfully test the key.</p>
               <button type="button" @click="dismissIssue(m)" class="btn mt-1">Dismiss</button>
             </div>
-            <div x-show="m.stats.lastError" class="mb-2 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
+            <div x-show="m.stats.lastError" class="mb-2 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-sm md:text-xs">
               <p class="font-semibold text-amber-500">Last key-related error <span class="font-normal text-slate-400" x-text="'· ' + when(m.stats.lastErrorAt)"></span></p>
               <p class="text-slate-500 dark:text-slate-400 mt-0.5 break-words" x-text="m.stats.lastError"></p>
             </div>
-            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
+            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm md:text-xs text-slate-500 dark:text-slate-400 mb-3">
               <dt>Results produced</dt><dd class="font-mono" x-text="m.stats.events"></dd>
               <dt>Last result</dt><dd class="font-mono" x-text="m.stats.lastEventAt ? when(m.stats.lastEventAt) : 'never'"></dd>
               <dt>Key errors (7 days)</dt><dd class="font-mono" x-text="m.stats.errors7d"></dd>
@@ -244,8 +257,8 @@
 
             <template x-if="m.canLimit">
               <div>
-                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Usage</p>
-                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
+                <p class="text-sm md:text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Usage</p>
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm md:text-xs text-slate-500 dark:text-slate-400 mb-3">
                   <dt>Calls today</dt><dd class="font-mono" x-text="m.calls_today || 0"></dd>
                   <dt>This period</dt><dd class="font-mono" x-text="m.calls_period || 0"></dd>
                   <dt>All time</dt><dd class="font-mono" x-text="m.calls_total || 0"></dd>
@@ -257,8 +270,8 @@
                   <dd class="font-mono" x-show="m.vendor_rate" x-text="vendorHeader(m)"></dd>
                 </dl>
 
-                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Limits <span class="font-normal text-slate-400">(0 or empty = no limit)</span></p>
-                <div class="grid grid-cols-2 gap-2 text-xs">
+                <p class="text-sm md:text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Limits <span class="font-normal text-slate-400">(0 or empty = no limit)</span></p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-2 text-sm md:text-xs">
                   <label>Calls / second<input type="number" min="0" step="any" x-model="form.per_second" class="inp"></label>
                   <label>Calls / day<input type="number" min="0" step="1" x-model="form.per_day" class="inp"></label>
                   <label>Total calls / period<input type="number" min="0" step="1" x-model="form.total" class="inp"></label>
@@ -269,11 +282,11 @@
                       <option value="monthly">Monthly</option><option value="yearly">Yearly</option>
                     </select>
                   </label>
-                  <label class="flex items-center gap-1.5 mt-5"><input type="checkbox" x-model="form.enforce"> Enforce (delay / block)</label>
+                  <label class="flex items-center gap-2 md:gap-1.5 min-h-[44px] md:min-h-0 md:mt-5"><input type="checkbox" x-model="form.enforce"> Enforce (delay / block)</label>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Per-second delays calls; day and total limits block further calls.
+                <p class="text-[12px] md:text-[11px] text-slate-400 mt-1">Per-second delays calls; day and total limits block further calls.
                   Period started <span x-text="(m.limits && m.limits.period_start) || 'at the first recorded call'"></span>.</p>
-                <div class="flex gap-2 mt-2 flex-wrap">
+                <div class="flex gap-2 mt-2 flex-wrap sf-btnrow">
                   <button type="button" @click="saveLimits(m)" class="btn">Save limits</button>
                   <button type="button" @click="clearLimits(m)" class="btn">Clear</button>
                   <button type="button" @click="newPeriod(m)" class="btn">Start new period now</button>
@@ -294,6 +307,14 @@
   .btn { font-size:12px; padding:4px 10px; border-radius:6px; border:1px solid rgb(148 163 184 / .5); white-space:nowrap; }
   .btn:hover { border-color: var(--color-sf-accent, #22d3ee); }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
+  @media (max-width: 767px) {
+    .inp { min-height:44px; padding:8px 12px; margin-top:4px; font-size:16px; }
+    .btn { font-size:14px; min-height:44px; padding:8px 12px; white-space:normal; text-align:center; line-height:1.25; }
+    .sf-btnrow > .btn { flex:1 1 auto; }
+    .sf-mods input[type=checkbox] { width:20px; height:20px; flex-shrink:0; }
+    /* enlarge the tap area of the small on/off switch without changing how it looks */
+    .sf-hit::after { content:''; position:absolute; inset:-12px -6px; }
+  }
 </style>
 
 <script>

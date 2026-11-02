@@ -15,7 +15,7 @@
       <input id="g-maxthreads" name="_maxthreads" type="number" min="1" max="256"
              value="{{ config.get('_maxthreads', 3) }}"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent">
       <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Higher values speed up scans but use more CPU and memory. Start with 3 and increase if your system can handle it.</p>
     </div>
@@ -27,7 +27,7 @@
              value="{{ config.get('_dnsserver', '') }}"
              placeholder="Leave blank for system default"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm font-mono px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm font-mono min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent">
       <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Override the system DNS resolver. Use 8.8.8.8 (Google) or 1.1.1.1 (Cloudflare) for reliability.</p>
     </div>
@@ -38,7 +38,7 @@
       <input id="g-useragent" name="_useragent" type="text"
              value="{{ config.get('_useragent', '') }}"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm font-mono px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm font-mono min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent">
       <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">The browser identity string sent with HTTP requests. Changing this can help avoid being blocked by some websites.</p>
     </div>
@@ -49,16 +49,16 @@
       <input id="g-fetchtimeout" name="_fetchtimeout" type="number" min="1" max="300"
              value="{{ config.get('_fetchtimeout', 5) }}"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent">
       <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">How long to wait for each HTTP response before giving up. Increase for slow or distant targets.</p>
     </div>
 
   </div>
 
-  <div class="flex items-center gap-3 pt-2">
+  <div class="flex flex-wrap items-center gap-3 pt-2">
     <button type="button" onclick="saveGeneralSettings()"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sf-accent text-white text-sm font-medium
+            class="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[44px] md:min-h-0 px-4 py-2 rounded-md bg-sf-accent text-white text-sm font-medium
                    hover:bg-cyan-400 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-sf-accent focus:ring-offset-2">
       Save General Settings
     </button>

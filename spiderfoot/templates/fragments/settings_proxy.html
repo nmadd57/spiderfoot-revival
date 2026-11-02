@@ -15,7 +15,7 @@
       <select id="p-type" name="_socks1type"
               x-model="proxyType"
               class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                     text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none
+                     text-slate-800 dark:text-slate-100 text-sm min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                      focus:ring-2 focus:ring-sf-accent focus:border-transparent">
         {% set current_type = config.get('_socks1type', '') %}
         <option value="" {% if not current_type %}selected{% endif %}>None — direct connection</option>
@@ -41,7 +41,7 @@
              placeholder="127.0.0.1"
              :disabled="!proxyType"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm font-mono px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm font-mono min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent disabled:opacity-50">
     </div>
 
@@ -53,7 +53,7 @@
              placeholder="9050"
              :disabled="!proxyType"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent disabled:opacity-50">
     </div>
 
@@ -67,7 +67,7 @@
              autocomplete="username"
              :disabled="!proxyType"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm font-mono px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm font-mono min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent disabled:opacity-50">
     </div>
 
@@ -81,15 +81,15 @@
              autocomplete="new-password"
              :disabled="!proxyType"
              class="w-full rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
-                    text-slate-800 dark:text-slate-100 text-sm font-mono px-3 py-2 focus:outline-none
+                    text-slate-800 dark:text-slate-100 text-sm font-mono min-h-[44px] md:min-h-0 px-3 py-2 focus:outline-none
                     focus:ring-2 focus:ring-sf-accent focus:border-transparent disabled:opacity-50">
     </div>
 
   </div>
 
-  <div class="flex items-center gap-3 pt-2">
+  <div class="flex flex-wrap items-center gap-3 pt-2">
     <button type="button" onclick="saveProxySettings()"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sf-accent text-white text-sm font-medium
+            class="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[44px] md:min-h-0 px-4 py-2 rounded-md bg-sf-accent text-white text-sm font-medium
                    hover:bg-cyan-400 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-sf-accent focus:ring-offset-2">
       Save Proxy Settings
     </button>

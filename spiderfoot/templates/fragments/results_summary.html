@@ -1,18 +1,18 @@
 {# Summary tab content — findings + categorized event groups #}
 
-<div class="p-6 space-y-8">
+<div class="p-3 md:p-6 space-y-6 md:space-y-8">
 
   {# Key Findings (correlations) — unchanged #}
   <div>
     <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Key Findings</h3>
     {% if findings %}
-    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg px-4">
+    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg px-3 md:px-4">
       {% for finding in findings %}
         {% include 'components/finding_row.html' %}
       {% endfor %}
     </div>
     {% else %}
-    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg p-6 text-center">
+    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg p-4 md:p-6 text-center">
       <p class="text-sm text-slate-400 dark:text-slate-500">No findings for this scan.</p>
       <p class="text-xs text-slate-400/60 dark:text-slate-500/60 mt-1">Findings are generated when correlation rules detect patterns across events, such as exposed credentials or open services.</p>
     </div>
@@ -26,13 +26,13 @@
     <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
       {{ cat.label }}
     </h3>
-    <div class="flex flex-wrap gap-3">
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:gap-3">
       {% for item in cat.entries %}
-      <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg px-4 py-3 text-center min-w-[90px]">
+      <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg px-3 md:px-4 py-3 text-center min-w-0 md:min-w-[90px]">
         <p class="text-xl font-mono font-bold text-slate-800 dark:text-slate-100">
           {{ "{:,}".format(item.count) }}
         </p>
-        <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{{ item.label }}</p>
+        <p class="text-xs text-slate-500 md:text-slate-400 dark:text-slate-400 md:dark:text-slate-500 mt-0.5 sf-break">{{ item.label }}</p>
       </div>
       {% endfor %}
     </div>
@@ -41,7 +41,7 @@
   {% else %}
   <div>
     <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Event Summary</h3>
-    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg p-6 text-center">
+    <div class="bg-slate-50 dark:bg-sf-elevated rounded-lg p-4 md:p-6 text-center">
       <p class="text-sm text-slate-400 dark:text-slate-500">No events recorded yet.</p>
       <p class="text-xs text-slate-400/60 dark:text-slate-500/60 mt-1">Events appear as modules discover information about the target — domains, IPs, emails, technologies, and more.</p>
     </div>

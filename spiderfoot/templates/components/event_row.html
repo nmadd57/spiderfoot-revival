@@ -7,28 +7,31 @@
      class="border-b border-slate-100 dark:border-sf-border/60 last:border-b-0">
 
   {# Collapsed row #}
+  {# Phones: stacked card (badge + count + module on top, value wrapped below). md+: single line. #}
   <div @click="expanded = !expanded"
-       class="flex items-center gap-3 px-3 py-2.5 cursor-pointer
-              hover:bg-slate-50 dark:hover:bg-sf-elevated/40 transition-colors group">
+       class="flex items-start md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 min-h-[44px] md:min-h-0 cursor-pointer
+              hover:bg-slate-50 dark:hover:bg-sf-elevated/40 active:bg-slate-50 dark:active:bg-sf-elevated/40 transition-colors group">
 
     {# Expand indicator #}
-    <span class="text-slate-400 dark:text-slate-500 text-xs shrink-0 w-4 text-center transition-transform"
+    <span class="text-slate-400 dark:text-slate-500 text-base md:text-xs leading-5 md:leading-normal shrink-0 w-4 text-center transition-transform"
           :class="expanded ? 'rotate-90' : ''">&rsaquo;</span>
 
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 flex-1 min-w-0 md:contents">
+
     {# Type badge #}
-    <span class="inline-flex items-center shrink-0 text-[11px] font-medium px-2 py-0.5 rounded
+    <span class="inline-flex items-center shrink-0 order-1 md:order-none text-xs md:text-[11px] md:leading-[inherit] font-medium px-2 py-0.5 rounded
                  {{ event.badge_color }}
-                 whitespace-nowrap max-w-[180px] truncate"
+                 whitespace-nowrap max-w-full md:max-w-[180px] truncate"
           title="{{ event.type }}">
       {{ event.type }}
     </span>
 
     {# Data preview #}
-    <span class="flex-1 min-w-0 text-sm text-slate-600 dark:text-slate-300 truncate font-mono"
+    <span class="order-3 md:order-none basis-full md:basis-auto md:flex-1 min-w-0 text-sm text-slate-600 dark:text-slate-300 break-all line-clamp-3 md:line-clamp-none md:truncate font-mono"
           title="{{ event.data[:200] if event.data|length > 200 else event.data }}">
       {%- if event.is_web_content -%}
         {# Web content: show page title + source URL instead of raw HTML #}
-        <span class="font-sans text-xs">
+        <span class="font-sans text-sm md:text-xs">
           {% if event.data_title %}
             <span class="text-slate-200">{{ event.data_title }}</span>
           {% else %}
@@ -38,25 +41,25 @@
           <span class="text-slate-400 dark:text-slate-500">{{ "{:,}".format(event.data | length) }} chars</span>
           {% if event.source_data %}
             <span class="text-slate-500 dark:text-slate-600 mx-1">&rarr;</span>
-            <span class="text-slate-400 dark:text-slate-500 font-mono text-[11px]">{{ event.source_data[:80] }}</span>
+            <span class="text-slate-400 dark:text-slate-500 font-mono text-xs md:text-[11px] md:leading-[inherit]">{{ event.source_data[:80] }}</span>
           {% endif %}
         </span>
       {%- elif event.type_code == 'RAW_RIR_DATA' -%}
-        <span class="text-slate-400 dark:text-slate-500 italic font-sans text-xs">Raw data &middot; {{ "{:,}".format(event.data | length) }} chars
-          {% if event.source_data %}<span class="not-italic">&rarr; <span class="font-mono text-[11px]">{{ event.source_data[:80] }}</span></span>{% endif %}
+        <span class="text-slate-400 dark:text-slate-500 italic font-sans text-sm md:text-xs">Raw data &middot; {{ "{:,}".format(event.data | length) }} chars
+          {% if event.source_data %}<span class="not-italic">&rarr; <span class="font-mono text-xs md:text-[11px] md:leading-[inherit]">{{ event.source_data[:80] }}</span></span>{% endif %}
         </span>
       {%- elif event.type_code == 'HTTP_CODE' -%}
         {# HTTP status: show code + source URL #}
-        <span class="font-sans text-xs">
+        <span class="font-sans text-sm md:text-xs">
           <span class="text-slate-200">{{ event.data }}</span>
           {% if event.source_data %}
             <span class="text-slate-500 dark:text-slate-600 mx-1">&rarr;</span>
-            <span class="text-slate-400 dark:text-slate-500 font-mono text-[11px]">{{ event.source_data[:100] }}</span>
+            <span class="text-slate-400 dark:text-slate-500 font-mono text-xs md:text-[11px] md:leading-[inherit]">{{ event.source_data[:100] }}</span>
           {% endif %}
         </span>
       {%- elif event.type_code == 'TCP_PORT_OPEN' -%}
         {# Open port: show IP:port + service name #}
-        <span class="font-sans text-xs">
+        <span class="font-sans text-sm md:text-xs">
           <span class="text-slate-200 font-mono">{{ event.data }}</span>
           {% if event.service_name %}
             <span class="text-sf-accent/70 ml-1.5 font-medium">({{ event.service_name }})</span>
@@ -79,7 +82,7 @@
 
     {# Dupe count badge #}
     {% if event.dupe_count > 1 %}
-      <span class="inline-flex items-center shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full
+      <span class="inline-flex items-center shrink-0 order-2 md:order-none text-xs md:text-[10px] md:leading-[inherit] font-medium px-1.5 py-0.5 rounded-full
                    bg-slate-600/40 text-slate-400 border border-slate-500/30"
             title="{{ event.dupe_count }} occurrences from different sources">
         &times;{{ event.dupe_count }}
@@ -87,18 +90,19 @@
     {% endif %}
 
     {# Module #}
-    <span class="text-xs text-slate-400 dark:text-slate-500 shrink-0 hidden sm:inline whitespace-nowrap">{{ event.module }}</span>
+    <span class="order-2 md:order-none ml-auto md:ml-0 text-xs text-slate-500 md:text-slate-400 dark:text-slate-400 md:dark:text-slate-500 shrink-0 whitespace-nowrap">{{ event.module }}</span>
+    </div>
   </div>
 
   {# Expanded detail panel #}
   <div x-show="expanded" x-transition x-cloak
-       class="px-3 pb-3 ml-7">
+       class="px-2 md:px-3 pb-3 md:ml-7">
     <div class="rounded-lg border border-slate-200 dark:border-sf-border bg-slate-50 dark:bg-sf-base overflow-hidden">
 
       {# Detail header with copy button #}
-      <div class="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-white/50 dark:bg-sf-surface/50">
-        <div class="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
-          <span class="font-mono text-slate-600 dark:text-slate-300">{{ event.type_code }}</span>
+      <div class="flex items-start md:items-center justify-between gap-2 px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border bg-white/50 dark:bg-sf-surface/50">
+        <div class="flex items-center gap-x-3 gap-y-1 min-w-0 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
+          <span class="font-mono text-slate-600 dark:text-slate-300 sf-break">{{ event.type_code }}</span>
           <span>&middot;</span>
           <span>{{ event.module }}</span>
           {% if event.generated %}
@@ -116,8 +120,8 @@
         </div>
         <button type="button"
                 onclick="navigator.clipboard.writeText(this.closest('.rounded-lg').querySelector('[data-event-data]').textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })"
-                class="text-xs px-2.5 py-1 rounded bg-slate-200 dark:bg-sf-border text-slate-600 dark:text-slate-300
-                       hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium shrink-0 ml-2">
+                class="text-sm md:text-xs px-4 md:px-2.5 py-1 min-h-[44px] md:min-h-0 rounded bg-slate-200 dark:bg-sf-border text-slate-600 dark:text-slate-300
+                       hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium shrink-0 md:ml-2">
           Copy
         </button>
       </div>
@@ -126,7 +130,7 @@
       {% if event.is_web_content and event.dupe_sources %}
         {# Web content with dupes: each URL gets its own collapsible content section #}
         <div class="border-b border-slate-200 dark:border-sf-border">
-          <div class="px-4 py-2 text-xs text-slate-400 dark:text-slate-500 font-medium">
+          <div class="px-3 md:px-4 py-2 text-sm md:text-xs text-slate-400 dark:text-slate-500 font-medium">
             Found on {{ event.dupe_count }} URL{{ 's' if event.dupe_count > 1 else '' }}:
           </div>
 
@@ -134,26 +138,26 @@
           {% if event.source_data %}
           <div x-data="{ showContent: false, rawView: false }" class="border-t border-slate-200/50 dark:border-sf-border/30">
             <div @click="showContent = !showContent"
-                 class="flex items-center gap-2 px-4 py-1.5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-sf-elevated/30 transition-colors">
-              <span class="text-slate-400 dark:text-slate-500 text-[10px] w-3 text-center transition-transform"
+                 class="flex items-center gap-2 px-3 md:px-4 py-3 md:py-1.5 min-h-[44px] md:min-h-0 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-sf-elevated/30 transition-colors">
+              <span class="text-slate-400 dark:text-slate-500 text-sm md:text-[10px] md:leading-[inherit] w-3 text-center transition-transform"
                     :class="showContent ? 'rotate-90' : ''">&rsaquo;</span>
-              <span class="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">{{ event.source_data }}</span>
+              <span class="font-mono text-sm md:text-xs text-slate-600 dark:text-slate-300 break-all">{{ event.source_data }}</span>
             </div>
-            <div x-show="showContent" x-transition x-cloak class="relative ml-5 mr-4 mb-2">
-              <div class="absolute top-1.5 right-1.5 flex gap-1 z-10">
+            <div x-show="showContent" x-transition x-cloak class="relative ml-2 mr-2 md:ml-5 md:mr-4 mb-2">
+              <div class="flex justify-end gap-1 z-10 pb-1 md:pb-0 md:absolute md:top-1.5 md:right-1.5">
                 <button @click.stop="rawView = false"
                         :class="!rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                        class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Text</button>
+                        class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Text</button>
                 <button @click.stop="rawView = true"
                         :class="rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                        class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Raw</button>
+                        class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Raw</button>
               </div>
               <div x-show="!rawView"
-                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 text-xs text-slate-700 dark:text-slate-200 max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30 font-sans leading-relaxed">
+                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 text-sm md:text-xs text-slate-700 dark:text-slate-200 max-h-56 md:max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30 font-sans leading-relaxed">
                 {{ event.data_plaintext or event.data }}
               </div>
               <div x-show="rawView" x-cloak
-                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 font-mono text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30">
+                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 font-mono text-sm md:text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-56 md:max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30">
                 {{ event.data }}
               </div>
             </div>
@@ -164,27 +168,27 @@
           {% for src in event.dupe_sources[:15] %}
           <div x-data="{ showContent: false, rawView: false }" class="border-t border-slate-200/50 dark:border-sf-border/30">
             <div @click="showContent = !showContent"
-                 class="flex items-center gap-2 px-4 py-1.5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-sf-elevated/30 transition-colors">
-              <span class="text-slate-400 dark:text-slate-500 text-[10px] w-3 text-center transition-transform"
+                 class="flex items-center gap-2 px-3 md:px-4 py-3 md:py-1.5 min-h-[44px] md:min-h-0 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-sf-elevated/30 transition-colors">
+              <span class="text-slate-400 dark:text-slate-500 text-sm md:text-[10px] md:leading-[inherit] w-3 text-center transition-transform"
                     :class="showContent ? 'rotate-90' : ''">&rsaquo;</span>
-              <span class="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">{{ src.source_data[:200] }}</span>
+              <span class="font-mono text-sm md:text-xs text-slate-600 dark:text-slate-300 break-all">{{ src.source_data[:200] }}</span>
             </div>
             {% if src.data_plaintext is defined or src.data is defined %}
-            <div x-show="showContent" x-transition x-cloak class="relative ml-5 mr-4 mb-2">
-              <div class="absolute top-1.5 right-1.5 flex gap-1 z-10">
+            <div x-show="showContent" x-transition x-cloak class="relative ml-2 mr-2 md:ml-5 md:mr-4 mb-2">
+              <div class="flex justify-end gap-1 z-10 pb-1 md:pb-0 md:absolute md:top-1.5 md:right-1.5">
                 <button @click.stop="rawView = false"
                         :class="!rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                        class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Text</button>
+                        class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Text</button>
                 <button @click.stop="rawView = true"
                         :class="rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                        class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Raw</button>
+                        class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Raw</button>
               </div>
               <div x-show="!rawView"
-                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 text-xs text-slate-700 dark:text-slate-200 max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30 font-sans leading-relaxed">
+                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 text-sm md:text-xs text-slate-700 dark:text-slate-200 max-h-56 md:max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30 font-sans leading-relaxed">
                 {{ src.data_plaintext or src.data }}
               </div>
               <div x-show="rawView" x-cloak
-                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 font-mono text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30">
+                   class="px-3 py-2 bg-slate-50/50 dark:bg-sf-base/50 font-mono text-sm md:text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-56 md:max-h-32 overflow-y-auto rounded border border-slate-200/50 dark:border-sf-border/30">
                 {{ src.data }}
               </div>
             </div>
@@ -192,16 +196,16 @@
           </div>
           {% endfor %}
           {% if event.dupe_sources | length > 15 %}
-          <div class="px-4 py-1.5 text-xs text-slate-500 dark:text-slate-600 italic">...and {{ event.dupe_sources | length - 15 }} more</div>
+          <div class="px-3 md:px-4 py-1.5 text-xs text-slate-500 dark:text-slate-600 italic">...and {{ event.dupe_sources | length - 15 }} more</div>
           {% endif %}
         </div>
       {% elif event.source_data %}
         {# Non-web or no dupes: standard source display #}
-        <div class="px-4 py-2 border-b border-slate-200 dark:border-sf-border text-xs">
+        <div class="px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border text-sm md:text-xs">
           <span class="text-slate-400 dark:text-slate-500 font-medium">Source:</span>
           {% if event.source_cert_fields %}
             <div class="mt-1.5 ml-1">
-              <table class="text-xs">
+              <table class="text-sm md:text-xs">
                 {% for label, value in event.source_cert_fields %}
                 <tr>
                   <td class="pr-3 text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap align-top py-0.5">{{ label }}</td>
@@ -220,9 +224,9 @@
       {% if event.dupe_sources and not event.is_web_content %}
         {% if event.type_code == 'HTTP_CODE' %}
           {# HTTP status codes: the URLs ARE the interesting data — show all in scrollable list #}
-          <div class="px-4 py-2 border-b border-slate-200 dark:border-sf-border text-xs">
+          <div class="px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border text-sm md:text-xs">
             <span class="text-slate-400 dark:text-slate-500 font-medium">{{ event.dupe_count }} URL{{ 's' if event.dupe_count > 1 else '' }} returned {{ event.data }}:</span>
-            <div class="mt-1.5 space-y-0.5 max-h-64 overflow-y-auto">
+            <div class="mt-1.5 space-y-0.5 max-h-72 md:max-h-64 overflow-y-auto">
               {# Primary source #}
               {% if event.source_data %}
               <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
@@ -241,7 +245,7 @@
           </div>
         {% else %}
           {# Other types: compact "also seen from" list #}
-          <div class="px-4 py-2 border-b border-slate-200 dark:border-sf-border text-xs">
+          <div class="px-3 md:px-4 py-2 border-b border-slate-200 dark:border-sf-border text-sm md:text-xs">
             <span class="text-slate-400 dark:text-slate-500 font-medium">Also seen from {{ event.dupe_count - 1 }} other source{{ 's' if event.dupe_count > 2 else '' }}:</span>
             <div class="mt-1.5 space-y-1 max-h-48 overflow-y-auto">
               {% for src in event.dupe_sources %}
@@ -261,7 +265,7 @@
                   {% endif %}
                 </div>
                 {% if src.source_cert_fields is defined and src.source_cert_fields %}
-                <table class="text-[11px] ml-4 mt-0.5 mb-1">
+                <table class="text-xs md:text-[11px] md:leading-[inherit] ml-4 mt-0.5 mb-1">
                   {% for label, value in src.source_cert_fields %}
                   <tr>
                     <td class="pr-2 text-slate-500 dark:text-slate-600 whitespace-nowrap align-top">{{ label }}</td>
@@ -280,8 +284,8 @@
       {# Data content #}
       {% if event.cert_fields %}
         {# Structured certificate data #}
-        <div data-event-data class="px-4 py-3">
-          <table class="text-xs w-full">
+        <div data-event-data class="px-3 md:px-4 py-3">
+          <table class="text-sm md:text-xs w-full">
             {% for label, value in event.cert_fields %}
             <tr class="border-b border-slate-200/50 dark:border-sf-border/30 last:border-b-0">
               <td class="py-1.5 pr-4 text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap align-top">{{ label }}</td>
@@ -293,27 +297,27 @@
       {% elif event.is_web_content and not event.dupe_sources %}
         {# Single web content (no dupes) — show Text/Raw toggle for the one page #}
       <div x-data="{ rawView: false }" class="relative">
-        <div class="absolute top-2 right-2 flex gap-1 z-10">
+        <div class="flex justify-end gap-1 z-10 px-2 pt-2 md:p-0 md:absolute md:top-2 md:right-2">
           <button @click="rawView = false"
                   :class="!rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                  class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Text</button>
+                  class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Text</button>
           <button @click="rawView = true"
                   :class="rawView ? 'bg-sf-accent/20 text-sf-accent' : 'bg-slate-200 dark:bg-sf-border text-slate-500'"
-                  class="text-[10px] px-2 py-0.5 rounded font-medium transition-colors">Raw</button>
+                  class="text-sm md:text-[10px] md:leading-[inherit] px-4 md:px-2 py-0.5 min-h-[44px] md:min-h-0 rounded font-medium transition-colors">Raw</button>
         </div>
         <div x-show="!rawView" data-event-data
-             class="px-4 py-3 text-xs text-slate-700 dark:text-slate-200 max-h-48 overflow-y-auto font-sans leading-relaxed">
+             class="px-3 md:px-4 py-3 text-sm md:text-xs text-slate-700 dark:text-slate-200 max-h-72 md:max-h-48 overflow-y-auto font-sans leading-relaxed">
           {{ event.data_plaintext }}
         </div>
         <div x-show="rawView" x-cloak data-event-data
-             class="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-48 overflow-y-auto">
+             class="px-3 md:px-4 py-3 font-mono text-sm md:text-xs text-slate-700 dark:text-slate-200 break-all select-all max-h-72 md:max-h-48 overflow-y-auto">
           {{ event.data }}
         </div>
       </div>
       {% else %}
       <div data-event-data
-           class="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200 break-all select-all
-                  {% if event.data | length > 500 %}max-h-48 overflow-y-auto{% endif %}">
+           class="px-3 md:px-4 py-3 font-mono text-sm md:text-xs text-slate-700 dark:text-slate-200 break-all select-all
+                  {% if event.data | length > 500 %}max-h-72 md:max-h-48 overflow-y-auto{% endif %}">
         {{- event.data -}}
       </div>
       {% endif %}

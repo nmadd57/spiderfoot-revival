@@ -1,15 +1,17 @@
 {% for log in logs %}
-<div class="flex gap-3 py-0.5 hover:bg-white/[0.02]">
-  <span class="text-slate-600 shrink-0 w-36">{{ log.time }}</span>
-  <span class="text-cyan-500 shrink-0 w-40 truncate" title="{{ log.component }}">{{ log.component }}</span>
+<div class="flex flex-col md:flex-row gap-0.5 md:gap-3 py-2 md:py-0.5 border-b border-white/5 md:border-b-0 hover:bg-white/[0.02]">
+  <div class="flex items-baseline gap-2 min-w-0 md:contents">
+    <span class="text-slate-500 md:text-slate-600 shrink-0 md:w-36">{{ log.time }}</span>
+    <span class="text-cyan-500 min-w-0 md:shrink-0 md:w-40 truncate" title="{{ log.component }}">{{ log.component }}</span>
+  </div>
   {% if log.type == 'ERROR' %}
-    <span class="text-red-400 font-medium">{{ log.message }}</span>
+    <span class="text-red-400 font-medium text-sm md:text-xs sf-break min-w-0">{{ log.message }}</span>
   {% elif log.type == 'WARNING' %}
-    <span class="text-amber-400">{{ log.message }}</span>
+    <span class="text-amber-400 text-sm md:text-xs sf-break min-w-0">{{ log.message }}</span>
   {% elif log.type == 'DEBUG' %}
-    <span class="text-slate-600">{{ log.message }}</span>
+    <span class="text-slate-500 md:text-slate-600 text-sm md:text-xs sf-break min-w-0">{{ log.message }}</span>
   {% else %}
-    <span class="text-slate-400">{{ log.message }}</span>
+    <span class="text-slate-400 text-sm md:text-xs sf-break min-w-0">{{ log.message }}</span>
   {% endif %}
 </div>
 {% else %}

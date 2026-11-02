@@ -18,10 +18,10 @@
 
   <form id="ai-settings-form" class="space-y-5">
 
-    <label class="flex items-center gap-2">
+    <label class="flex items-center gap-3 md:gap-2 min-h-[44px] md:min-h-0">
       <input type="checkbox" name="_ai_enabled"
              {% if config._ai_enabled %}checked{% endif %}
-             class="rounded border-slate-300 dark:border-slate-700 text-sf-accent focus:ring-sf-accent">
+             class="h-5 w-5 md:h-auto md:w-auto rounded border-slate-300 dark:border-slate-700 text-sf-accent focus:ring-sf-accent">
       <span class="text-sm text-slate-700 dark:text-slate-200">Enable AI features</span>
     </label>
 
@@ -31,7 +31,7 @@
              name="_ai_base_url"
              value="{{ config._ai_base_url or '' }}"
              placeholder="http://192.168.1.10:11434/v1"
-             class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
+             class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm min-h-[44px] md:min-h-0 py-2 px-3">
       <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
         Leave empty to use OpenRouter. When set, requests go to
         <span class="font-mono">&lt;base URL&gt;/chat/completions</span>, the API key below is
@@ -46,24 +46,24 @@
              autocomplete="new-password"
              value="{{ '********' if config._ai_openrouter_key else '' }}"
              placeholder="sk-or-... (optional for custom endpoints)"
-             class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
+             class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm min-h-[44px] md:min-h-0 py-2 px-3">
       <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
         Leave the masked value to keep your existing key. Type a new value to replace it.
       </span>
     </label>
 
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <label class="block">
         <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Default model</span>
         <input type="text" name="_ai_default_model" list="ai-model-list"
                value="{{ config._ai_default_model or '' }}" autocomplete="off"
-               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
+               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm min-h-[44px] md:min-h-0 py-2 px-3">
       </label>
       <label class="block">
         <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Fallback model</span>
         <input type="text" name="_ai_fallback_model" list="ai-model-list"
                value="{{ config._ai_fallback_model or '' }}" autocomplete="off"
-               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm py-2 px-3">
+               class="mt-1 block w-full rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-sf-elevated text-sm min-h-[44px] md:min-h-0 py-2 px-3">
       </label>
     </div>
 
@@ -74,10 +74,10 @@
       Fallback is only used with OpenRouter; custom endpoints use the default model.
     </p>
 
-    <label class="flex items-start gap-2">
+    <label class="flex items-start gap-3 md:gap-2 py-1 md:py-0">
       <input type="checkbox" name="_ai_redact_pii"
              {% if config._ai_redact_pii %}checked{% endif %}
-             class="mt-0.5 rounded border-slate-300 dark:border-slate-700 text-sf-accent focus:ring-sf-accent">
+             class="mt-0.5 h-5 w-5 md:h-auto md:w-auto shrink-0 rounded border-slate-300 dark:border-slate-700 text-sf-accent focus:ring-sf-accent">
       <span class="text-sm text-slate-700 dark:text-slate-200">
         Mask emails, public IPs, and the scan target's root domain before sending
         payloads to the AI provider
@@ -91,17 +91,17 @@
 
     <div class="flex items-center gap-3 pt-2 flex-wrap">
       <button type="submit"
-              class="px-4 py-2 rounded bg-sf-accent text-white text-sm hover:opacity-90">
+              class="w-full sm:w-auto min-h-[44px] md:min-h-0 px-4 py-2 rounded bg-sf-accent text-white text-sm hover:opacity-90">
         Save
       </button>
       <button type="button" id="ai-test-btn"
-              class="px-4 py-2 rounded border border-slate-300 dark:border-sf-border text-slate-700 dark:text-slate-200 text-sm hover:border-sf-accent disabled:opacity-50"
+              class="w-full sm:w-auto min-h-[44px] md:min-h-0 px-4 py-2 rounded border border-slate-300 dark:border-sf-border text-slate-700 dark:text-slate-200 text-sm hover:border-sf-accent disabled:opacity-50"
               title="Uses the values above, saved or not: lists the endpoint's models and sends a tiny chat request">
         Test connection
       </button>
       <span id="ai-settings-msg" class="text-sm text-slate-400 dark:text-slate-500 hidden"></span>
     </div>
-    <div id="ai-test-result" class="hidden rounded border p-3 text-sm space-y-1"></div>
+    <div id="ai-test-result" class="hidden rounded border p-3 text-sm space-y-1 break-words sf-break"></div>
   </form>
 </div>
 
@@ -112,7 +112,7 @@
   const testBtn = document.getElementById('ai-test-btn');
   const box = document.getElementById('ai-test-result');
   const show = (ok, lines) => {
-    box.className = 'rounded border p-3 text-sm space-y-1 ' + (ok
+    box.className = 'rounded border p-3 text-sm space-y-1 break-words sf-break ' + (ok
       ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400'
       : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400');
     box.innerHTML = '';

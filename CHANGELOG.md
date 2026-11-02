@@ -4,6 +4,15 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Mobile layout
+
+- Below 768 px the hover-only sidebar (which cannot be opened on a touch screen and took 56 px of a phone's width) is replaced by a bottom navigation bar (Dashboard, New Scan, Settings, Theme), and the page padding shrinks. Nothing scrolls sideways on any page at 360, 390 or 768 px.
+- **Dashboard:** a scan row is a card: target and status, the counts wrapped underneath, and full-size View, Stop and Delete buttons. Previously the row was cut off at the screen edge.
+- **Scan results:** the header and Export/Re-scan buttons fit; the tab strip scrolls with edge fades and arrows and centres the active tab; events are stacked cards with a readable detail panel; filters, segmented controls and pagination are tap-sized; findings, timeline, correlations and the log wrap their text; the graph fits the screen with touch pan and zoom and its controls behind a toggle.
+- **New Scan:** a taller target box with its hint visible, presets in an even two-column grid, module category names shown in full with the count, All and None on a second row, larger module toggles, and a launch bar pinned above the bottom navigation. The notice about hidden preset modules now says why they are hidden (no key, tool missing, over quota, or turned off).
+- **Settings:** the section list is a scrollable strip above the content instead of a fixed column that left about 150 px for the form; every section uses single-column forms and 44 px controls; the Modules list shows each module on two lines with its filters collapsed behind one button.
+- Desktop layouts (768 px and wider) are unchanged. Inputs are 16 px on phones so iOS does not zoom when a field is focused; tap targets are at least 44 px; body text is at least 14 px.
+
 ### One SEC EDGAR module
 
 - `sfp_secedgar` is merged into `sfp_sec_edgar`, so there is one SEC module instead of two that reported the same filings. `sfp_sec_edgar` keeps its company lookup (filer profile, parent company from Exhibit 21) and gains: recent filings as `COMPANY_FILING` events (limited to the useful forms by the new `filing_forms` option; empty means every form), and a person search (`person_search`, `person_forms`, `max_companies`) that finds the operating companies a person's name appears in through insider, ownership and proxy filings, with an evidence record that says it is a name match. It now also watches `HUMAN_NAME`, throttles itself to 10 requests a second (`delay`), and ignores companies it reported itself. The `contact_email` option is kept (the removed module's `contact` option is gone). Anything that referenced `sfp_secedgar` should use `sfp_sec_edgar`.

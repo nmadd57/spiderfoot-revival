@@ -9,25 +9,25 @@
 
 {# Pagination #}
 {% if total_pages is defined and total_pages > 1 %}
-<div class="flex items-center justify-between px-3 py-3 border-t border-slate-200 dark:border-sf-border">
-  <span class="text-xs text-slate-400 dark:text-slate-500">
+<div class="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 py-3 border-t border-slate-200 dark:border-sf-border">
+  <span class="text-xs text-slate-500 md:text-slate-400 dark:text-slate-400 md:dark:text-slate-500 text-center">
     {{ "{:,}".format((page - 1) * 50 + 1) }}&ndash;{{ "{:,}".format([page * 50, total_count] | min) }} of {{ "{:,}".format(total_count) }}
     {% if dedup is defined and dedup == '1' and raw_count is defined and raw_count != total_count %}
       <span class="text-slate-500 dark:text-slate-600">({{ "{:,}".format(raw_count) }} total)</span>
     {% endif %}
   </span>
-  <div class="flex gap-1">
+  <div class="flex flex-wrap justify-center gap-1.5 md:gap-1">
     {% for p in range(1, total_pages + 1) %}
       {% if p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
         <button
           hx-get="/frag/events?id={{ scan_id }}&page={{ p }}"
           hx-target="#event-rows"
           hx-include="[name='q'],[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category']"
-          class="px-2.5 py-1 text-xs rounded {{ 'bg-sf-accent/20 text-sf-accent font-medium' if p == page else 'bg-slate-100 dark:bg-sf-elevated text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200' }} transition-colors">
+          class="inline-flex items-center justify-center min-w-[44px] md:min-w-0 min-h-[44px] md:min-h-0 px-2.5 py-1 text-sm md:text-xs rounded {{ 'bg-sf-accent/20 text-sf-accent font-medium' if p == page else 'bg-slate-100 dark:bg-sf-elevated text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200' }} transition-colors">
           {{ p }}
         </button>
       {% elif p == 4 or p == total_pages - 2 %}
-        <span class="px-1 text-xs text-slate-400">&hellip;</span>
+        <span class="px-1 text-sm md:text-xs text-slate-400 self-center">&hellip;</span>
       {% endif %}
     {% endfor %}
   </div>

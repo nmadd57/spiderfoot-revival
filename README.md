@@ -12,6 +12,7 @@ On top of the Revival UI (Flask, Tailwind, HTMX, Alpine.js) and its module overh
 
 - **One place for every module.** Settings → Modules lists all modules with an on/off switch, status, filters, and a panel for each module's API key, binary path, other options, usage limits and quota. See [Settings](#settings).
 - **A Test button** on every module and on the AI assistant, SearXNG and embeddings settings: run a module against a harmless sample (or your own target) and see what it returns, or check that an endpoint works and list its models.
+- **A phone-friendly UI.** Bottom navigation, card layouts, tap-sized controls and a scrollable settings strip below 768 px; desktop is unchanged.
 - **Cost and key awareness.** Modules carry a pricing tag (free, free tier, paid, local). Per-module call counters, daily/total/per-second limits, vendor quota checks, key tests, and automatic hiding of modules that cannot run (no key, over quota, tool not installed).
 - **Web search without Google or Bing.** Their search APIs are retired or closing, so those modules are gone. Search modules use your own [SearXNG](https://docs.searxng.org/) instance.
 - **People to businesses, filings and professional licences.** A person's name can lead to the companies they appear in (SEC EDGAR), the company's filings, and healthcare and securities licences for people and businesses.

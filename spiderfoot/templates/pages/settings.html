@@ -15,12 +15,15 @@
        }
      ">
 
-  <h1 class="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-6">Settings</h1>
+  <h1 class="text-xl md:text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-3 md:mb-6">Settings</h1>
 
-  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden flex min-h-[500px]">
+  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden flex flex-col md:flex-row md:min-h-[500px]">
 
-    {# ---- Side nav ---- #}
-    <nav class="w-40 border-r border-slate-200 dark:border-sf-border py-3 shrink-0 flex flex-col gap-0.5">
+    {# ---- Section nav: scrollable pill strip on phones, left column from md up ---- #}
+    <nav aria-label="Settings sections"
+         x-effect="section; $nextTick(() => { const a = $el.querySelector('[aria-current=true]'); if (a && $el.scrollWidth > $el.clientWidth) $el.scrollTo({ left: a.offsetLeft - ($el.clientWidth - a.offsetWidth) / 2, behavior: 'smooth' }); })"
+         class="relative sf-scroll-x border-b md:border-b-0 md:border-r border-slate-200 dark:border-sf-border
+                px-2 py-2 md:px-0 md:py-3 md:w-40 shrink-0 flex flex-row md:flex-col gap-1.5 md:gap-0.5">
 
       {% set nav_items = [
         ('general',    'General'),
@@ -38,10 +41,12 @@
         hx-get="/frag/settings-section?section={{ key }}"
         hx-target="#settings-content"
         hx-swap="innerHTML"
+        :aria-current="section === '{{ key }}' ? 'true' : 'false'"
         :class="section === '{{ key }}'
-          ? 'bg-sf-accent/10 text-sf-accent border-l-2 border-sf-accent font-medium'
-          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-sf-elevated hover:text-slate-700 dark:hover:text-slate-200 border-l-2 border-transparent'"
-        class="w-full text-left px-4 py-2.5 text-sm transition-colors duration-150 focus:outline-none">
+          ? 'bg-sf-accent/10 text-sf-accent border-sf-accent font-medium'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-sf-elevated hover:text-slate-700 dark:hover:text-slate-200 border-transparent'"
+        class="shrink-0 whitespace-nowrap min-h-[44px] md:min-h-0 rounded-full md:rounded-none border md:border-0 md:border-l-2
+               md:w-full text-left px-4 py-2 md:py-2.5 text-sm transition-colors duration-150 focus:outline-none">
         {{ label }}
       </button>
       {% endfor %}
@@ -49,7 +54,7 @@
     </nav>
 
     {# ---- Content area ---- #}
-    <div class="flex-1 p-6 min-w-0" id="settings-content">
+    <div class="flex-1 p-3 sm:p-4 md:p-6 min-w-0" id="settings-content">
       {# Default: General section rendered inline (no round-trip needed on first load) #}
       {% include 'fragments/settings_general.html' %}
     </div>

@@ -12,21 +12,21 @@
   }
 }">
 
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-semibold text-slate-800 dark:text-slate-100">Scan Results</h1>
+  <div class="flex items-center justify-between gap-3 mb-4 md:mb-6">
+    <h1 class="text-xl md:text-2xl font-semibold text-slate-800 dark:text-slate-100">Scan Results</h1>
     <a href="{{ url_for('ui.dashboard') }}"
-       class="text-sm text-slate-500 dark:text-slate-400 hover:text-sf-accent transition-colors">
-      &larr; Back to Dashboard
+       class="inline-flex items-center shrink-0 whitespace-nowrap min-h-[44px] md:min-h-0 text-sm text-slate-500 dark:text-slate-400 hover:text-sf-accent transition-colors">
+      &larr;&nbsp;<span class="hidden sm:inline">Back to&nbsp;</span>Dashboard
     </a>
   </div>
 
   {% if scan %}
   {# -- Scan Header -- #}
-  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-6 mb-6">
+  <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4 md:p-6 mb-4 md:mb-6">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-3 mb-1">
-          <span class="font-mono text-lg text-slate-800 dark:text-slate-100">{{ scan.target }}</span>
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+          <span class="font-mono text-lg text-slate-800 dark:text-slate-100 sf-break">{{ scan.target }}</span>
           {# Status badge #}
           {% set s = (scan.status or '') | upper %}
           {% if s == 'RUNNING' %}
@@ -41,13 +41,13 @@
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">{{ scan.status }}</span>
           {% endif %}
         </div>
-        <p class="text-sm text-slate-500 dark:text-slate-400">{{ scan.name }}</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400 sf-break">{{ scan.name }}</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         {# Export dropdown #}
-        <div class="relative" @click.away="exportOpen = false">
+        <div class="relative flex-1 sm:flex-none" @click.away="exportOpen = false">
           <button @click="exportOpen = !exportOpen"
-                  class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded
+                  class="inline-flex items-center justify-center w-full sm:w-auto min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded
                          text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-sf-border
                          hover:bg-slate-100 dark:hover:bg-sf-elevated transition-colors">
             {{ icons.arrow_down_tray(class="w-3.5 h-3.5 mr-1.5") }}
@@ -55,17 +55,17 @@
             {{ icons.chevron_down(class="w-3 h-3 ml-1") }}
           </button>
           <div x-show="exportOpen" x-transition
-               class="absolute right-0 mt-1 w-36 bg-white dark:bg-sf-elevated border border-slate-200 dark:border-sf-border rounded-md shadow-lg z-20 py-1">
+               class="absolute left-0 sm:left-auto sm:right-0 mt-1 w-44 md:w-36 bg-white dark:bg-sf-elevated border border-slate-200 dark:border-sf-border rounded-md shadow-lg z-20 py-1">
             <a href="{{ url_for('api.scaneventresultexportmulti', ids=scan.id) }}"
-               class="block px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
+               class="flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
               Export CSV
             </a>
             <a href="{{ url_for('api.scanexportjsonmulti', ids=scan.id) }}"
-               class="block px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
+               class="flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
               Export JSON
             </a>
             <a href="{{ url_for('api.scanviz', id=scan.id, gexf=1) }}"
-               class="block px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
+               class="flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-surface transition-colors">
               Export GEXF
             </a>
           </div>
@@ -76,7 +76,7 @@
                 hx-swap="none"
                 hx-on::after-request="if(event.detail.successful) window.location.href = '/'"
                 hx-confirm="Re-scan {{ scan.target }} with the same modules?"
-                class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded
+                class="inline-flex items-center justify-center flex-1 sm:flex-none min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded
                        text-sf-accent border border-cyan-200 dark:border-cyan-700/50
                        hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors cursor-pointer">
           {{ icons.arrow_path(class="w-3.5 h-3.5 mr-1.5") }}
@@ -87,15 +87,15 @@
   </div>
 
   {# -- Stat Cards -- #}
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
+    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-3 md:p-4 min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Events</p>
-      <p class="text-3xl font-mono font-bold text-slate-800 dark:text-slate-100">{{ "{:,}".format(total_events) }}</p>
+      <p class="text-2xl md:text-3xl font-mono font-bold text-slate-800 dark:text-slate-100">{{ "{:,}".format(total_events) }}</p>
       <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{{ "{:,}".format(unique_events) }} unique</p>
     </div>
-    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4">
+    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-3 md:p-4 min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Correlations</p>
-      <p class="text-3xl font-mono font-bold text-sf-warning">{{ (high_count + medium_count + low_count) }}</p>
+      <p class="text-2xl md:text-3xl font-mono font-bold text-sf-warning">{{ (high_count + medium_count + low_count) }}</p>
       <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
         {% if high_count %}{{ high_count }} high{% endif %}
         {% if high_count and medium_count %} &middot; {% endif %}
@@ -105,14 +105,14 @@
         {% if not (high_count or medium_count or low_count) %}none{% endif %}
       </p>
     </div>
-    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4">
+    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-3 md:p-4 min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Modules</p>
-      <p class="text-3xl font-mono font-bold text-sf-accent">{{ module_count }}</p>
+      <p class="text-2xl md:text-3xl font-mono font-bold text-sf-accent">{{ module_count }}</p>
       <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">data sources queried</p>
     </div>
-    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4">
+    <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-3 md:p-4 min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Duration</p>
-      <p class="text-3xl font-mono font-bold text-slate-600 dark:text-slate-300">
+      <p class="text-2xl md:text-3xl font-mono font-bold text-slate-600 dark:text-slate-300">
         {% if scan_duration %}{{ scan_duration }}{% else %}&mdash;{% endif %}
       </p>
       <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{{ module_count }} modules used</p>
@@ -124,92 +124,117 @@
 
   {# -- Tabs -- #}
   <div class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg overflow-hidden">
-    <div class="flex border-b border-slate-200 dark:border-sf-border overflow-x-auto">
+    {# Tab strip: scrolls sideways on phones, active tab is centred, edge fades + arrows hint at hidden tabs #}
+    <div class="relative border-b border-slate-200 dark:border-sf-border"
+         x-data="{ canL: false, canR: false,
+           upd() { const s = this.$refs.strip; this.canL = s.scrollLeft > 4; this.canR = s.scrollLeft + s.clientWidth < s.scrollWidth - 4; },
+           center() { const s = this.$refs.strip; const el = s.querySelector('[data-tab=' + activeTab + ']'); if (el) s.scrollTo({ left: el.offsetLeft - (s.clientWidth - el.offsetWidth) / 2, behavior: 'smooth' }); this.upd(); },
+           nudge(d) { this.$refs.strip.scrollBy({ left: d * 140, behavior: 'smooth' }); }
+         }"
+         x-init="$nextTick(() => { center(); setTimeout(() => center(), 250) })"
+         x-effect="activeTab; $nextTick(() => center())"
+         @resize.window.debounce.150ms="upd()">
+    <div x-ref="strip" @scroll.passive="upd()" class="flex relative sf-scroll-x scroll-smooth">
       {# Tab: Summary #}
       <button
         @click="setTab('summary')"
+        data-tab="summary"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=summary"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'summary'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.list_bullet(class="w-4 h-4") }}
         Summary
       </button>
       {# Tab: Data #}
       <button
         @click="setTab('data')"
+        data-tab="data"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=data"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'data'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.table_cells(class="w-4 h-4") }}
         Data
       </button>
       {# Tab: Graph #}
       <button
         @click="setTab('graph')"
+        data-tab="graph"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=graph"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'graph'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.share(class="w-4 h-4") }}
         Graph
-        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 leading-none">Soon</span>
+        <span class="text-xs md:text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 leading-none">Soon</span>
       </button>
       {# Tab: Timeline #}
       <button
         @click="setTab('timeline')"
+        data-tab="timeline"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=timeline"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'timeline'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.clock(class="w-4 h-4") }}
         Timeline
       </button>
       {# Tab: Correlations #}
       <button
         @click="setTab('correlations')"
+        data-tab="correlations"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=correlations"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'correlations'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.shield_check(class="w-4 h-4") }}
         Correlations
       </button>
       {# Tab: Log #}
       <button
         @click="setTab('log')"
+        data-tab="log"
         hx-get="/frag/results-tab?id={{ scan.id }}&tab=log"
         hx-target="#tab-content"
         hx-swap="innerHTML"
         :class="activeTab === 'log'
           ? 'border-b-2 border-sf-accent text-sf-accent'
           : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
-        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors">
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
         {{ icons.command_line(class="w-4 h-4") }}
         Log
       </button>
+    </div>
+    <button type="button" x-show="canL" x-cloak @click="nudge(-1)" aria-label="Scroll tabs left"
+            class="md:hidden absolute left-0 top-0 bottom-0 w-10 flex items-center justify-start pl-1 text-slate-400 bg-gradient-to-r from-white dark:from-sf-surface via-white/80 dark:via-sf-surface/80 to-transparent">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+    </button>
+    <button type="button" x-show="canR" x-cloak @click="nudge(1)" aria-label="Scroll tabs right"
+            class="md:hidden absolute right-0 top-0 bottom-0 w-10 flex items-center justify-end pr-1 text-slate-400 bg-gradient-to-l from-white dark:from-sf-surface via-white/80 dark:via-sf-surface/80 to-transparent">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+    </button>
     </div>
 
     <div id="tab-content"
          x-init="$nextTick(() => { htmx.ajax('GET', '/frag/results-tab?id={{ scan.id }}&tab=' + activeTab, {target: '#tab-content', swap: 'innerHTML'}) })"
          hx-swap="innerHTML">
-      <div class="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
+      <div class="p-6 md:p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
         Loading...
       </div>
     </div>
