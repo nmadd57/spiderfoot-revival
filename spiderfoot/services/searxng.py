@@ -1,12 +1,10 @@
 """Web search through the user's SearXNG instance.
 
 The Google Custom Search JSON API is closed to new customers and ends on
-2027-01-01, and Microsoft retired the Bing Search API in August 2025. Modules that
-used them (``sfp_googlesearch``, ``sfp_bingsearch``, ``sfp_pastebin``,
-``sfp_onioncity``, ``sfp_socialprofiles``) now go through ``SpiderFoot.googleIterate``
-and ``bingIterate``, which call :func:`search` here when a SearXNG instance is set up
-on the ``sfp_searxng`` module (Settings -> Modules -> SearXNG). The Google API is only
-used as a fallback while it still works and a key is configured.
+2027-01-01, and Microsoft retired the Bing Search API in August 2025, so those modules
+were removed. Modules that search the web (``sfp_pastebin``, ``sfp_onioncity``,
+``sfp_socialprofiles``) call ``SpiderFoot.webSearch``, which calls :func:`search` here when
+a SearXNG instance is set up on the ``sfp_searxng`` module (Settings -> Modules -> SearXNG).
 
 The instance URL, auth header, TLS verification and query defaults are read from the
 ``sfp_searxng`` module's own settings, so there is one place to configure it.

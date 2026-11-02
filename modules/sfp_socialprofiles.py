@@ -55,53 +55,26 @@ class sfp_socialprofiles(SpiderFootPlugin):
         'useCases': ["Footprint", "Passive"],
         'categories': ["Social Media"],
         'dataSource': {
-            'website': "https://developers.google.com/custom-search",
+            'website': "https://docs.searxng.org/",
             'model': "FREE_NOAUTH_LIMITED",
             'references': [
-                "https://developers.google.com/custom-search/v1",
-                "https://developers.google.com/custom-search/docs/overview",
-                "https://cse.google.com/cse"
+                "https://docs.searxng.org/dev/search_api.html"
             ],
-            'apiKeyInstructions': [
-                "If using Google:",
-                "Visit https://developers.google.com/custom-search/v1/introduction",
-                "Register a free Google account",
-                "Click on 'Get A Key'",
-                "Connect a Project",
-                "The API Key will be listed under 'YOUR API KEY'",
-                "If using Bing:",
-                "Visit https://azure.microsoft.com/en-in/services/cognitive-services/bing-web-search-api/",
-                "Register a free account",
-                "Select on Bing Custom Search",
-                "The API keys are listed under 'Key1' and 'Key2' (both should work)"
-            ],
-            'favIcon': "https://www.gstatic.com/devrel-devsite/prod/v2210deb8920cd4a55bd580441aa58e7853afc04b39a9d9ac4198e1cd7fbe04ef/developers/images/favicon.png",
-            'logo': "https://www.gstatic.com/devrel-devsite/prod/v2210deb8920cd4a55bd580441aa58e7853afc04b39a9d9ac4198e1cd7fbe04ef/developers/images/favicon.png",
-            'description': "Google Custom Search enables you to create a search engine for your website, your blog, or a collection of websites. "
-            "You can configure your engine to search both web pages and images. "
-            "You can fine-tune the ranking, add your own promotions and customize the look and feel of the search results. "
-            "You can monetize the search by connecting your engine to your Google AdSense account.",
+            'favIcon': "https://docs.searxng.org/_static/searxng-wordmark.svg",
+            'logo': "https://docs.searxng.org/_static/searxng-wordmark.svg",
+            'description': "Finds social media profile pages for names by searching the web through your own SearXNG metasearch instance.",
         }
     }
 
-    # Default options
     opts = {
         "count": 20,
-        "method": "bing",
         "tighten": True,
-        "bing_api_key": "",
-        "google_api_key": "",
-        "google_cse_id": "013611106330597893267:tfgl3wxdtbp",
     }
 
     # Option descriptions
     optdescs = {
         "count": "Number of bing search engine results of identified profiles to iterate through.",
-        "method": "Search engine to use: 'google' or 'bing'.",
         "tighten": "Tighten results by expecting to find the keyword of the target domain mentioned in the social media profile page results?",
-        "bing_api_key": "Unused: the Bing Search API was retired on 2025-08-11.",
-        "google_api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
-        "google_cse_id": "Google Custom Search Engine ID.",
     }
 
     keywords = None
@@ -138,9 +111,9 @@ class sfp_socialprofiles(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if not self.sf.webSearchAvailable(self.opts['google_api_key']):
+        if not self.sf.webSearchAvailable():
             self.error("You enabled sfp_socialprofiles but there is no web search backend: set up SearXNG "
-                       "(Settings > Modules > SearXNG) or add a Google API key.")
+                       "(Settings > Modules > SearXNG).")
             self.errorState = True
             return
 
@@ -157,47 +130,17 @@ class sfp_socialprofiles(SpiderFootPlugin):
             if len(self.keywords) == 0:
                 self.keywords = None
 
-        method = self.opts["method"].lower()
-        if method == "bing" and not self.sf.webSearchAvailable() and self.opts["google_api_key"]:
-            method = "google"  # the Bing API is gone; only the legacy Google key is left
-
         for site in sites:
             s = str(sites[site][0]).format(name=eventData)
             searchStr = s.replace(" ", "%20")
-            res = None
-
-            if method == "yahoo":
-                self.error(
-                    "Yahoo is no longer supported. Please try 'bing' or 'google'."
-                )
-                return
-
-            if method == "google":
-                res = self.sf.googleIterate(
-                    searchString=searchStr,
-                    opts={
-                        "timeout": self.opts["_fetchtimeout"],
-                        "useragent": self.opts["_useragent"],
-                        "api_key": self.opts["google_api_key"],
-                        "cse_id": self.opts["google_cse_id"],
-                    },
-                )
-                self.__dataSource__ = "Google"
-
-            if method == "bing":
-                res = self.sf.bingIterate(
-                    searchString=searchStr,
-                    opts={
-                        "timeout": self.opts["_fetchtimeout"],
-                        "useragent": self.opts["_useragent"],
-                        "count": self.opts["count"],
-                        "api_key": self.opts["bing_api_key"],
-                    },
-                )
-                self.__dataSource__ = "Bing"
+            res = self.sf.webSearch(
+                searchString=searchStr,
+                opts={"timeout": self.opts["_fetchtimeout"]},
+            )
+            self.__dataSource__ = "SearXNG"
 
             if res is None:
-                self.info("No data returned from " + self.opts["method"] + ".")
+                self.info("No data returned from web search.")
                 continue
 
             if self.checkForStop():

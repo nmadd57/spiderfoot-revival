@@ -198,10 +198,8 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
             **(config.get('__modules__') or {}),
             'sfp_searxng': {'opts': {**((config.get('__modules__') or {}).get('sfp_searxng', {}).get('opts') or {}),
                                      **{k.split(':', 1)[1]: v for k, v in saved.items() if k.startswith('sfp_searxng:')}}}}})
-        if not searxng.available(shim) and not any(
-                str(saved.get(f'{name}:{k}', '') or opts.get(k, '')).strip() for k in keyopts if 'bing' not in k.lower()):
-            return _result('skip', 'No web search backend is set up. Add your SearXNG instance URL on the SearXNG module '
-                           '(or a legacy Google key on this module).')
+        if not searxng.available(shim):
+            return _result('skip', 'No web search backend is set up. Add your SearXNG instance URL on the SearXNG module.')
 
     try:
         module = __import__('modules.' + name, globals(), locals(), [name])

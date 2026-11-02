@@ -268,9 +268,7 @@ def _build_modules_data(include_disabled=False):
 
         # Modules that search the web need a SearXNG instance (or, still, a legacy Google key)
         uses_search = bool(meta.get('usesWebSearch'))
-        search_ready = bool(searx_url) or any(
-            str(saved_config.get(f'{mod_name}:{k}', '') or opts.get(k, '')).strip()
-            for k in api_key_opts if 'bing' not in k.lower())
+        search_ready = bool(searx_url)
 
         modules[mod_name] = {
             'usesSearch': uses_search,

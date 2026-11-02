@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------------
 # Name:         sfp_onioncity
-# Purpose:      Searches the Tor search engine 'Onion City' using Google Custom
+# Purpose:      Searches the Tor search engine 'Onion City' using web search (SearXNG)
 #               Search for content related to the domain in question.
 #
 # Author:      Steve Micallef <steve@binarypool.com>
@@ -21,7 +21,7 @@ class sfp_onioncity(SpiderFootPlugin):
     meta = {
         'name': "Onion.link",
         'summary': "Search Tor 'Onion City' search engine for mentions of the target domain, through your SearXNG "
-                   "instance or Google Custom Search.",
+                   "instance.",
         'flags': ["tor"],
         'usesWebSearch': True,
         'pricing': 'free',
@@ -31,16 +31,6 @@ class sfp_onioncity(SpiderFootPlugin):
             'website': "https://onion.link/",
             'model': "FREE_NOAUTH_LIMITED",
             'references': [
-                "https://developers.google.com/custom-search/v1",
-                "https://developers.google.com/custom-search/docs/overview",
-                "https://cse.google.com/cse"
-            ],
-            'apiKeyInstructions': [
-                "Visit https://developers.google.com/custom-search/v1/introduction",
-                "Register a free Google account",
-                "Click on 'Get A Key'",
-                "Connect a Project",
-                "The API Key will be listed under 'YOUR API KEY'"
             ],
             'favIcon': "https://www.google.com/s2/favicons?domain=https://onion.link",
             'logo': "https://onion.link/images/OC.png",
@@ -50,16 +40,12 @@ class sfp_onioncity(SpiderFootPlugin):
 
     # Default options
     opts = {
-        "api_key": "",
-        "cse_id": "013611106330597893267:tfgl3wxdtbp",
         'fetchlinks': True,
         'fullnames': True
     }
 
     # Option descriptions
     optdescs = {
-        "api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
-        "cse_id": "Google Custom Search Engine ID.",
         'fetchlinks': "Fetch the darknet pages (via TOR, if enabled) to verify they mention your target.",
         'fullnames': "Search for human names?"
     }
@@ -99,9 +85,9 @@ class sfp_onioncity(SpiderFootPlugin):
 
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
-        if not self.sf.webSearchAvailable(self.opts['api_key']):
+        if not self.sf.webSearchAvailable():
             self.error("You enabled sfp_onioncity but there is no web search backend: set up SearXNG "
-                       "(Settings > Modules > SearXNG) or add a Google API key.")
+                       "(Settings > Modules > SearXNG).")
             self.errorState = True
             return
 
@@ -112,14 +98,9 @@ class sfp_onioncity(SpiderFootPlugin):
         self.results[eventData] = True
 
         # Sites hosted on the domain
-        res = self.sf.googleIterate(
+        res = self.sf.webSearch(
             searchString="+site:onion.link " + eventData,
-            opts={
-                "timeout": self.opts["_fetchtimeout"],
-                "useragent": self.opts["_useragent"],
-                "api_key": self.opts["api_key"],
-                "cse_id": self.opts["cse_id"],
-            },
+            opts={"timeout": self.opts["_fetchtimeout"]},
         )
         if res is None:
             # Failed to talk to the bing API or no results returned

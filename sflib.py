@@ -19,7 +19,6 @@ import os
 import sys
 import tempfile
 import time
-import urllib.parse
 from copy import deepcopy
 
 import dns.resolver
@@ -827,124 +826,41 @@ class SpiderFoot:
 
         return (eventType, f"{cveId}\nScore: Unknown\nDescription: Unknown")
 
-    def webSearchAvailable(self, apiKey: str = "") -> bool:
-        """True if a web search backend is usable: a SearXNG instance is set up on the SearXNG
-        module, or (legacy) a Google Custom Search key is supplied."""
+    def webSearchAvailable(self) -> bool:
+        """True if web search is usable, i.e. a SearXNG instance is set up on the SearXNG module."""
         from spiderfoot.services import searxng
 
-        return searxng.available(self) or bool(str(apiKey or "").strip())
+        return searxng.available(self)
 
-    def googleIterate(self, searchString: str, opts: dict = None) -> dict:
-        """Request web search results.
+    def webSearch(self, searchString: str, opts: dict = None) -> dict:
+        """Run a web search on the SearXNG instance configured on the SearXNG module.
 
-        Uses the SearXNG instance configured on the SearXNG module when there is one (free, no
-        key). Otherwise falls back to the Google Custom Search JSON API if ``opts["api_key"]`` is
-        set; Google closed that API to new customers and ends it on 2027-01-01.
+        This replaces the Google Custom Search and Bing Search APIs (the Bing API was retired in
+        August 2025 and Google closes the Custom Search JSON API on 2027-01-01).
 
         Will return a dict:
         {
           "urls": a list of urls that match the query string,
           "webSearchUrl": url for the search results page,
+          "results": [{"url", "title", "content"}],
         }
-
-        Options accepted:
-            useragent: User-Agent string to use
-            timeout: API call timeout
-            api_key, cse_id: Google API credentials (fallback only)
 
         Args:
             searchString (str): search query
-            opts (dict): see above
+            opts (dict): optional, ``timeout``
 
         Returns:
-            dict: Search results as {"webSearchUrl": "URL", "urls": [results]}, or None
+            dict: search results, or None if there is no instance or nothing was found
         """
         from spiderfoot.services import searxng
 
         if not searchString:
             return None
-
-        if opts is None:
-            opts = {}
-
-        if searxng.available(self):
-            return searxng.search(self, searchString, timeout=opts.get("timeout") or 0)
-
-        if not str(opts.get("api_key") or "").strip():
-            self.error("No web search backend: set up a SearXNG instance (Settings > Modules > SearXNG) "
-                       "or supply a Google Custom Search API key.")
-            return None
-
-        search_string = searchString.replace(" ", "%20")
-        params = urllib.parse.urlencode({
-            "cx": opts["cse_id"],
-            "key": opts["api_key"],
-        })
-
-        response = self.fetchUrl(
-            f"https://www.googleapis.com/customsearch/v1?q={search_string}&{params}",
-            timeout=opts["timeout"],
-        )
-
-        if response['code'] != '200':
-            self.error("Failed to get a valid response from the Google API")
-            return None
-
-        try:
-            response_json = json.loads(response['content'])
-        except ValueError:
-            self.error("The key 'content' in the Google API response doesn't contain valid JSON.")
-            return None
-
-        if "items" not in response_json:
-            return None
-
-        # We attempt to make the URL params look as authentically human as possible
-        params = urllib.parse.urlencode({
-            "ie": "utf-8",
-            "oe": "utf-8",
-            "aq": "t",
-            "rls": "org.mozilla:en-US:official",
-            "client": "firefox-a",
-        })
-
-        return {
-            "urls": [str(k['link']) for k in response_json['items']],
-            "webSearchUrl": f"https://www.google.com/search?q={search_string}&{params}"
-        }
-
-    def bingIterate(self, searchString: str, opts: dict = None) -> dict:
-        """Request web search results for modules that used the Bing Search API.
-
-        Microsoft retired that API on 2025-08-11, so this now only works through the SearXNG
-        instance configured on the SearXNG module (which can include Bing among its engines).
-
-        Will return a dict:
-        {
-          "urls": a list of urls that match the query string,
-          "webSearchUrl": url for the search results page,
-        }
-
-        Args:
-            searchString (str): search query
-            opts (dict): accepted for compatibility (timeout, count)
-
-        Returns:
-            dict: Search results as {"webSearchUrl": "URL", "urls": [results]}, or None
-        """
-        from spiderfoot.services import searxng
-
-        if not searchString:
-            return None
-
-        if opts is None:
-            opts = {}
 
         if not searxng.available(self):
-            self.error("The Bing Search API was retired on 2025-08-11. Set up a SearXNG instance "
-                       "(Settings > Modules > SearXNG) for web search.")
+            self.error("No web search backend: set up a SearXNG instance (Settings > Modules > SearXNG).")
             return None
 
-        return searxng.search(self, searchString, timeout=opts.get("timeout") or 0)
+        return searxng.search(self, searchString, timeout=(opts or {}).get("timeout") or 0)
 
 # end of SpiderFoot class

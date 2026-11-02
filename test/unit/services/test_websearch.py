@@ -2,8 +2,7 @@ import json
 import unittest
 from unittest import mock
 
-from modules.sfp_bingsearch import sfp_bingsearch
-from modules.sfp_googlesearch import sfp_googlesearch
+from modules.sfp_onioncity import sfp_onioncity
 from modules.sfp_openstreetmap import sfp_openstreetmap
 from modules.sfp_pastebin import sfp_pastebin
 from sflib import SpiderFoot
@@ -62,41 +61,28 @@ class TestSearxngService(SfBase):
         self.assertIn('did not return JSON', err.call_args[0][0])
 
 
-class TestIterate(SfBase):
-    def test_google_iterate_prefers_searxng(self):
+class TestWebSearch(SfBase):
+    def test_web_search_uses_searxng(self):
         sf = self.sf()
         with mock.patch.object(sf, 'fetchUrl', return_value=searx_page(['https://x/1'])) as f:
-            res = sf.googleIterate('site:example.com', {'timeout': 5, 'api_key': 'legacy', 'cse_id': 'cx'})
+            res = sf.webSearch('site:example.com', {'timeout': 5})
         self.assertEqual(res['urls'], ['https://x/1'])
-        self.assertNotIn('googleapis', f.call_args[0][0])
+        self.assertIn('searx:8080/search', f.call_args[0][0])
 
-    def test_google_iterate_falls_back_to_google_with_a_key(self):
-        sf = self.sf('')
-        body = {'code': '200', 'content': json.dumps({'items': [{'link': 'https://g/1'}]})}
-        with mock.patch.object(sf, 'fetchUrl', return_value=body) as f:
-            res = sf.googleIterate('site:example.com', {'timeout': 5, 'api_key': 'legacy', 'cse_id': 'cx'})
-        self.assertEqual(res['urls'], ['https://g/1'])
-        self.assertIn('googleapis.com/customsearch', f.call_args[0][0])
-
-    def test_google_iterate_without_any_backend(self):
+    def test_without_a_backend(self):
         sf = self.sf('')
         with mock.patch.object(sf, 'error') as err:
-            self.assertIsNone(sf.googleIterate('q', {'timeout': 5, 'api_key': '', 'cse_id': 'cx'}))
+            self.assertIsNone(sf.webSearch('q', {'timeout': 5}))
         self.assertIn('No web search backend', err.call_args[0][0])
-
-    def test_bing_iterate_uses_searxng_only(self):
-        sf = self.sf()
-        with mock.patch.object(sf, 'fetchUrl', return_value=searx_page(['https://b/1'])):
-            self.assertEqual(sf.bingIterate('q', {'api_key': 'k', 'count': 5, 'timeout': 5})['urls'], ['https://b/1'])
-        sf = self.sf('')
-        with mock.patch.object(sf, 'error') as err:
-            self.assertIsNone(sf.bingIterate('q', {'api_key': 'k'}))
-        self.assertIn('retired', err.call_args[0][0])
 
     def test_web_search_available(self):
         self.assertTrue(self.sf().webSearchAvailable())
         self.assertFalse(self.sf('').webSearchAvailable())
-        self.assertTrue(self.sf('').webSearchAvailable('key'))
+
+    def test_google_and_bing_helpers_are_gone(self):
+        sf = self.sf()
+        self.assertFalse(hasattr(sf, 'googleIterate'))
+        self.assertFalse(hasattr(sf, 'bingIterate'))
 
 
 class TestModules(SfBase):
@@ -113,23 +99,11 @@ class TestModules(SfBase):
         module.handleEvent(SpiderFootEvent(event_type, data, 'test', root))
         return module, out
 
-    def test_googlesearch_works_through_searxng_without_a_key(self):
-        sf = self.sf()
-        with mock.patch.object(sf, 'fetchUrl', return_value=searx_page(['https://www.example.com/a', 'https://other.org/b'])):
-            module, out = self.run_module(sfp_googlesearch, sf)
-        self.assertFalse(module.errorState)
-        links = [e.data for e in out if e.eventType == 'LINKED_URL_INTERNAL']
-        self.assertEqual(links, ['https://www.example.com/a'])
-
-    def test_googlesearch_without_backend_sets_error_state(self):
-        module, out = self.run_module(sfp_googlesearch, self.sf(''))
+    def test_search_modules_need_searxng(self):
+        module, out = self.run_module(sfp_pastebin, self.sf(''), event_type='EMAILADDR', data='a@example.com')
         self.assertTrue(module.errorState)
         self.assertEqual(out, [])
-
-    def test_bingsearch_and_pastebin_need_searxng_or_key(self):
-        module, _ = self.run_module(sfp_bingsearch, self.sf(''))
-        self.assertTrue(module.errorState)
-        module, _ = self.run_module(sfp_pastebin, self.sf(''), event_type='EMAILADDR', data='a@example.com')
+        module, _ = self.run_module(sfp_onioncity, self.sf(''))
         self.assertTrue(module.errorState)
 
     def test_pastebin_through_searxng(self):
@@ -139,10 +113,16 @@ class TestModules(SfBase):
         self.assertFalse(module.errorState)
         self.assertIn('site%3Apastebin.com', f.call_args_list[0][0][0])
 
-    def test_modules_are_no_longer_flagged_as_needing_a_key(self):
-        for cls in (sfp_googlesearch, sfp_bingsearch, sfp_pastebin):
-            self.assertNotIn('apikey', cls.meta['flags'])
+    def test_modules_declare_web_search_and_no_keys(self):
+        for cls in (sfp_pastebin, sfp_onioncity):
             self.assertTrue(cls.meta['usesWebSearch'])
+            self.assertNotIn('apikey', cls.meta['flags'])
+            self.assertFalse([o for o in cls.opts if 'key' in o or 'cse' in o], cls.__name__)
+
+    def test_google_and_bing_modules_are_removed(self):
+        import os
+        for name in ('googlesearch', 'googlemaps', 'bingsearch', 'bingsharedip'):
+            self.assertFalse(os.path.exists(f'modules/sfp_{name}.py'), name)
 
 
 class TestGeocoder(SfBase):

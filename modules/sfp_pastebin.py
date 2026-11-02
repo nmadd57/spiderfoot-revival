@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------------
 # Name:         sfp_pastebin
-# Purpose:      Searches Google for PasteBin content related to the domain in
+# Purpose:      Searches the web (via SearXNG) for PasteBin content related to the domain in
 #               question.
 #
 # Author:      Steve Micallef <steve@binarypool.com> and ShellCodeNoobx
@@ -20,7 +20,7 @@ class sfp_pastebin(SpiderFootPlugin):
 
     meta = {
         'name': "PasteBin",
-        'summary': "PasteBin search (through your SearXNG instance, or the Google Search API) to identify related content.",
+        'summary': "PasteBin search (through your SearXNG instance) to identify related content.",
         'flags': [],
         'usesWebSearch': True,
         'pricing': 'free',
@@ -33,13 +33,6 @@ class sfp_pastebin(SpiderFootPlugin):
                 "https://pastebin.com/doc_api",
                 "https://pastebin.com/faq"
             ],
-            'apiKeyInstructions': [
-                "Visit https://developers.google.com/custom-search/v1/introduction",
-                "Register a free Google account",
-                "Click on 'Get A Key'",
-                "Connect a Project",
-                "The API Key will be listed under 'YOUR API KEY'"
-            ],
             'favIcon': "https://pastebin.com/favicon.ico",
             'logo': "https://pastebin.com/favicon.ico",
             'description': "Pastebin is a website where you can store any text online for easy sharing. "
@@ -51,14 +44,10 @@ class sfp_pastebin(SpiderFootPlugin):
 
     # Default options
     opts = {
-        "api_key": "",
-        "cse_id": "013611106330597893267:tfgl3wxdtbp"
     }
 
     # Option descriptions
     optdescs = {
-        "api_key": "Optional, legacy: Google Custom Search API key. Not needed when SearXNG is set up.",
-        "cse_id": "Google Custom Search Engine ID.",
     }
 
     domains = {
@@ -91,9 +80,9 @@ class sfp_pastebin(SpiderFootPlugin):
         if self.errorState:
             return
 
-        if not self.sf.webSearchAvailable(self.opts['api_key']):
+        if not self.sf.webSearchAvailable():
             self.error(f"You enabled {self.__class__.__name__} but there is no web search backend: set up SearXNG "
-                       "(Settings > Modules > SearXNG) or add a Google API key.")
+                       "(Settings > Modules > SearXNG).")
             self.errorState = True
             return
 
@@ -104,18 +93,13 @@ class sfp_pastebin(SpiderFootPlugin):
 
         for dom in list(self.domains.keys()):
             target = self.domains[dom]
-            res = self.sf.googleIterate(
+            res = self.sf.webSearch(
                 searchString=f'+site:{target} "{eventData}"',
-                opts={
-                    "timeout": self.opts["_fetchtimeout"],
-                    "useragent": self.opts["_useragent"],
-                    "api_key": self.opts["api_key"],
-                    "cse_id": self.opts["cse_id"],
-                },
+                opts={"timeout": self.opts["_fetchtimeout"]},
             )
 
             if res is None:
-                # Failed to talk to the Google API or no results returned
+                # No search backend, or no results returned
                 return
 
             urls = res["urls"]
