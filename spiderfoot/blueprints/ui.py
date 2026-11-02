@@ -185,6 +185,10 @@ def _build_module_settings():
         m['fields'] = fields
         m['configurable'] = bool(fields)
         m['stats'] = {**module_status.blank(), **stats.get(name, {})}
+        if not m['requiresKey']:
+            # a module with no API key has no key problems: drop error text that merely looks like one
+            # (for example WHOIS "throttling" notices)
+            m['stats'].update({'errors': 0, 'errors7d': 0, 'lastError': '', 'lastErrorAt': 0})
         # usage limits only make sense for modules that call a remote service
         m['canLimit'] = not name.startswith('sfp_tool_') and (m['pricing'] != 'local' or m['requiresKey'] or m['needsUrl'])
     return mods
