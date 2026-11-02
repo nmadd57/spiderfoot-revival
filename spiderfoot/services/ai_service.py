@@ -31,6 +31,7 @@ from spiderfoot.services import urlcheck
 log = logging.getLogger(f"spiderfoot.{__name__}")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 ATTRIBUTION_REFERER = "https://github.com/boredchilada/spiderfoot-revival"
 ATTRIBUTION_TITLE = "SpiderFoot Revival"
 
@@ -127,10 +128,13 @@ def test_connection(base_url: str, api_key: str, model: str = "", timeout: int =
     custom = bool((base_url or "").strip())
     out = {"ok": False, "message": "", "models": [], "modelCount": 0, "chat": None}
     if custom:
-        base_url, problem = urlcheck.check_http_url(base_url)
+        checked, problem = urlcheck.check_http_url(base_url)
         if problem:
             out["message"] = problem
             return out
+        models_endpoint, chat_endpoint = _models_url(checked), _chat_completions_url(checked)
+    else:
+        models_endpoint, chat_endpoint = OPENROUTER_MODELS_URL, OPENROUTER_URL
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -141,7 +145,7 @@ def test_connection(base_url: str, api_key: str, model: str = "", timeout: int =
 
     t0 = _time.time()
     try:
-        resp = requests.get(_models_url(base_url), headers=headers, timeout=timeout)
+        resp = requests.get(models_endpoint, headers=headers, timeout=timeout)
     except requests.exceptions.RequestException as e:
         out["message"] = f"Could not reach the {where}: {type(e).__name__}. Check the base URL."
         return out
@@ -166,8 +170,7 @@ def test_connection(base_url: str, api_key: str, model: str = "", timeout: int =
         known = any(m["id"] == model for m in models)
         t1 = _time.time()
         try:
-            chat_url = _chat_completions_url(base_url) if custom else OPENROUTER_URL
-            r = requests.post(chat_url, headers=headers, timeout=max(timeout, 40), json={
+            r = requests.post(chat_endpoint, headers=headers, timeout=max(timeout, 40), json={
                 "model": model, "max_tokens": 8, "temperature": 0,
                 "messages": [{"role": "user", "content": "Reply with the word OK."}]})
             ms = int((_time.time() - t1) * 1000)
