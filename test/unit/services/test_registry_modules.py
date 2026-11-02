@@ -1,5 +1,6 @@
 import json
 import unittest
+from urllib.parse import urlparse
 from unittest import mock
 
 from modules.sfp_brokercheck import sfp_brokercheck
@@ -231,8 +232,8 @@ class TestBrokerCheck(Base):
         with self.serve([('search/individual', {'hits': {'hits': []}})]) as f:
             self.feed('HUMAN_NAME', 'Nobody Atall')
         urls = [c[0][0] for c in f.call_args_list]
-        self.assertTrue(any('api.brokercheck.finra.org' in u for u in urls))
-        self.assertTrue(any('api.adviserinfo.sec.gov' in u for u in urls))
+        self.assertTrue(any(urlparse(u).hostname == 'api.brokercheck.finra.org' for u in urls))
+        self.assertTrue(any(urlparse(u).hostname == 'api.adviserinfo.sec.gov' for u in urls))
 
     def test_blocked_request_sets_error_state(self):
         with mock.patch.object(self.sf, 'fetchUrl', return_value={'code': '429', 'content': ''}), \

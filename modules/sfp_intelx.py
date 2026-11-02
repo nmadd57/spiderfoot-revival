@@ -14,6 +14,7 @@
 import datetime
 import json
 import time
+import urllib.parse
 
 from spiderfoot import SpiderFootEvent, SpiderFootPlugin
 
@@ -187,6 +188,12 @@ class sfp_intelx(SpiderFootPlugin):
         return retdata
 
     # Handle events sent to this module
+    def _is_public_intelx(self):
+        base = str(self.opts.get('base_url', ''))
+        if '://' not in base:
+            base = '//' + base
+        return urllib.parse.urlparse(base).hostname == "public.intelx.io"
+
     def handleEvent(self, event):
         eventName = event.eventType
         srcModuleName = event.module
@@ -251,7 +258,7 @@ class sfp_intelx(SpiderFootPlugin):
                 e = SpiderFootEvent(evt, val, self.__name__, event)
                 self.notifyListeners(e)
 
-        if "public.intelx.io" in self.opts['base_url'] or eventName != "INTERNET_NAME":
+        if self._is_public_intelx() or eventName != "INTERNET_NAME":
             return
 
         data = self.query(eventData, "phonebook")

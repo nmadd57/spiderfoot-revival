@@ -56,7 +56,13 @@ class SpiderFootSsl:
         s = socket.socket()
         s.settimeout(int(timeout))
         s.connect((host, int(port)))
-        sock = ssl.wrap_socket(s)
+        # This helper fetches certificates from arbitrary servers, including ones with expired or
+        # self-signed certificates, so it must not verify them; it does negotiate a modern protocol.
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        sock = ctx.wrap_socket(s, server_hostname=host)
         sock.do_handshake()
         return sock
 

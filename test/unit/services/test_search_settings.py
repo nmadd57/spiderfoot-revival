@@ -53,6 +53,7 @@ class TestSearxngInstanceTest(unittest.TestCase):
         self.assertIn('JSON output is disabled', out['message'])
         out, _ = self.run_test({'code': 'None', 'content': None, 'status': 'refused'})
         self.assertIn('Could not reach', out['message'])
+        self.assertNotIn('refused', out['message'])
 
     def test_needs_a_url_and_adds_a_scheme(self):
         sf = self.sf()

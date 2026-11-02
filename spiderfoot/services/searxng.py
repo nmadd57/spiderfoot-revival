@@ -11,10 +11,13 @@ The instance URL, auth header, TLS verification and query defaults are read from
 """
 
 import json
+import logging
 import re
 import urllib.parse
 
 MODULE = 'sfp_searxng'
+
+log = logging.getLogger(__name__)
 
 
 def parse_header(value) -> dict:
@@ -97,7 +100,8 @@ def search(sf, query: str, pages: int = 0, timeout: int = 0, cfg: dict = None):
             sf.error("SearXNG rate limited the request (HTTP 429). Allow this client's IP in the instance's limiter settings.")
             return None
         if code == 'None':
-            sf.error(f"Could not reach the SearXNG instance at {base}: {res.get('status')}")
+            log.debug("SearXNG at %s unreachable: %s", base, res.get('status'))
+            sf.error(f"Could not reach the SearXNG instance at {base}. Check the URL and that the instance is running.")
             return None
         if code != '200' or not res.get('content'):
             break

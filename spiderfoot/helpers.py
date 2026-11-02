@@ -294,7 +294,25 @@ class SpiderFootHelpers():
     })
 
     # Explicit business target prefix: "business: Acme Widgets" or "company:Acme"
-    _COMPANY_PREFIX_RX = re.compile(r"^\s*\"?\s*(?:business|company)\s*:\s*(.+?)\s*\"?\s*$", re.IGNORECASE)
+    _COMPANY_KEYWORD_RX = re.compile(r"(?:business|company)[ \t]*:", re.IGNORECASE)
+
+    @staticmethod
+    def companyPrefixName(target: str):
+        """The name after an explicit "business:"/"company:" prefix, or None if there is no such prefix.
+
+        Parsed with plain string handling plus one anchored keyword match, so odd whitespace in an
+        untrusted target cannot cause regex backtracking.
+        """
+        text = str(target or '').strip()
+        if text.startswith('"'):
+            text = text[1:].lstrip()
+        m = SpiderFootHelpers._COMPANY_KEYWORD_RX.match(text)
+        if not m:
+            return None
+        name = text[m.end():].strip()
+        if name.endswith('"'):
+            name = name[:-1].rstrip()
+        return name or None
 
     @staticmethod
     def stripTargetPrefix(target: str) -> str:
@@ -308,8 +326,8 @@ class SpiderFootHelpers():
         """
         if not target:
             return target
-        m = SpiderFootHelpers._COMPANY_PREFIX_RX.match(target)
-        return m.group(1).strip().strip('"').strip() if m else target
+        name = SpiderFootHelpers.companyPrefixName(target)
+        return name.strip('"').strip() if name else target
 
     @staticmethod
     def looksLikeCompanyName(name: str) -> bool:
@@ -398,7 +416,7 @@ class SpiderFootHelpers():
             return None
 
         # Explicit business prefix, or a quoted name ending in a legal form
-        if SpiderFootHelpers._COMPANY_PREFIX_RX.match(target):
+        if SpiderFootHelpers.companyPrefixName(target):
             return "COMPANY_NAME"
         if re.match(r"^\".+\"$", target) and SpiderFootHelpers.looksLikeCompanyName(target):
             return "COMPANY_NAME"

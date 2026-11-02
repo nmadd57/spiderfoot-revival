@@ -10,6 +10,7 @@
 # Licence:     MIT
 # -------------------------------------------------------------------------------
 
+import urllib.parse
 import datetime
 
 from spiderfoot import SpiderFootEvent, SpiderFootHelpers, SpiderFootPlugin
@@ -124,7 +125,7 @@ class sfp_wikileaks(SpiderFootPlugin):
 
             for link in links:
                 # We can safely skip search.wikileaks.org and others.
-                if "search.wikileaks.org/" in link:
+                if urllib.parse.urlparse(link).hostname == "search.wikileaks.org":
                     continue
 
                 if "wikileaks.org/" not in link and "cryptome.org/" not in link:

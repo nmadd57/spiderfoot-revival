@@ -8,7 +8,7 @@ import time
 
 import requests
 
-from spiderfoot.services import ai_service
+from spiderfoot.services import ai_service, urlcheck
 
 
 def normalise(url: str) -> str:
@@ -35,6 +35,10 @@ def test_connection(url: str, api_key: str = '', model: str = '', timeout: int =
     out = {'ok': False, 'message': '', 'models': [], 'modelCount': 0, 'dimensions': None, 'ms': None}
     if not normalise(url):
         out['message'] = 'Enter the embeddings endpoint URL first.'
+        return out
+    url, problem = urlcheck.check_http_url(normalise(url))
+    if problem:
+        out['message'] = problem
         return out
     headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
     if str(api_key or '').strip():

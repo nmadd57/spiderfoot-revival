@@ -169,7 +169,7 @@ class TestModuleSearxngEmbeddings(unittest.TestCase):
 
         def fetch(url, **kwargs):
             calls.append((url, kwargs))
-            if url.startswith("http://embed.local"):
+            if urllib.parse.urlparse(url).hostname == "embed.local":
                 return embed_handler(url, **kwargs)
             return {'code': '200', 'content': json.dumps(self.RESULTS)}
 

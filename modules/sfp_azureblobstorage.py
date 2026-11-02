@@ -145,8 +145,9 @@ class sfp_azureblobstorage(SpiderFootPlugin):
         self.debug(f"Received event, {eventName}, from {srcModuleName}")
 
         if eventName == "LINKED_URL_EXTERNAL":
-            if ".blob.core.windows.net" in eventData:
-                b = self.sf.urlFQDN(eventData)
+            fqdn = self.sf.urlFQDN(eventData)
+            if fqdn and fqdn.endswith(".blob.core.windows.net"):
+                b = fqdn
                 evt = SpiderFootEvent("CLOUD_STORAGE_BUCKET", b, self.__name__, event)
                 self.notifyListeners(evt)
             return

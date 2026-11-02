@@ -25,6 +25,8 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from spiderfoot.services import urlcheck
+
 
 log = logging.getLogger(f"spiderfoot.{__name__}")
 
@@ -123,6 +125,12 @@ def test_connection(base_url: str, api_key: str, model: str = "", timeout: int =
     import time as _time
 
     custom = bool((base_url or "").strip())
+    out = {"ok": False, "message": "", "models": [], "modelCount": 0, "chat": None}
+    if custom:
+        base_url, problem = urlcheck.check_http_url(base_url)
+        if problem:
+            out["message"] = problem
+            return out
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -130,7 +138,6 @@ def test_connection(base_url: str, api_key: str, model: str = "", timeout: int =
         headers["HTTP-Referer"] = ATTRIBUTION_REFERER
         headers["X-Title"] = ATTRIBUTION_TITLE
     where = "AI endpoint" if custom else "OpenRouter"
-    out = {"ok": False, "message": "", "models": [], "modelCount": 0, "chat": None}
 
     t0 = _time.time()
     try:

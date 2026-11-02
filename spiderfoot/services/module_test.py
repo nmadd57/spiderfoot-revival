@@ -26,6 +26,8 @@ from urllib.parse import urlparse
 
 from spiderfoot.services import usage
 
+_log = logging.getLogger(__name__)
+
 TIMEOUT = 60
 
 # Preference order of sample events: (event type, data, target type, target value).
@@ -172,7 +174,8 @@ def test_tool(name, opts, saved):
     except subprocess.TimeoutExpired:
         return _result('fail', 'The tool did not answer within 30 seconds.', ms=int((time.time() - t0) * 1000))
     except OSError as e:
-        return _result('fail', f'The tool could not be started: {e}')
+        _log.warning('Tool test for %s could not start the tool', name, exc_info=True)
+        return _result('fail', f'The tool could not be started ({type(e).__name__}). See the server log.')
     line = next((ln.strip() for ln in text.splitlines() if ln.strip() and 'INF' not in ln[:8]), '')
     ms = int((time.time() - t0) * 1000)
     if not text:
@@ -225,7 +228,8 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
         # the app's module registry: work on a private copy so a test never changes real settings.
         mod.opts = deepcopy(type(mod).opts)
     except Exception as e:
-        return _result('fail', f'The module could not be loaded: {e}')
+        _log.warning('Module test: %s could not be loaded', name, exc_info=True)
+        return _result('fail', f'The module could not be loaded ({type(e).__name__}). See the server log.')
 
     sample = pick_sample(mod.watchedEvents(), target)
     if not sample:
@@ -273,7 +277,8 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
         mod.checkForStop = lambda: False
     except Exception as e:
         pool.shutdown(wait=False)
-        return _result('fail', f'The module failed to initialise: {e}')
+        _log.warning('Module test: %s failed to initialise', name, exc_info=True)
+        return _result('fail', f'The module failed to initialise ({type(e).__name__}). See the server log.')
 
     mod.log.addHandler(capture)
     pool.start()
@@ -285,7 +290,8 @@ def run_module(name, config, sf_factory, target=None, saved=None, db=None):
         try:
             mod.handleEvent(evt)
         except Exception as e:  # noqa: BLE001 - report whatever the module raised
-            outcome['exc'] = f'{type(e).__name__}: {e}'
+            _log.warning('Module test: %s raised during handleEvent', name, exc_info=True)
+            outcome['exc'] = f'The module raised {type(e).__name__}. See the server log.'
         finally:
             usage.set_module(None)
             outcome['done'] = True

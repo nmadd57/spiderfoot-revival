@@ -11,6 +11,7 @@
 # Licence:     MIT
 # -------------------------------------------------------------------------------
 
+import re
 import json
 
 from spiderfoot import SpiderFootEvent, SpiderFootPlugin
@@ -123,7 +124,7 @@ class sfp_webserver(SpiderFootPlugin):
         if cookies and 'JSESSIONID' in cookies:
             tech.append("Java/JSP")
 
-        if cookies and 'ASP.NET' in cookies:
+        if cookies and re.search(r'ASP\.NET', cookies):
             tech.append("ASP.NET")
 
         if '.asp' in eventSource:

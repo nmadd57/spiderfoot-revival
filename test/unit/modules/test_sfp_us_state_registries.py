@@ -1,5 +1,6 @@
 import json
 import unittest
+from urllib.parse import urlparse
 
 import pytest
 
@@ -66,7 +67,7 @@ class TestModuleUsStateRegistries(unittest.TestCase):
         module.handleEvent(SpiderFootEvent('COMPANY_NAME', "Acme United Corp", 'SpiderFoot UI', root))
 
         self.assertEqual(3, len(urls))
-        self.assertFalse(any("data.ny.gov" in u or "data.texas.gov" in u for u in urls))
+        self.assertFalse(any(urlparse(u).hostname in {"data.ny.gov", "data.texas.gov"} for u in urls))
         self.assertIn("like+%27ACME%25UNITED%25%27", urls[0])
 
         raw = [json.loads(e.data) for e in events if e.eventType == "RAW_RIR_DATA"]

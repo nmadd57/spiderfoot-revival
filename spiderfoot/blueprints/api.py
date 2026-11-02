@@ -197,6 +197,35 @@ def ping():
     return jsonify(["SUCCESS", __version__])
 
 
+# Tables the SQL console may never read (tbl_config holds API keys).
+_QUERY_DENIED_TABLES = frozenset({'tbl_config'})
+_QUERY_DENIED_FUNCTIONS = frozenset({'load_extension'})
+
+
+def query_authorizer(action, arg1, arg2, dbname, source):
+    """SQLite authorizer for the read-only SQL console.
+
+    Allows only SELECT statements (and the column reads, plain functions and recursive CTEs they
+    need). Reads of ``tbl_config`` and the ``load_extension`` function are denied, as is every other
+    action (ATTACH, PRAGMA, INSERT, UPDATE, DELETE, DDL, transactions, ...).
+    """
+    import sqlite3
+
+    if action == sqlite3.SQLITE_SELECT:
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_READ:
+        if str(arg1 or '').lower() in _QUERY_DENIED_TABLES:
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_FUNCTION:
+        if str(arg2 or '').lower() in _QUERY_DENIED_FUNCTIONS:
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+    if action == getattr(sqlite3, 'SQLITE_RECURSIVE', 33):
+        return sqlite3.SQLITE_OK
+    return sqlite3.SQLITE_DENY
+
+
 @api_bp.route('/query', methods=['POST'])
 def query():
     """Run a SELECT query against the database (CLI).
@@ -232,6 +261,7 @@ def query():
     try:
         conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
         try:
+            conn.set_authorizer(query_authorizer)
             cursor = conn.execute(q)
             data = cursor.fetchall()
             column_names = [c[0] for c in cursor.description]
@@ -725,8 +755,9 @@ def usage_set_limits():
         return jsonify(["ERROR", "unknown module"]), 400
     try:
         lim = usage.normalize_limits(body.get('limits') or {})
-    except ValueError as e:
-        return jsonify(["ERROR", str(e)]), 400
+    except ValueError:
+        log.warning("Invalid usage limits for %s", module, exc_info=True)
+        return jsonify(["ERROR", "Invalid limits: check the numbers and dates."]), 400
 
     conn = _usage_conn()
     try:
@@ -944,8 +975,9 @@ def usage_check():
             result['saved'] = True
             _remember_quota(module, result)
             _clear_key_issues([module])
-        except Exception as e:
-            result['message'] = f"Key is valid but saving failed: {e}"
+        except Exception:
+            log.exception("Saving a valid key for %s failed", module)
+            result['message'] = "Key is valid but saving failed. See the server log."
     return jsonify(result)
 
 
@@ -1076,9 +1108,9 @@ def startscan():
         p = mp.Process(target=startSpiderFootScanner, args=(logging_queue, scanname, scanId, scantarget, targetType, modlist, cfg))
         p.daemon = True
         p.start()
-    except Exception as e:
-        log.error(f"[-] Scan [{scanId}] failed: {e}")
-        return jsonify(["ERROR", f"[-] Scan [{scanId}] failed: {e}"])
+    except Exception:
+        log.exception(f"[-] Scan [{scanId}] failed")
+        return jsonify(["ERROR", f"[-] Scan [{scanId}] failed to start. See the server log."])
 
     # Wait until the scan has initialized (timeout after 30s)
     wait = 0
@@ -1133,9 +1165,9 @@ def rerunscan():
         p = mp.Process(target=startSpiderFootScanner, args=(logging_queue, scanname, scanId, scantarget, targetType, modlist, cfg))
         p.daemon = True
         p.start()
-    except Exception as e:
-        log.error(f"[-] Scan [{scanId}] failed: {e}")
-        return jsonify(["ERROR", f"[-] Scan [{scanId}] failed: {e}"])
+    except Exception:
+        log.exception(f"[-] Scan [{scanId}] failed")
+        return jsonify(["ERROR", f"[-] Scan [{scanId}] failed to start. See the server log."])
 
     wait = 0
     while dbh.scanInstanceGet(scanId) is None:
@@ -1190,9 +1222,9 @@ def rerunscanmulti():
             p = mp.Process(target=startSpiderFootScanner, args=(logging_queue, scanname, scanId, scantarget, targetType, modlist, cfg))
             p.daemon = True
             p.start()
-        except Exception as e:
-            log.error(f"[-] Scan [{scanId}] failed: {e}")
-            return jsonify(["ERROR", f"[-] Scan [{scanId}] failed: {e}"])
+        except Exception:
+            log.exception(f"[-] Scan [{scanId}] failed")
+            return jsonify(["ERROR", f"[-] Scan [{scanId}] failed to start. See the server log."])
 
         wait = 0
         while dbh.scanInstanceGet(scanId) is None:
@@ -1422,8 +1454,9 @@ def savesettingsraw():
         new_config = sf.configUnserialize(cleanopts, currentopts)
         current_app.config['SF_CONFIG'] = new_config
         dbh.configSet(sf.configSerialize(new_config))
-    except Exception as e:
-        return jsonify(["ERROR", f"Processing one or more of your inputs failed: {e}"])
+    except Exception:
+        log.exception("Processing submitted settings failed")
+        return jsonify(["ERROR", "Processing one or more of your inputs failed. See the server log."])
 
     return jsonify(["SUCCESS", ""])
 
@@ -1461,8 +1494,9 @@ def savesettings():
                 tmp[opt_array[0]] = '='.join(opt_array[1:])
 
             allopts = json.dumps(tmp)
-        except Exception as e:
-            return jsonify(["ERROR", f"Failed to parse input file. Was it generated from SpiderFoot? ({e})"])
+        except Exception:
+            log.warning("Failed to parse uploaded settings file", exc_info=True)
+            return jsonify(["ERROR", "Failed to parse input file. Was it generated from SpiderFoot?"])
 
     # Reset
     if allopts == "RESET":
@@ -1494,8 +1528,9 @@ def savesettings():
         # a changed key invalidates any recorded key problem for that module
         _clear_key_issues({o.split(':', 1)[0] for o in cleanopts
                            if ':' in o and any(t in o.lower() for t in ('api_key', 'apikey', 'api_id', 'accesstoken', 'secret'))})
-    except Exception as e:
-        return jsonify(["ERROR", f"Processing one or more of your inputs failed: {e}"])
+    except Exception:
+        log.exception("Processing submitted settings failed")
+        return jsonify(["ERROR", "Processing one or more of your inputs failed. See the server log."])
 
     return jsonify(["SUCCESS", ""])
 
@@ -1552,8 +1587,9 @@ def vacuum():
         if dbh.vacuumDB():
             return jsonify(["SUCCESS", ""])
         return jsonify(["ERROR", "Vacuuming the database failed"])
-    except Exception as e:
-        return jsonify(["ERROR", f"Vacuuming the database failed: {e}"])
+    except Exception:
+        log.exception("Vacuuming the database failed")
+        return jsonify(["ERROR", "Vacuuming the database failed. See the server log."])
 
 
 # -- Scan export logs (CSV) --------------------------------------------------
@@ -2062,13 +2098,15 @@ def presets_create():
             modules=valid,
             now_ms=now_ms,
         )
-    except sqlite3.IntegrityError as e:
+    except sqlite3.IntegrityError:
         # UNIQUE/CHECK constraint violation — most likely a name collision
         # that slipped past the prior presetList() check (TOCTOU race) or a
         # CHECK violation on `kind`. Always a client-facing data issue.
-        return jsonify_error('400', f"Constraint violation: {e}")
-    except Exception as e:
-        return jsonify_error('500', f"Failed to create preset: {e}")
+        log.warning("Preset create hit a constraint violation", exc_info=True)
+        return jsonify_error('400', "The preset could not be saved: the name may already be in use.")
+    except Exception:
+        log.exception("Failed to create preset")
+        return jsonify_error('500', "Failed to create preset. See the server log.")
     return jsonify(serialize_preset(dbh.presetGet(preset_id))), 201
 
 
@@ -2112,10 +2150,12 @@ def presets_update(preset_id):
             preset_id=preset_id, name=name, description=description,
             modules=valid, now_ms=int(time.time() * 1000),
         )
-    except sqlite3.IntegrityError as e:
-        return jsonify_error('400', f"Constraint violation: {e}")
-    except Exception as e:
-        return jsonify_error('500', f"Failed to update preset: {e}")
+    except sqlite3.IntegrityError:
+        log.warning("Preset update hit a constraint violation", exc_info=True)
+        return jsonify_error('400', "The preset could not be saved: the name may already be in use.")
+    except Exception:
+        log.exception("Failed to update preset")
+        return jsonify_error('500', "Failed to update preset. See the server log.")
     return jsonify(serialize_preset(dbh.presetGet(preset_id)))
 
 

@@ -4,6 +4,15 @@ All notable changes to the SpiderFoot Revival project.
 
 ## [Unreleased]
 
+### Security: CodeQL findings and Dependabot
+
+- Error responses no longer carry exception text: failures are logged on the server and the client gets a short fixed message (settings save, scan start, vacuum, presets, usage limits, module test, SearXNG test).
+- The `/query` SQL console now also runs under a SQLite authorizer that only allows SELECT, recursive queries and ordinary functions, and denies reading `tbl_config` (which holds API keys), ATTACH, PRAGMA, writes and `load_extension`, on top of the existing checks and the read-only connection.
+- Endpoint URLs entered for the AI assistant and the embeddings service are validated before a request is made: http(s) only, no credentials in the URL, and no link-local, cloud metadata, unspecified or multicast addresses (LAN and loopback stay allowed, since a local model server is the normal case).
+- Host checks in the cloud bucket, IntelX, WikiLeaks, TruffleHog, abstractapi and webserver modules compare parsed host names instead of searching for a substring, so a look-alike URL no longer passes.
+- The "business:/company:" target prefix is parsed without a backtracking regex; a stray `[0-f]` character range is fixed; the certificate fetcher uses an explicit TLS context (TLS 1.2 or newer, still without verification because it must read any server's certificate).
+- Added `.github/dependabot.yml`: weekly updates for pip, npm, Docker base images and GitHub Actions, with minor and patch updates grouped.
+
 ### Web Search settings tab; expired sign-in banner
 
 - New Settings -> Web Search tab, laid out like AI Assistant: a SearXNG card (instance URL, auth header, engines, language, pages, search toggles) and an Embeddings card (endpoint URL, model, key, minimum similarity), each with its own Save and Test button. **Test SearXNG** runs a search with the values on the form (saved or not) and reports the result count, sample URLs and any engines that did not answer, or the reason it failed (sign-in page in front of it, JSON disabled, rate limited, unreachable). **Test embeddings** embeds a short text, reports the vector size and latency, lists the endpoint's models and fills the model suggestions (and an empty model field) from them. Auth header and embeddings key stay masked. The SearXNG row on Settings -> Modules now points to this tab.

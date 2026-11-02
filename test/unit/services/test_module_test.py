@@ -85,7 +85,9 @@ class TestRunModule(unittest.TestCase):
         with mock.patch('modules.sfp_countryname.sfp_countryname.handleEvent', boom):
             res = mt.run_module('sfp_countryname', self.config('sfp_countryname'), SpiderFoot, target='+14155550100')
         self.assertEqual(res['status'], 'fail')
-        self.assertIn('kaput', res['summary'])
+        self.assertIn('RuntimeError', res['summary'])
+        self.assertNotIn('kaput', res['summary'])
+        self.assertNotIn('kaput', ' '.join(res['errors']))
 
     def test_key_problem_message_is_classified(self):
         def boom(self_, event):
