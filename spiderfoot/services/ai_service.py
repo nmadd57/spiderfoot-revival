@@ -331,11 +331,14 @@ class OpenRouterClient:
         completion_tokens: Optional[int] = None
         cost_usd: Optional[float] = None
 
+        plain: list = []     # lines that are not SSE: a server that ignored stream=true sends one JSON body
         for raw in resp.iter_lines(decode_unicode=False):
             if not raw:
                 continue
             line = raw.decode("utf-8", errors="replace").strip()
             if not line.startswith("data:"):
+                if not line.startswith((":", "event:", "id:", "retry:")):
+                    plain.append(line)
                 continue
             payload = line[len("data:"):].strip()
             if payload == "[DONE]":
@@ -364,9 +367,22 @@ class OpenRouterClient:
             choices = obj.get("choices") or []
             if choices:
                 delta = choices[0].get("delta") or {}
-                content = delta.get("content")
+                content = delta.get("content") or (choices[0].get("message") or {}).get("content")
                 if content:
                     yield {"type": "token", "content": content}
+
+        if plain:
+            try:
+                obj = json.loads("".join(plain))
+                content = (obj.get("choices") or [{}])[0].get("message", {}).get("content")
+                usage = obj.get("usage") or {}
+            except (ValueError, AttributeError, IndexError, TypeError):
+                content, usage, obj = None, {}, {}
+            if content:
+                yield {"type": "token", "content": content}
+                yield {"type": "done", "model_used": obj.get("model"),
+                       "prompt_tokens": usage.get("prompt_tokens"),
+                       "completion_tokens": usage.get("completion_tokens"), "cost_usd": usage.get("cost")}
 
 
 # ----------------------------------------------------------------------------
@@ -752,6 +768,11 @@ class StreamRunner:
                     self.assembled += ev["content"]
                     yield ev
                 elif ev["type"] == "done":
+                    if not self.assembled.strip():
+                        self.status = "failed"
+                        self.error_message = "The model returned no text. Try regenerating or another model."
+                        yield {"type": "error", "message": self.error_message}
+                        return
                     self.model_used = ev.get("model_used")
                     self.prompt_tokens = ev.get("prompt_tokens")
                     self.completion_tokens = ev.get("completion_tokens")

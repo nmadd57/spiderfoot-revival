@@ -54,8 +54,8 @@ def fetch_cached(dbh, *, scan_id, kind, target_id, model_requested,
             [scan_id, kind, target_id, model_requested],
         )
         row = dbh.dbh.fetchone()
-    if row is None:
-        return None
+    if row is None or not (row[1] or '').strip():
+        return None          # an empty summary is never worth serving
     if current_scan_ended is not None and row[3] != current_scan_ended:
         return None
     return {
