@@ -70,6 +70,8 @@ PARENT_FLOOR = 0.4                                   # share of its own score an
 INHERITED_MAX = 0.78                                 # what is derived from something is never 'confirmed' by lineage alone
 UNCONFIRMED_LEAD = 0.75                              # derived events under a parent that is only 'unclear'
 ANCHOR_BONUS = 0.45
+STREET_MATCH = 0.35
+CROSS_ENTITY = 0.25
 GEO_MATCH, GEO_MISMATCH = 0.15, -0.35
 ANCHOR_GEO_MATCH, ANCHOR_GEO_MISMATCH = 0.05, -0.12
 HINT_WORDS_BONUS = 0.12
@@ -537,9 +539,13 @@ class Assessment:
                     continue
         self._prepared = True
 
+    def _seedish(self, ev) -> bool:
+        """The scan target, or another entity the user gave (those are searched independently)."""
+        return ev is not None and (ev is self.seed or ev.module == 'SpiderFoot UI')
+
     def _is_search_child(self, e: Ev) -> bool:
         par = self.by_hash.get(e.parent)
-        return par is not None and (par is self.seed or (par.type == self.profile.seed_type and par.depth <= 1))
+        return par is not None and (self._seedish(par) or (par.type == self.profile.seed_type and par.depth <= 1))
 
     @staticmethod
     def _who(n: rn.Name, kind: str) -> str:
@@ -583,8 +589,19 @@ class Assessment:
                     d += ANCHOR_GEO_MISMATCH
                     reasons.append(f"Different state ({', '.join(sorted(ev.states))}) from your confirmed findings")
         if h.cities and any(c in ev.text for c in h.cities):
-            d += 0.10
+            d += 0.12
             reasons.append("Mentions a place you told us")
+        if h.streets and not (ev.states and h.states and not ev.states & h.states):
+            words = set(ev.text.split())
+            for num, toks in h.streets:
+                if all(t in words for t in toks):
+                    if num in words:
+                        d += STREET_MATCH
+                        reasons.append("Mentions the street address you gave")
+                    else:
+                        d += 0.10
+                        reasons.append("Mentions the street you gave")
+                    break
         return d
 
     def _hint_delta(self, e: Ev, ev: Evidence, reasons: list) -> float:
@@ -711,7 +728,7 @@ class Assessment:
                 score, why = 0.35, "Company name shares only part of the target's name"
             else:
                 par = self.by_hash.get(e.parent)
-                if par is not None and par is self.seed and e.type == 'COMPANY_NAME':
+                if par is not None and self._seedish(par) and e.type == 'COMPANY_NAME':
                     score, why = 0.30, "A different company name from a search for the target"
                 else:
                     return None
@@ -784,6 +801,8 @@ class Assessment:
         if ov == 'not_related':
             return Res(0.0, 'unrelated', ['You marked this as not related'], 'override', 0.0, True)
         parent_ev = self.by_hash.get(e.parent)
+        if e.module == 'SpiderFoot UI' and e is not self.seed:
+            return Res(1.0, 'confirmed', ['You gave this'], 'seed', 1.0, True)
         if e is self.seed or (parent_ev is None and e.type == p.seed_type and e.depth == 0):
             return Res(1.0, 'confirmed', ['This is the scan target'], 'seed', 1.0, True)
         if par is not None and par.method in ('override', 'override-lineage') and par.score <= 0.12 and (par.locked or par.method == 'override-lineage'):
@@ -794,7 +813,11 @@ class Assessment:
         pscore = par.score if par is not None else 1.0
         if own is not None:
             o, reasons = own
-            at_seed = parent_ev is self.seed or par is None
+            if parent_ev is not None and parent_ev.module == 'SpiderFoot UI' and parent_ev is not self.seed and 0.4 <= o < 0.95:
+                # found by searching one of the other entities you gave, and it also fits the target
+                o = min(0.97, o + CROSS_ENTITY)
+                reasons = reasons + [f"Found by searching {self._short(parent_ev)}, which you gave with the target"]
+            at_seed = self._seedish(parent_ev) or par is None
             factor = 1.0 if at_seed else (PARENT_FLOOR + (1 - PARENT_FLOOR) * pscore)
             s = o * factor
             if factor < 0.95:
@@ -802,7 +825,7 @@ class Assessment:
             return Res(s, th.label(s), reasons, method, o)
         ev = self._evidence(e)
         reasons = []
-        if parent_ev is self.seed or par is None:
+        if self._seedish(parent_ev) or par is None:
             s = pscore * SEARCH_PRIOR.get(p.kind, 0.45) * (0.8 if e.module in MODULE_PRIOR else 1.0)
             reasons.append("Found by searching the target's name; nothing in it says whose it is")
         else:
@@ -824,6 +847,10 @@ class Assessment:
             elif gd > 0:
                 s = min(1.0, s + 0.05)
                 reasons.extend(g)
+                last = _norm_text(p.name.last) if getattr(p, 'name', None) and p.kind == 'person' else ''
+                if any('street address' in x for x in g) and last and last in ev.text.split():
+                    s = max(s, 0.85)
+                    reasons.append("Names the target at the address you gave")
         d = self.adjust.get(e.h)
         if d:
             s = max(0.0, min(0.97, s + d))
@@ -833,7 +860,7 @@ class Assessment:
         if v:
             verdict, conf, why = v
             if verdict == 'same':
-                s = max(s, 0.55 + 0.35 * conf) * (0.4 + 0.6 * pscore if par is not None and parent_ev is not self.seed else 1.0)
+                s = max(s, 0.55 + 0.35 * conf) * (0.4 + 0.6 * pscore if par is not None and not self._seedish(parent_ev) else 1.0)
                 reasons.append(f"AI: likely the same ({conf:.0%}){': ' + why if why else ''}")
             elif verdict == 'different':
                 s = min(s, 0.30 - 0.25 * conf)

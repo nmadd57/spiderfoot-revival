@@ -20,6 +20,7 @@ window.scanForm = (initialModules, presets) => ({
     pendingDeleteId: null,
     droppedModules: [],
     context: '',          // optional hints that help tell the target from namesakes
+    related: true,        // several lines describe one subject: search each, then correlate
     prune: true,          // do not follow up findings that are clearly about somebody else
     report: false,        // write a report with the AI assistant when the scan ends
     reportDefault: false, // what the settings would do without this checkbox
@@ -83,8 +84,12 @@ window.scanForm = (initialModules, presets) => ({
       const items = [];
       for (const line of raw.split('\n')) {
         const lineItems = [];
+        if (this.looksLikeAddress(line.trim())) { items.push(line.trim()); continue; }
         for (const piece of line.split(',').map(s => s.trim()).filter(Boolean)) {
-          if (lineItems.length && this.isCompanySuffix(piece)) {
+          const prev = lineItems.length ? lineItems[lineItems.length - 1] : '';
+          if (prev && this.looksLikeAddress(prev) && (/^(?:[A-Za-z]{2}|\d{5}(?:-\d{4})?|[A-Za-z]{2}\s+\d{5})$/.test(piece) || (!/[\d@]/.test(piece) && piece.split(/\s+/).length <= 2))) {
+            lineItems[lineItems.length - 1] += ', ' + piece;
+          } else if (lineItems.length && this.isCompanySuffix(piece)) {
             lineItems[lineItems.length - 1] += ', ' + piece;
           } else {
             lineItems.push(piece);
@@ -100,6 +105,19 @@ window.scanForm = (initialModules, presets) => ({
         results.push({ value: item, type: this.detectTargetType(item) });
       }
       return results;
+    },
+
+    /** A street address ("2 South Main St Ashburnham MA", "PO Box 12"). */
+    looksLikeAddress(v) {
+      v = (v || '').trim();
+      return /^\d{1,6}[A-Za-z]?\s+(?:[A-Za-z0-9.'\-]+\s+){0,4}?(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|ct|court|way|pl|place|pkwy|parkway|hwy|highway|cir|circle|ter|terrace|sq|square|trl|trail|row|loop|pike)\b/i.test(v)
+        || /^p\.?\s?o\.?\s*box\s+\d+/i.test(v) || (/^\d/.test(v) && /\b[A-Za-z]{2}\s+\d{5}(?:-\d{4})?\s*$/.test(v));
+    },
+
+    /** Several lines that describe one subject are searched independently in one scan and correlated. */
+    get groupMode() {
+      const t = this.parsedTargets;
+      return this.related && t.length > 1 && t.some(x => x.type && x.type !== 'Address');
     },
 
     /** Whether any target is a person or business name (relevance hints apply to those only). */
@@ -133,6 +151,9 @@ window.scanForm = (initialModules, presets) => ({
     detectTargetType(value) {
       const v = (value || '').trim();
       if (!v) return '';
+
+      // Street address (an extra entity about the same subject)
+      if (this.looksLikeAddress(v)) return 'Address';
 
       // ASN  — AS12345 or ASN12345
       if (/^AS[N]?\d+$/i.test(v)) return 'ASN';
@@ -686,16 +707,22 @@ window.scanForm = (initialModules, presets) => ({
       const errors = [];
       let launched = 0;
 
-      for (const t of targets) {
+      // One scan for all entities when they describe the same subject; otherwise one scan per target
+      const jobs = this.groupMode
+        ? [{ value: targets.map(x => x.value).join('\n'), type: targets.find(x => x.type === 'Name' || x.type === 'Business')?.type || targets[0].type, group: true }]
+        : targets;
+
+      for (const t of jobs) {
         const scanname = baseName
-          ? (targets.length > 1 ? baseName + ' - ' + t.value : baseName)
-          : t.value;
+          ? (jobs.length > 1 ? baseName + ' - ' + t.value : baseName)
+          : (t.group ? '' : t.value);
 
         const body = new URLSearchParams({
           scanname,
           scantarget: t.value,
           modulelist: enabledMods.join(','),
         });
+        if (t.group) body.set('related', '1');
         // Relevance hints and the prune switch apply to person and business-name targets only
         if (t.type === 'Name' || t.type === 'Business') {
           if ((this.context || '').trim()) body.set('context', this.context.trim());
@@ -736,7 +763,7 @@ window.scanForm = (initialModules, presets) => ({
       this.submitting = false;
 
       if (errors.length > 0) {
-        this.showToast('Launched ' + launched + '/' + targets.length + ' scans. Errors: ' + errors.join('; '), 'error');
+        this.showToast('Launched ' + launched + '/' + jobs.length + ' scans. Errors: ' + errors.join('; '), 'error');
       }
 
       if (launched > 0) {

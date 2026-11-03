@@ -41,6 +41,7 @@ KEY_GROUPS = {
     'username': ('username', 'usernames', 'handle', 'handles', 'user', 'nick', 'alias', 'account'),
     'domain': ('domain', 'domains', 'website', 'site', 'url', 'web', 'blog'),
     'phone': ('phone', 'phones', 'tel', 'mobile', 'cell'),
+    'entity': ('entity',),
     'relative': ('relative', 'relatives', 'spouse', 'wife', 'husband', 'partner', 'brother', 'sister', 'father', 'mother',
                  'son', 'daughter', 'family', 'parent', 'friend', 'colleague'),
 }
@@ -107,11 +108,14 @@ class Hints:
         self.phones = set()
         self.relatives = []
         self.notes = []
+        self.streets = []         # [(house number, [street name words])] from addresses you gave
+        self.addresses = []
+        self.entities = []
         self.words = set()        # content words of employers, industries, relatives, notes
 
     def empty(self) -> bool:
         return not any((self.states, self.cities, self.places, self.employers, self.industries, self.birth_year, self.age,
-                        self.emails, self.usernames, self.domains, self.phones, self.relatives, self.notes))
+                        self.emails, self.usernames, self.domains, self.phones, self.relatives, self.notes, self.streets))
 
     def to_dict(self) -> dict:
         return {
@@ -119,10 +123,29 @@ class Hints:
             'employers': self.employers, 'industries': self.industries, 'birthYear': self.birth_year, 'age': self.age,
             'emails': sorted(self.emails), 'usernames': sorted(self.usernames), 'domains': sorted(self.domains),
             'phones': sorted(self.phones), 'relatives': self.relatives, 'notes': self.notes,
+            'streets': [[n, w] for n, w in self.streets], 'entities': self.entities,
         }
 
 
+STREET_RE = re.compile(r"^\s*(\d{1,6})[A-Za-z]?\s+((?:[A-Za-z0-9.'\-]+\s+){0,4}?[A-Za-z0-9.'\-]+?)\s+(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|ct|court|way|pl|place|pkwy|parkway|hwy|highway|cir|circle|ter|terrace|sq|square|trl|trail|row|loop|pike)\b\.?", re.I)
+_DIRECTIONALS = {'n', 's', 'e', 'w', 'north', 'south', 'east', 'west', 'ne', 'nw', 'se', 'sw'}
+
+
 def _add_location(h: Hints, value: str) -> None:
+    m = STREET_RE.match(value)
+    if m:
+        toks = [t for t in re.findall(r"[a-z0-9]+", m.group(2).lower()) if t not in _DIRECTIONALS]
+        if toks:
+            h.streets.append((m.group(1), toks))
+            h.addresses.append(value.strip()[:120])
+        value = value[m.end():].strip(' ,;')
+        # "Ashburnham MA" / "Ashburnham MA 01430": a trailing two-letter state code after the city
+        t = re.match(r"^(.*?)[\s,]+([A-Za-z]{2})(?:\s+\d{5}(?:-\d{4})?)?$", value)
+        if t and t.group(2).upper() in US_STATES:
+            h.states.add(t.group(2).upper())
+            value = t.group(1).strip(' ,')
+        if not value:
+            return None
     for part in re.split(r"[;|/]|,(?=\s*[A-Za-z])", value):
         part = part.strip(' .')
         if not part:
@@ -227,6 +250,8 @@ def _apply(h: Hints, group: str, value: str) -> None:
         h.domains |= {norm_domain(v) for v in re.split(r"[,;\s]+", value) if norm_domain(v)}
     elif group == 'phone':
         h.phones |= {norm_phone(v) for v in re.split(r"[;|]", value) if norm_phone(v)}
+    elif group == 'entity':
+        h.entities.append(value[:200])
     elif group == 'relative':
         h.relatives.extend(v.strip() for v in re.split(r"[;|,]", value) if v.strip())
         h.words |= {w for w in re.findall(r"[a-z]{3,}", value.lower()) if w not in STOP}
@@ -297,6 +322,8 @@ class TargetProfile:
             bits[0] = f"Person: {self.name.full.title() if self.name else self.seed}"
         elif self.kind == 'business':
             bits[0] = f"Company: {self.seed}"
+        if h.addresses:
+            bits.append('Address: ' + '; '.join(h.addresses[:2]))
         if h.states or h.cities:
             bits.append('Location: ' + ', '.join(sorted(h.cities) + [US_STATES[s].title() for s in sorted(h.states)]))
         if h.employers:

@@ -29,6 +29,8 @@ SYSTEM_PROMPT = (
     "Use same only when the text gives a concrete reason it is the target: the same middle name, place, employer, "
     "profession or identifier. A matching first and last name alone is unknown. "
     "A short form of the first name (Nick for Nicholas) is the same name. "
+    "The target description lists details known to belong together (a name with an address, employer or contact); "
+    "a candidate that fits two or more of them is very likely the target, one that contradicts them is different. "
     "Use different when the text shows another first name, middle name, place, age or profession than the target's. "
     "confidence is 0 to 1. reason is at most 12 words. Answer every id once."
 )

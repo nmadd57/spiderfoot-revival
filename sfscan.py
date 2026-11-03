@@ -413,6 +413,18 @@ class SpiderFootScanner():
                 firstEvent = SpiderFootEvent('DOMAIN_NAME', self.__targetValue, "SpiderFoot UI", rootEvent)
                 psMod.notifyListeners(firstEvent)
 
+            # Other entities the user gave about the same subject (a name with an address, an email ...) are searched
+            # independently: each becomes a seed event of its own and counts as in scope.
+            try:
+                from spiderfoot.services import entities as _entities
+                for _etype, _evalue in _entities.entities_in_context(str(self.__config.get('__scan_context') or '')):
+                    self.__target.setAlias(_evalue, _etype)
+                    psMod.notifyListeners(SpiderFootEvent(_etype, _evalue, "SpiderFoot UI", rootEvent))
+                    if _etype == 'INTERNET_NAME' and self.__sf.isDomain(_evalue, self.__config['_internettlds']):
+                        psMod.notifyListeners(SpiderFootEvent('DOMAIN_NAME', _evalue, "SpiderFoot UI", rootEvent))
+            except Exception as _e:  # a bad extra entity must not stop the scan
+                self.__sf.error(f"Could not add the extra entities: {_e}")
+
             # If in interactive mode, loop through this shared global variable
             # waiting for inputs, and process them until my status is set to
             # FINISHED.

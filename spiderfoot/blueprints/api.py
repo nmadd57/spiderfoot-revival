@@ -1105,7 +1105,7 @@ def normalize_target(scantarget, target_type=None):
 
 
 def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase='', config=None, dbh=None,
-                    logging_queue=None, target_type=None, owner=None, context='', prune=None, report=None):
+                    logging_queue=None, target_type=None, owner=None, context='', prune=None, report=None, related=False):
     """Validate the request, pick the modules and spawn the scan process.
 
     The one implementation behind the /startscan route and the MCP create_scan tool. Needs an
@@ -1133,6 +1133,18 @@ def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase=''
             status='429')
 
     scanname = clean_user_input([scanname])[0]
+    if related:
+        # Several known entities entered together: the first name/company is the target, the others are searched
+        # independently in the same scan and correlated by the relevance layer.
+        from spiderfoot.services import entities
+        pl = entities.plan(html.unescape(str(scantarget)), lambda v: normalize_target(clean_user_input([v])[0])[1])
+        if pl.error:
+            return ScanStartResult(error=pl.error)
+        scantarget, target_type = pl.primary[1], pl.primary[0]
+        context = (str(context or '').strip() + '\n' + '\n'.join(pl.context_lines)).strip()
+        if not scanname.strip():
+            scanname = ' + '.join([pl.primary[1]] + [v for _t, v in pl.others])[:120]
+
     scantarget = clean_user_input([scantarget])[0]
 
     if not scanname:
@@ -1291,7 +1303,8 @@ def startscan():
         config=get_config(), dbh=dbh, logging_queue=get_logging_queue(), owner=owner,
         context=request.values.get('context', ''),
         prune=(relevance_view.truthy(request.values.get('prune')) if request.values.get('prune') not in (None, '') else None),
-        report=(relevance_view.truthy(request.values.get('report')) if request.values.get('report') not in (None, '') else None))
+        report=(relevance_view.truthy(request.values.get('report')) if request.values.get('report') not in (None, '') else None),
+        related=relevance_view.truthy(request.values.get('related', '')))
     if res.ok:
         _apply_share_with(dbh, res.scan_id, owner)
         return jsonify(["SUCCESS", res.scan_id])
