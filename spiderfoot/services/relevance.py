@@ -375,10 +375,14 @@ class Assessment:
             names = [(n, k) for n, k in names if n]
             # name classes
             for n, k in names:
-                ev.names.append((n, k, rn.compare(p.name, n)))
+                ev.names.append((n, k, self._cmp(n)))
             best = None
             for s in ev.url_slugs:
                 c = rn.compare_slug(p.name, s)
+                for a_ in p.aliases:
+                    c2 = rn.compare_slug(a_, s)
+                    if c2 and CLASS_RANK.get(c2, 0) > CLASS_RANK.get(c or '', -1) and c2 not in CONFLICTS:
+                        c = c2
                 if c and (best is None or CLASS_RANK.get(c, 0) > CLASS_RANK.get(best[1], 0) or (c in CONFLICTS and best[1] not in ('exact', 'exact_initial'))):
                     best = (s, c)
             if best:
@@ -538,6 +542,18 @@ class Assessment:
                 except (ValueError, AttributeError, RecursionError):
                     continue
         self._prepared = True
+
+    def _cmp(self, n) -> str:
+        """How a written name relates to the target, counting the variations the user gave (those are exact)."""
+        p = self.profile
+        best = rn.compare(p.name, n)
+        for a in p.aliases:
+            c = rn.compare(a, n)
+            if c == 'name_only':
+                c = 'exact'
+            if CLASS_RANK.get(c, 0) > CLASS_RANK.get(best, 0):
+                best = c
+        return best
 
     def _seedish(self, ev) -> bool:
         """The scan target, or another entity the user gave (those are searched independently)."""

@@ -85,7 +85,7 @@ window.scanForm = (initialModules, presets) => ({
       for (const line of raw.split('\n')) {
         const lineItems = [];
         if (this.looksLikeAddress(line.trim())) { items.push(line.trim()); continue; }
-        for (const piece of line.split(',').map(s => s.trim()).filter(Boolean)) {
+        for (const piece of line.split(/,(?![^()]*\))/).map(s => s.trim()).filter(Boolean)) {
           const prev = lineItems.length ? lineItems[lineItems.length - 1] : '';
           if (prev && this.looksLikeAddress(prev) && (/^(?:[A-Za-z]{2}|\d{5}(?:-\d{4})?|[A-Za-z]{2}\s+\d{5})$/.test(piece) || (!/[\d@]/.test(piece) && piece.split(/\s+/).length <= 2))) {
             lineItems[lineItems.length - 1] += ', ' + piece;
@@ -117,7 +117,8 @@ window.scanForm = (initialModules, presets) => ({
     /** Several lines that describe one subject are searched independently in one scan and correlated. */
     get groupMode() {
       const t = this.parsedTargets;
-      return this.related && t.length > 1 && t.some(x => x.type && x.type !== 'Address');
+      if (t.length === 1) return /\(.+\)|\baka\b|a\.k\.a/i.test(t[0].value) && (t[0].type === 'Name' || t[0].type === 'Business');
+      return this.related && t.length > 1 && t.some(x => x.type && x.type !== 'Address' && x.type !== 'Alias');
     },
 
     /** Whether any target is a person or business name (relevance hints apply to those only). */
@@ -151,6 +152,9 @@ window.scanForm = (initialModules, presets) => ({
     detectTargetType(value) {
       const v = (value || '').trim();
       if (!v) return '';
+
+      // Known variation of the name: "aka: Nick Madden"
+      if (/^(?:a\.?k\.?a\.?|alias(?:es)?|also known as|nicknames?|maiden name|formerly|variations?)\s*[:\-]\s*\S/i.test(v)) return 'Alias';
 
       // Street address (an extra entity about the same subject)
       if (this.looksLikeAddress(v)) return 'Address';
@@ -190,6 +194,7 @@ window.scanForm = (initialModules, presets) => ({
     targetTypeBadgeClass() {
       const colours = {
         'Domain':     'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        'Alias':      'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
         'Address':    'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
         'IP Address': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
         'Subnet':     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',

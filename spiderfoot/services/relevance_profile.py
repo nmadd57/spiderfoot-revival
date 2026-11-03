@@ -38,7 +38,8 @@ KEY_GROUPS = {
     'industry': ('industry', 'field', 'profession', 'occupation', 'role', 'title', 'sector'),
     'age': ('age', 'born', 'birth', 'birthday', 'dob', 'year'),
     'email': ('email', 'emails', 'mail', 'e-mail'),
-    'username': ('username', 'usernames', 'handle', 'handles', 'user', 'nick', 'alias', 'account'),
+    'username': ('username', 'usernames', 'handle', 'handles', 'user', 'account'),
+    'alias': ('alias', 'aliases', 'aka', 'a.k.a', 'nick', 'nickname', 'nicknames', 'variation', 'variations', 'maiden', 'former', 'formerly', 'known'),
     'domain': ('domain', 'domains', 'website', 'site', 'url', 'web', 'blog'),
     'phone': ('phone', 'phones', 'tel', 'mobile', 'cell'),
     'entity': ('entity',),
@@ -108,6 +109,7 @@ class Hints:
         self.phones = set()
         self.relatives = []
         self.notes = []
+        self.aliases = []         # known variations of the target's name (nicknames, maiden name, spelling ...)
         self.streets = []         # [(house number, [street name words])] from addresses you gave
         self.addresses = []
         self.entities = []
@@ -115,7 +117,7 @@ class Hints:
 
     def empty(self) -> bool:
         return not any((self.states, self.cities, self.places, self.employers, self.industries, self.birth_year, self.age,
-                        self.emails, self.usernames, self.domains, self.phones, self.relatives, self.notes, self.streets))
+                        self.emails, self.usernames, self.domains, self.phones, self.relatives, self.notes, self.streets, self.aliases))
 
     def to_dict(self) -> dict:
         return {
@@ -123,7 +125,7 @@ class Hints:
             'employers': self.employers, 'industries': self.industries, 'birthYear': self.birth_year, 'age': self.age,
             'emails': sorted(self.emails), 'usernames': sorted(self.usernames), 'domains': sorted(self.domains),
             'phones': sorted(self.phones), 'relatives': self.relatives, 'notes': self.notes,
-            'streets': [[n, w] for n, w in self.streets], 'entities': self.entities,
+            'aliases': self.aliases, 'streets': [[n, w] for n, w in self.streets], 'entities': self.entities,
         }
 
 
@@ -250,6 +252,8 @@ def _apply(h: Hints, group: str, value: str) -> None:
         h.domains |= {norm_domain(v) for v in re.split(r"[,;\s]+", value) if norm_domain(v)}
     elif group == 'phone':
         h.phones |= {norm_phone(v) for v in re.split(r"[;|]", value) if norm_phone(v)}
+    elif group == 'alias':
+        h.aliases.extend(v.strip() for v in re.split(r"[;|/,]", value) if v.strip())
     elif group == 'entity':
         h.entities.append(value[:200])
     elif group == 'relative':
@@ -267,6 +271,7 @@ class TargetProfile:
         self.name = rn.parse(self.seed) if self.kind == 'person' else rn.Name()
         self.company_core = rn.company_core(self.seed) if self.kind == 'business' else ''
         self.hints = parse_context(context)
+        self.aliases = self._parse_aliases()
         self.context = str(context or '')
         # values the scan itself proves belong to the target: normalised value -> why
         self.anchor_values: typing.Dict[str, str] = {}
@@ -275,6 +280,19 @@ class TargetProfile:
         self.anchor_states: typing.Dict[str, int] = {}
         self.confirmed_texts: typing.List[str] = []
         self._load_hint_anchors()
+
+    def _parse_aliases(self) -> list:
+        """Known variations of a person's name; a single word is a first-name variation (Nick -> Nick <last name>)."""
+        out = []
+        if self.kind != 'person' or not self.name:
+            return out
+        for v in self.hints.aliases[:8]:
+            n = rn.parse(v)
+            if n and not n.last and n.first:
+                n = rn.Name(first=n.first, last=self.name.last, raw=v)
+            if n and n.first:
+                out.append(n)
+        return out
 
     @property
     def scorable(self) -> bool:
@@ -320,6 +338,8 @@ class TargetProfile:
         h = self.hints
         if self.kind == 'person':
             bits[0] = f"Person: {self.name.full.title() if self.name else self.seed}"
+            if h.aliases:
+                bits[0] += ' (also ' + ', '.join(h.aliases[:4]) + ')'
         elif self.kind == 'business':
             bits[0] = f"Company: {self.seed}"
         if h.addresses:

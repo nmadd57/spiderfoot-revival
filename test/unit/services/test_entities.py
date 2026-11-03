@@ -24,3 +24,14 @@ def test_address_and_name_are_correlated():
           ("b", "RAW_RIR_DATA", "sfp_x", "Jane Roe, 9 Oak Ave, Tulsa, OK", "s1", 0, 0)]
     res = rv.Assessment(ev, prof).run()
     assert res["a"].label == "confirmed" and res["b"].score < 0.4
+
+
+def test_known_variations_are_the_same_person():
+    p = en.plan("Nicholas Thomas Roe (Tom Roe)\nNick Roe\naka: Nicky", _type)
+    assert p.primary[1] == "Nicholas Thomas Roe" and not p.others
+    assert set(p.aliases) == {"Tom Roe", "Nick Roe", "Nicky Roe"}
+    prof = rp.TargetProfile(p.primary[1], "HUMAN_NAME", "\n".join(p.context_lines))
+    ev = [("r", "ROOT", "", "x", "", 0, 0), ("s1", "HUMAN_NAME", "SpiderFoot UI", p.primary[1], "r", 0, 0),
+          ("a", "HUMAN_NAME", "sfp_x", "Tom Roe", "s1", 0, 0), ("b", "HUMAN_NAME", "sfp_x", "Tim Roe", "s1", 0, 0)]
+    res = rv.Assessment(ev, prof).run()
+    assert res["a"].label == "confirmed" and res["b"].label == "unrelated"
