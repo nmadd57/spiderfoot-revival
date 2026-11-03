@@ -421,6 +421,11 @@ class SpiderFootHelpers():
         if re.match(r"^\".+\"$", target) and SpiderFootHelpers.looksLikeCompanyName(target):
             return "COMPANY_NAME"
 
+        # A street address ("2 South Main St Ashburnham MA")
+        from spiderfoot.services.entities import is_address
+        if is_address(target.strip('"')):
+            return "PHYSICAL_ADDRESS"
+
         # NOTE: the regex order is important
         regexToType = [
             {r"^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$": "IP_ADDRESS"},

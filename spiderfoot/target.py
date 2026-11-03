@@ -22,7 +22,7 @@ class SpiderFootTarget():
 
     _validTypes = ["IP_ADDRESS", 'IPV6_ADDRESS', "NETBLOCK_OWNER", "NETBLOCKV6_OWNER", "INTERNET_NAME",
                    "EMAILADDR", "HUMAN_NAME", "BGP_AS_OWNER", 'PHONE_NUMBER', "USERNAME",
-                   "BITCOIN_ADDRESS", "COMPANY_NAME"]
+                   "BITCOIN_ADDRESS", "COMPANY_NAME", "PHYSICAL_ADDRESS"]
     _targetType: str
     _targetValue: str
     _targetAliases: typing.List[TargetAlias]

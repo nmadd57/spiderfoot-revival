@@ -1054,7 +1054,7 @@ def usage_check():
 
 # -- Start scan --------------------------------------------------------------
 
-NAME_TARGET_TYPES = ("COMPANY_NAME", "HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS")
+NAME_TARGET_TYPES = ("COMPANY_NAME", "HUMAN_NAME", "USERNAME", "BITCOIN_ADDRESS", "PHYSICAL_ADDRESS")
 
 
 class ScanStartResult:

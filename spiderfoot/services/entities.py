@@ -16,7 +16,7 @@ ZIP_TAIL_RE = re.compile(r"\b[A-Za-z]{2}\s+\d{5}(?:-\d{4})?\s*$")
 TAIL_RE = re.compile(r"^(?:[A-Za-z]{2}|\d{5}(?:-\d{4})?|[A-Za-z]{2}\s+\d{5}(?:-\d{4})?|usa|us|united states)$", re.I)
 SUFFIX_WORDS = {'inc', 'llc', 'ltd', 'corp', 'co', 'plc', 'llp', 'lp', 'pllc', 'pc', 'gmbh', 'ag', 'sa'}
 PRIMARY_TYPES = ('HUMAN_NAME', 'COMPANY_NAME', 'INTERNET_NAME', 'EMAILADDR', 'PHONE_NUMBER', 'USERNAME', 'IP_ADDRESS',
-                 'IPV6_ADDRESS', 'NETBLOCK_OWNER', 'BGP_AS_OWNER', 'BITCOIN_ADDRESS')
+                 'IPV6_ADDRESS', 'NETBLOCK_OWNER', 'BGP_AS_OWNER', 'BITCOIN_ADDRESS', 'PHYSICAL_ADDRESS')
 HINT_KEY = {'PHYSICAL_ADDRESS': 'address', 'EMAILADDR': 'email', 'PHONE_NUMBER': 'phone', 'INTERNET_NAME': 'domain',
             'USERNAME': 'username', 'COMPANY_NAME': 'employer', 'HUMAN_NAME': 'relative'}
 MAX_ENTITIES = 12
@@ -73,7 +73,7 @@ def plan(text: str, type_of: typing.Callable[[str], typing.Optional[str]]) -> Pl
     if idx is None:
         idx = next((i for i, (t, _v) in enumerate(ents) if t in PRIMARY_TYPES), None)
     if idx is None:
-        p.error = "Add at least a name, company, domain, email, phone, username or IP address besides the address."
+        p.error = "No usable entity was entered."
         return p
     p.primary = ents[idx]
     p.others = [e for i, e in enumerate(ents) if i != idx]

@@ -12,7 +12,7 @@ def test_plan_splits_name_and_address():
         p = en.plan(text, _type)
         assert not p.error and p.primary[0] == 'HUMAN_NAME' and len(p.others) == 1
         assert p.others[0][0] == 'PHYSICAL_ADDRESS'
-    assert en.plan("1 Elm St Springfield MA", _type).error
+    assert en.plan("1 Elm St Springfield MA", _type).primary[0] == "PHYSICAL_ADDRESS"
 
 
 def test_address_and_name_are_correlated():

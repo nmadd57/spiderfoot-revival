@@ -190,6 +190,7 @@ window.scanForm = (initialModules, presets) => ({
     targetTypeBadgeClass() {
       const colours = {
         'Domain':     'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        'Address':    'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
         'IP Address': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
         'Subnet':     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
         'ASN':        'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
