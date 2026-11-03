@@ -183,6 +183,8 @@ Set `SF_OIDC_ENABLED=1` with `SF_OIDC_ISSUER`, `SF_OIDC_CLIENT_ID` and `SF_OIDC_
 - **Sharing.** The owner or an administrator can grant a user or group **view** (read results, export) or **edit** (stop, re-scan, mark false positives) from the Sharing panel on the scan page. Delete and sharing stay with the owner. Older scans with no owner are administrator-only.
 - **Safety.** Turning SSO on needs at least one admin group and an acknowledgement, and a change that removes your own admin access is refused. `SF_OIDC_ENABLED=0` is the way back in. HTTP Basic auth for API clients keeps working.
 
+Any OIDC provider works. A federating provider such as Dex is a good fit when you sign in with more than one identity provider: point `SF_OIDC_ISSUER` at its issuer URL, register a client with the redirect URI above, and request the `groups` scope.
+
 Other options: `SF_OIDC_SCOPES`, `SF_OIDC_GROUPS_CLAIM`, `SF_OIDC_REDIRECT_URI`, `SF_AUTH_SESSION_HOURS` (default 12), `SF_AUTH_UNOWNED_VISIBLE`, `SF_TRUST_PROXY`. Details and the route table are in [TECHNICAL.md](TECHNICAL.md).
 
 ## MCP server
