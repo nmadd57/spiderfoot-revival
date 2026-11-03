@@ -6,7 +6,7 @@ from spiderfoot import SpiderFootDb
 from spiderfoot.__version__ import __version__
 from spiderfoot.helpers import SpiderFootHelpers
 from spiderfoot.services.preset_service import serialize_preset
-from spiderfoot.services import access, ai_service, identity, scan_listing
+from spiderfoot.services import access, ai_service, identity, relevance_job, scan_listing
 from spiderfoot.services.ai_persistence import (
     fetch_models_for_scan, fetch_cached
 )
@@ -347,6 +347,7 @@ def newscan():
         categories=categories,
         presets=presets,
         auto_hidden=auto_hidden,
+        rel_prune_default=relevance_job.prune_default(current_app.config['SF_CONFIG']) and relevance_job.enabled(current_app.config['SF_CONFIG']),
     )
 
 
@@ -476,6 +477,11 @@ def scaninfo():
         except (ValueError, TypeError):
             pass
 
+    try:
+        hidden_unrelated = dbh.relevanceCounts(scan_id).get('unrelated', 0)
+    except Exception:
+        hidden_unrelated = 0
+
     # AI summary context (always populated; fragment hides itself if disabled)
     ai_enabled = bool(current_app.config['SF_CONFIG'].get('_ai_enabled'))
     default_model = current_app.config['SF_CONFIG'].get(
@@ -507,6 +513,7 @@ def scaninfo():
         findings=findings,
         total_events=total_events,
         unique_events=unique_events,
+        hidden_unrelated=hidden_unrelated,
         critical_count=critical_count,
         warning_count=warning_count,
         high_count=high_count,

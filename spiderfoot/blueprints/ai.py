@@ -123,6 +123,17 @@ def _scan_payload(dbh, scan_id: str):
     )
     raw_events = dbh.dbh.fetchall()
 
+    # Only findings that are about the target go to the model; say how many were left out
+    try:
+        unrelated = set(dbh.relevanceGet(scan_id, labels=['unrelated']))
+    except Exception:
+        unrelated = set()
+    excluded = 0
+    if unrelated:
+        kept = [r for r in raw_events if r[4] not in unrelated]
+        excluded = len(raw_events) - len(kept)
+        raw_events = kept
+
     type_counts = Counter(r[0] for r in raw_events).most_common(30)
     module_count = len({r[2] for r in raw_events})
 
@@ -162,6 +173,7 @@ def _scan_payload(dbh, scan_id: str):
     scan = {
         "target": target, "status": status,
         "event_count": len(raw_events), "module_count": module_count,
+        "excluded_unrelated": excluded,
     }
     return scan, type_counts, correlations, events, ended
 

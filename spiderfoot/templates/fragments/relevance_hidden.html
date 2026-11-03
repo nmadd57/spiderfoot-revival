@@ -1,0 +1,18 @@
+{# Top of the event list when the view is limited to one entity (the "N findings under X hidden: show" lines) #}
+{% if under_info %}
+<div class="flex flex-wrap items-center gap-2 px-3 py-2.5 mb-1 rounded border border-slate-200 dark:border-sf-border bg-slate-50 dark:bg-sf-base text-sm">
+  <span class="text-slate-600 dark:text-slate-300 sf-break min-w-0">
+    {{ "{:,}".format(under_info.count) }} finding{{ 's' if under_info.count != 1 else '' }} under
+    <span class="font-mono">{{ under_info.data }}</span>
+  </span>
+  <button type="button"
+          onclick="document.dispatchEvent(new CustomEvent('sf-rel-back'))"
+          class="ml-auto min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-slate-300 dark:border-sf-border hover:bg-slate-100 dark:hover:bg-sf-elevated">
+    Back to the list
+  </button>
+  {% if can_edit %}
+  <button type="button" onclick="sfRelMark(this, '{{ scan_id }}', '{{ under_info.hash }}', 'mine', 'event')"
+          class="min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10">This is mine</button>
+  {% endif %}
+</div>
+{% endif %}

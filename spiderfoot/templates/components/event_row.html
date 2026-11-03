@@ -1,3 +1,4 @@
+{% import 'components/relevance_badge.html' as relbadge %}
 {# Single event row — expandable, reused by event_table.html, event_rows.html, event_rows_grouped.html #}
 {# Expects: event dict with type, type_code, data, module, confidence, risk, generated, badge_color,
              source_data, is_web_content, data_title, data_plaintext, service_name, cert_fields,
@@ -25,6 +26,7 @@
           title="{{ event.type }}">
       {{ event.type }}
     </span>
+    {{ relbadge.badge(event.rel) }}
 
     {# Data preview #}
     <span class="order-3 md:order-none basis-full md:basis-auto md:flex-1 min-w-0 text-sm text-slate-600 dark:text-slate-300 break-all line-clamp-3 md:line-clamp-none md:truncate font-mono"
@@ -125,6 +127,42 @@
           Copy
         </button>
       </div>
+
+      {# Relevance: why this label, and the user's correction #}
+      {% if event.rel %}
+      <div class="px-3 md:px-4 py-2.5 border-b border-slate-200 dark:border-sf-border" data-relevance-panel>
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          {{ relbadge.badge(event.rel) }}
+          <span>{{ (event.rel.score * 100) | round | int }}% sure this is about the target</span>
+          <span>&middot; {{ event.rel.method }}</span>
+        </div>
+        {% if event.rel.reasons %}
+        <ul class="mt-1.5 space-y-0.5 text-sm md:text-xs text-slate-600 dark:text-slate-300 list-disc pl-5">
+          {% for why in event.rel.reasons %}<li class="sf-break">{{ why }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% if can_edit %}
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button type="button" onclick="sfRelMark(this, '{{ scan_id }}', '{{ event.hash }}', 'mine', 'event')"
+                  class="min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+            This is mine
+          </button>
+          <button type="button" onclick="sfRelMark(this, '{{ scan_id }}', '{{ event.hash }}', 'not_related', 'lineage')"
+                  class="min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-slate-400/50 text-slate-600 dark:text-slate-300 hover:bg-slate-500/10 transition-colors"
+                  title="Hides this finding and everything that was found from it">
+            Not related
+          </button>
+          {% if event.rel.override %}
+          <button type="button" onclick="sfRelMark(this, '{{ scan_id }}', '{{ event.hash }}', 'clear', 'lineage')"
+                  class="min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded text-slate-500 dark:text-slate-400 hover:underline">
+            Undo my decision
+          </button>
+          {% endif %}
+          <span class="text-xs text-slate-400 self-center" data-rel-msg></span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
       {# Source context — unified display #}
       {% if event.is_web_content and event.dupe_sources %}

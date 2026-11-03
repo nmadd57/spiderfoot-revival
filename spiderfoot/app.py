@@ -188,6 +188,7 @@ def create_app(config=None):
     from spiderfoot.blueprints.mcp_admin import mcp_admin_bp
     from spiderfoot.blueprints.auth import auth_bp
     from spiderfoot.blueprints.access import access_bp
+    from spiderfoot.blueprints.relevance import relevance_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(access_bp, url_prefix='/api')
@@ -196,6 +197,7 @@ def create_app(config=None):
     app.register_blueprint(frag_bp, url_prefix='/frag')
     app.register_blueprint(ai_bp, url_prefix='/frag')
     app.register_blueprint(mcp_admin_bp, url_prefix='/api/mcp')
+    app.register_blueprint(relevance_bp, url_prefix='/api/relevance')
 
     # Register the API blueprint a second time at the root for backwards
     # compatibility with sfcli.py and existing JS that call endpoints

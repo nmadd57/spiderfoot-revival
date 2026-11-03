@@ -2,6 +2,8 @@
 {# groups: list of dicts with label, count, events, total #}
 {# group_by: 'module' or 'type' #}
 
+{% include 'fragments/relevance_hidden.html' %}
+
 {% for group in groups %}
 <div x-data="{ expanded: false }"
      class="border-b border-slate-200 dark:border-sf-border">
@@ -40,6 +42,8 @@
 {% else %}
 <div class="px-3 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">No events found.</div>
 {% endfor %}
+
+{% include 'fragments/relevance_hidden_groups.html' %}
 
 {# Footer #}
 {% if total_count is defined and total_count > 0 %}

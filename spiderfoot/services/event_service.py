@@ -347,6 +347,8 @@ def build_event_dict(e):
         'module': e[3],
         'confidence': e[5],
         'risk': e[7],
+        'hash': e[8],
+        'source_hash': e[9],
         'generated': e[0] if e[0] else '',
         'badge_color': event_badge_color(type_code),
         'source_data': Markup(html.escape(cleaned_source)),

@@ -21,6 +21,7 @@ On top of the Revival UI (Flask, Tailwind, HTMX, Alpine.js) and its module overh
 - **Local-tool modules that work out of the box.** The image bundles BBOT, nmap, nuclei and the other CLI tools instead of leaving them as an exercise.
 - **Local AI endpoints.** The AI assistant works with any OpenAI-compatible server, not only OpenRouter.
 - **Users, OIDC sign-in and sharing.** Built-in OpenID Connect login, roles from the groups claim, per-scan owners, and view or edit delegation to a user or a group. See [Users and access](#users-and-access).
+- **Relevance scoring for people and businesses.** Every finding gets a relevance label (confirmed, likely, unclear, unrelated) so namesakes and everything that hangs off them stop burying the real results. See [Relevance scoring](#relevance-scoring).
 - **MCP server for agents.** An agent can list modules, build and run scans and read results, acting as a signed-in user. See [MCP server](#mcp-server).
 - **Still happy behind a proxy.** The app can also sit behind a reverse proxy (oauth2-proxy and similar). See [Running it safely](#running-it-safely).
 - **Maintenance automation.** CodeQL scanning, Dependabot updates, an image built by GitHub Actions on every push, and a test workflow that cannot hang (per-test timeout of 120 s, a 20-minute job limit, older runs on the same branch cancelled). Lint (`flake8`) and the full unit suite are clean.
@@ -162,6 +163,16 @@ Earlier repairs in the Revival line: DNSDumpster (new JSON API), DNSGrep (buffer
 ### Target types
 
 Domains and subdomains, IP addresses, subnets, email addresses, phone numbers, usernames, person names, company names (`business: Acme Widgets`), Bitcoin addresses and ASNs.
+
+## Relevance scoring
+
+A common name matches many people. In person and business-name scans each finding is scored for "is this actually about my target", and unrelated findings are hidden behind a counter ("N findings hidden as unrelated, show") instead of being deleted.
+
+- **How it scores.** Name rules (a different middle name or initial is strong evidence of a different person), place and identifier matches against anchors, corroboration by other modules, and the event's parent chain: whatever hangs off an unrelated person or company (addresses, filings, access points, emails) inherits the low score. If an embeddings endpoint is configured it compares only the context (never the shared name) with your hints. If an AI endpoint is configured it judges the borderline cases in small batches with a call and token cap. Without either, the rules and the parent chain still run.
+- **Pruning during the scan.** Unrelated identity matches are stored but not passed on to other modules, which stops the fan-out. Switch it off per scan with "Prune unrelated matches".
+- **Help it.** Add context on New Scan ("Help narrow the results": location, employer, known emails or handles, birth year). Use "This is mine" or "Not related" on any finding or group; your choice wins and feeds the next **Re-assess**.
+- **Where it shows.** Badges with reasons, a relevance filter on scan results, exports and search (add `include_unrelated=1` to include everything), the AI summary (relevant findings only), and the MCP tools (`min_relevance`, `reassess_relevance`, `mark_event`). Settings → Relevance has thresholds, the embeddings and AI options, and a **Score this pair** test.
+- **Known limit.** A person who goes by a middle name (for example "Tom" for "Nicholas Thomas") can be scored low; use "This is mine" or a hint to correct it. Graph and correlation views do not use the filter yet.
 
 ## Users and access
 

@@ -139,6 +139,12 @@ POLICIES: typing.Dict[str, Policy] = {
     'access.access_settings_set': ADMIN,
     'access.access_test': ADMIN,
     'access.access_users': ADMIN,
+    # -- relevance (reads need view, corrections and re-assessment need edit)
+    'relevance.status': scan(V),
+    'relevance.assess': scan(E),
+    'relevance.mark': scan(E),
+    'relevance.test': ADMIN,
+    'frag.relevance_card': scan(V),
     # -- agent (MCP)
     'mcp_admin.get_settings': USER,
     'mcp_admin.set_settings': ADMIN,

@@ -26,7 +26,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 import openpyxl
 
 from spiderfoot import SpiderFootDb, SpiderFootHelpers, __version__
-from spiderfoot.services import access, identity, scan_listing
+from spiderfoot.services import access, identity, relevance_job, relevance_view, scan_listing
 from spiderfoot.services.preset_service import serialize_preset, validate_module_names
 
 api_bp = Blueprint('api', __name__)
@@ -89,7 +89,7 @@ _SENSITIVE_OPT_PATTERNS = ('api_key', 'apikey', 'password', 'secret', 'token', '
 
 def _redact_secrets(opts: dict) -> dict:
     """Mask secret config keys before sending to clients."""
-    REDACTED = ('_ai_openrouter_key',)
+    REDACTED = ('_ai_openrouter_key', '_rel_embeddings_apikey')
     out = dict(opts)
     for k in REDACTED:
         if k in out and out[k]:
@@ -103,6 +103,39 @@ def _csv_safe(value) -> str:
     if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
         return "'" + s
     return s
+
+
+class _Relevance:
+    """Relevance of the scans an export or search touches, loaded once per scan and only when it has any."""
+
+    def __init__(self, dbh, include_unrelated: bool):
+        self.dbh = dbh
+        self.include = include_unrelated
+        self._views = {}
+
+    def view(self, scan_id):
+        if scan_id not in self._views:
+            try:
+                self._views[scan_id] = relevance_view.View(self.dbh, scan_id)
+            except Exception:
+                self._views[scan_id] = None
+        return self._views[scan_id]
+
+    def skip(self, scan_id, h) -> bool:
+        v = self.view(scan_id)
+        return bool(v and v.hidden(h, self.include))
+
+    def cols(self, scan_id, h):
+        """(label, score) for an event, or ('', '') when the scan has no relevance data."""
+        v = self.view(scan_id)
+        if not v or not v.has_data or h not in v.map:
+            return '', ''
+        r = v.map[h]
+        return r[1], round(r[0], 2)
+
+
+def _include_unrelated() -> bool:
+    return relevance_view.truthy(request.values.get('include_unrelated', ''))
 
 
 def _search_scope(scan_id):
@@ -122,10 +155,11 @@ def _search_scope(scan_id):
     return None, access.visible_scans(user, dbh, settings.unowned_visible)
 
 
-def search_base(id=None, eventType=None, value=None, allowed=None):
+def search_base(id=None, eventType=None, value=None, allowed=None, include_unrelated=True):
     """Core search logic (mirrors SpiderFootWebUi.searchBase).
 
-    ``allowed`` limits the results to those scan ids (None: no limit).
+    ``allowed`` limits the results to those scan ids (None: no limit). Rows end with the relevance label and score
+    of the finding; ``include_unrelated=False`` leaves out what was scored as unrelated.
     """
     retdata = []
 
@@ -158,15 +192,18 @@ def search_base(id=None, eventType=None, value=None, allowed=None):
     except Exception:
         return retdata
 
+    rel = _Relevance(dbh, include_unrelated)
     for row in data:
         if allowed is not None and row[12] not in allowed:
+            continue
+        if rel.skip(row[12], row[8]):
             continue
         lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
         escapeddata = html.escape(row[1])
         escapedsrc = html.escape(row[2])
         retdata.append([lastseen, escapeddata, escapedsrc,
                         row[3], row[5], row[6], row[7], row[8], row[10],
-                        row[11], row[4], row[13], row[14]])
+                        row[11], row[4], row[13], row[14], *rel.cols(row[12], row[8])])
 
     return retdata
 
@@ -436,7 +473,10 @@ def scaneventresults():
     except Exception:
         return jsonify(retdata)
 
+    rel = _Relevance(dbh, _include_unrelated())
     for row in data:
+        if rel.skip(id, row[8]):
+            continue
         lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
         retdata.append([
             lastseen,
@@ -449,7 +489,8 @@ def scaneventresults():
             row[8],
             row[13],
             row[14],
-            row[4]
+            row[4],
+            *rel.cols(id, row[8])
         ])
 
     return jsonify(retdata)
@@ -870,7 +911,10 @@ def embeddings_test():
         key = saved.get('embeddings_apikey', '') or ''
     url = clean_user_input([str(body.get('embeddings_url') if body.get('embeddings_url') is not None
                                 else saved.get('embeddings_url', '') or '')])[0]
-    return jsonify(embeddings.test_connection(url, key, str(body.get('embeddings_model') or '')))
+    model = body.get('embeddings_model')
+    if model is None:
+        model = saved.get('embeddings_model', '')
+    return jsonify(embeddings.test_connection(url, key, str(model or '')))
 
 
 _test_locks = {}
@@ -1061,13 +1105,15 @@ def normalize_target(scantarget, target_type=None):
 
 
 def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase='', config=None, dbh=None,
-                    logging_queue=None, target_type=None, owner=None):
+                    logging_queue=None, target_type=None, owner=None, context='', prune=None):
     """Validate the request, pick the modules and spawn the scan process.
 
     The one implementation behind the /startscan route and the MCP create_scan tool. Needs an
     application context (module availability is read the way the New Scan page reads it).
-    ``owner`` is the id of the user who owns the new scan (None: unowned). Returns a ScanStartResult;
-    never raises for bad input.
+    ``owner`` is the id of the user who owns the new scan (None: unowned). ``context`` is the optional free
+    text / ``key: value`` hints that help tell the target from namesakes, and ``prune`` (None: the setting's
+    default) switches the scan-time pruning of unrelated matches. Returns a ScanStartResult; never raises for
+    bad input.
     """
     from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
@@ -1105,6 +1151,9 @@ def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase=''
     cfg = deepcopy(config)
     if owner is not None:
         cfg['__scan_owner'] = owner
+    cfg['__scan_context'] = relevance_view.clean_context(context)
+    if prune is not None:
+        cfg['__scan_prune'] = bool(prune)
     sf = SpiderFoot(cfg)
 
     modlist = list()
@@ -1237,7 +1286,9 @@ def startscan():
         request.values.get('modulelist', ''),
         request.values.get('typelist', ''),
         request.values.get('usecase', ''),
-        config=get_config(), dbh=dbh, logging_queue=get_logging_queue(), owner=owner)
+        config=get_config(), dbh=dbh, logging_queue=get_logging_queue(), owner=owner,
+        context=request.values.get('context', ''),
+        prune=(relevance_view.truthy(request.values.get('prune')) if request.values.get('prune') not in (None, '') else None))
     if res.ok:
         _apply_share_with(dbh, res.scan_id, owner)
         return jsonify(["SUCCESS", res.scan_id])
@@ -1267,6 +1318,10 @@ def rerunscan():
 
     scanname = info[0]
     scantarget = info[1]
+    old_ctx = dbh.scanContextGet(id)
+    cfg['__scan_context'] = old_ctx['context']
+    if old_ctx['exists']:
+        cfg['__scan_prune'] = old_ctx['prune']
 
     scanconfig = dbh.scanConfigGet(id)
     if not scanconfig:
@@ -1332,6 +1387,12 @@ def rerunscanmulti():
         scanconfig = dbh.scanConfigGet(id)
         scanname = info[0]
         scantarget = info[1]
+        old_ctx = dbh.scanContextGet(id)
+        cfg['__scan_context'] = old_ctx['context']
+        if old_ctx['exists']:
+            cfg['__scan_prune'] = old_ctx['prune']
+        else:
+            cfg.pop('__scan_prune', None)
 
         if len(scanconfig) == 0:
             return jsonify(["ERROR", "Something went wrong internally."])
@@ -1385,7 +1446,7 @@ def search():
     if refusal is not None:
         return refusal
     try:
-        return jsonify(search_base(id, eventType, value, allowed))
+        return jsonify(search_base(id, eventType, value, allowed, include_unrelated=_include_unrelated()))
     except Exception:
         return jsonify([])
 
@@ -1584,6 +1645,9 @@ def savesettingsraw():
             if val == '********':
                 continue
             cleanopts[opt] = val
+        problem = relevance_job.validate_settings(cleanopts, config)
+        if problem:
+            return jsonify(["ERROR", problem])
 
         currentopts = deepcopy(config)
         sf = SpiderFoot(config)
@@ -1655,6 +1719,9 @@ def savesettings():
             if val == '********':
                 continue
             cleanopts[opt] = val
+        problem = relevance_job.validate_settings(cleanopts, config)
+        if problem:
+            return jsonify(["ERROR", problem])
 
         currentopts = deepcopy(config)
         sf = SpiderFoot(config)
@@ -1854,18 +1921,19 @@ def scaneventresultexport():
 
     dbh = get_db()
     data = dbh.scanResultEvent(id, type_)
+    rel = _Relevance(dbh, _include_unrelated())
 
     if filetype.lower() in ["xlsx", "excel"]:
         rows = []
         for row in data:
-            if row[4] == "ROOT":
+            if row[4] == "ROOT" or rel.skip(id, row[8]):
                 continue
             lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
-            rows.append([lastseen, str(row[4]), str(row[3]), str(row[2]), row[13], datafield])
+            rows.append([lastseen, str(row[4]), str(row[3]), str(row[2]), row[13], datafield, *rel.cols(id, row[8])])
 
         return Response(
-            build_excel(rows, ["Updated", "Type", "Module", "Source", "F/P", "Data"], sheet_name_index=1),
+            build_excel(rows, ["Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"], sheet_name_index=1),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             headers={
                 'Content-Disposition': 'attachment; filename=SpiderFoot.xlsx',
@@ -1876,13 +1944,14 @@ def scaneventresultexport():
     if filetype.lower() == 'csv':
         fileobj = StringIO()
         parser = csv.writer(fileobj, dialect=dialect)
-        parser.writerow(["Updated", "Type", "Module", "Source", "F/P", "Data"])
+        parser.writerow(["Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"])
         for row in data:
-            if row[4] == "ROOT":
+            if row[4] == "ROOT" or rel.skip(id, row[8]):
                 continue
             lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
-            parser.writerow([lastseen, _csv_safe(row[4]), _csv_safe(row[3]), _csv_safe(row[2]), _csv_safe(row[13]), _csv_safe(datafield)])
+            parser.writerow([lastseen, _csv_safe(row[4]), _csv_safe(row[3]), _csv_safe(row[2]), _csv_safe(row[13]), _csv_safe(datafield),
+                             *rel.cols(id, row[8])])
 
         return Response(
             fileobj.getvalue().encode('utf-8'),
@@ -1909,6 +1978,7 @@ def scaneventresultexportmulti():
     scaninfo = dict()
     data = list()
     scan_name = ""
+    rel = _Relevance(dbh, _include_unrelated())
 
     for id in ids.split(','):
         scaninfo[id] = dbh.scanInstanceGet(id)
@@ -1923,12 +1993,12 @@ def scaneventresultexportmulti():
     if filetype.lower() in ["xlsx", "excel"]:
         rows = []
         for row in data:
-            if row[4] == "ROOT":
+            if row[4] == "ROOT" or rel.skip(row[12], row[8]):
                 continue
             lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
             rows.append([scaninfo[row[12]][0], lastseen, str(row[4]), str(row[3]),
-                         str(row[2]), row[13], datafield])
+                         str(row[2]), row[13], datafield, *rel.cols(row[12], row[8])])
 
         if len(ids.split(',')) > 1 or scan_name == "":
             fname = "SpiderFoot.xlsx"
@@ -1936,7 +2006,7 @@ def scaneventresultexportmulti():
             fname = _safe_filename(scan_name) + "-SpiderFoot.xlsx"
 
         return Response(
-            build_excel(rows, ["Scan Name", "Updated", "Type", "Module", "Source", "F/P", "Data"], sheet_name_index=2),
+            build_excel(rows, ["Scan Name", "Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"], sheet_name_index=2),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             headers={
                 'Content-Disposition': f'attachment; filename="{fname}"',
@@ -1947,14 +2017,14 @@ def scaneventresultexportmulti():
     if filetype.lower() == 'csv':
         fileobj = StringIO()
         parser = csv.writer(fileobj, dialect=dialect)
-        parser.writerow(["Scan Name", "Updated", "Type", "Module", "Source", "F/P", "Data"])
+        parser.writerow(["Scan Name", "Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"])
         for row in data:
-            if row[4] == "ROOT":
+            if row[4] == "ROOT" or rel.skip(row[12], row[8]):
                 continue
             lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
             parser.writerow([_csv_safe(scaninfo[row[12]][0]), lastseen, _csv_safe(row[4]), _csv_safe(row[3]),
-                             _csv_safe(row[2]), _csv_safe(row[13]), _csv_safe(datafield)])
+                             _csv_safe(row[2]), _csv_safe(row[13]), _csv_safe(datafield), *rel.cols(row[12], row[8])])
 
         if len(ids.split(',')) > 1 or scan_name == "":
             fname = "SpiderFoot.csv"
@@ -1987,7 +2057,7 @@ def scansearchresultexport():
     refusal, allowed = _search_scope(id)
     if refusal is not None:
         return refusal
-    data = search_base(id, eventType, value, allowed)
+    data = search_base(id, eventType, value, allowed, include_unrelated=_include_unrelated())
 
     if not data:
         return Response('', status=204)
@@ -1998,10 +2068,10 @@ def scansearchresultexport():
             if row[10] == "ROOT":
                 continue
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
-            rows.append([row[0], str(row[10]), str(row[3]), str(row[2]), row[11], datafield])
+            rows.append([row[0], str(row[10]), str(row[3]), str(row[2]), row[11], datafield, row[13], row[14]])
 
         return Response(
-            build_excel(rows, ["Updated", "Type", "Module", "Source", "F/P", "Data"], sheet_name_index=1),
+            build_excel(rows, ["Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"], sheet_name_index=1),
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             headers={
                 'Content-Disposition': 'attachment; filename=SpiderFoot.xlsx',
@@ -2012,12 +2082,13 @@ def scansearchresultexport():
     if filetype.lower() == 'csv':
         fileobj = StringIO()
         parser = csv.writer(fileobj, dialect=dialect)
-        parser.writerow(["Updated", "Type", "Module", "Source", "F/P", "Data"])
+        parser.writerow(["Updated", "Type", "Module", "Source", "F/P", "Data", "Relevance", "Relevance score"])
         for row in data:
             if row[10] == "ROOT":
                 continue
             datafield = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
-            parser.writerow([_csv_safe(row[0]), _csv_safe(row[10]), _csv_safe(row[3]), _csv_safe(row[2]), _csv_safe(row[11]), _csv_safe(datafield)])
+            parser.writerow([_csv_safe(row[0]), _csv_safe(row[10]), _csv_safe(row[3]), _csv_safe(row[2]), _csv_safe(row[11]), _csv_safe(datafield),
+                             row[13], row[14]])
 
         return Response(
             fileobj.getvalue().encode('utf-8'),
@@ -2041,6 +2112,7 @@ def scanexportjsonmulti():
     dbh = get_db()
     scaninfo = list()
     scan_name = ""
+    rel = _Relevance(dbh, _include_unrelated())
 
     for id in ids.split(','):
         scan = dbh.scanInstanceGet(id)
@@ -2050,6 +2122,8 @@ def scanexportjsonmulti():
         scan_name = scan[0]
 
         for row in dbh.scanResultEvent(id):
+            if rel.skip(id, row[8]):
+                continue
             lastseen = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row[0]))
             event_data = str(row[1]).replace("<SFURL>", "").replace("</SFURL>", "")
             source_data = str(row[2])
@@ -2068,7 +2142,9 @@ def scanexportjsonmulti():
                 "false_positive": false_positive,
                 "last_seen": lastseen,
                 "scan_name": scan_name,
-                "scan_target": scan[1]
+                "scan_target": scan[1],
+                "relevance": rel.cols(id, row[8])[0],
+                "relevance_score": rel.cols(id, row[8])[1],
             })
 
     if len(ids.split(',')) > 1 or scan_name == "":

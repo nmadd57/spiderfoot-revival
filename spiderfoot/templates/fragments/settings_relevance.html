@@ -1,0 +1,227 @@
+{# Settings > Relevance: scoring switches and thresholds, the embeddings signal, AI judgement, and a sample test.
+   Each card saves on its own (global settings _rel_*, through /api/savesettings). v = {setting: string}; the
+   embeddings key arrives masked as "********" and is never sent back. #}
+
+<div class="space-y-8" x-data='relevanceSettings({{ v | tojson }}, {{ ai_models | tojson }}, {{ ai_ready | tojson }})'>
+
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Relevance</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      A common name pulls in namesakes, and every namesake fans out into more records. Relevance scoring rates each finding of a person or
+      business-name scan for &ldquo;is this about my target&rdquo; from local rules (name and middle-name comparison, places, shared identifiers,
+      which finding it was found under), then optionally from embedding similarity and an AI model for the borderline ones. Nothing is deleted:
+      unrelated findings are hidden behind a counter and can be shown and corrected on the scan page.
+    </p>
+  </div>
+
+  {# ------------------------------------------------------------ scoring #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Scoring</h3>
+    <div class="sf-chk flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-200">
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f._rel_enabled === '1'" @change="f._rel_enabled = $event.target.checked ? '1' : '0'"> Score findings for relevance to the target</label>
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f._rel_prune_default === '1'" @change="f._rel_prune_default = $event.target.checked ? '1' : '0'"> Prune unrelated matches while scanning (default for new scans)</label>
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f._rel_auto_assess === '1'" @change="f._rel_auto_assess = $event.target.checked ? '1' : '0'"> Run the full assessment when a scan finishes</label>
+    </div>
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      Pruning stops clearly unrelated people, companies and accounts from being followed up by other modules. It only applies to person and
+      business-name scans, never to domains or IP addresses.
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <label class="block"><span class="lbl">Hide below (%)</span>
+        <input type="number" min="0" max="95" x-model="f._rel_t_unrelated" class="fld"></label>
+      <label class="block"><span class="lbl">Likely from (%)</span>
+        <input type="number" min="1" max="99" x-model="f._rel_t_likely" class="fld"></label>
+      <label class="block"><span class="lbl">Confirmed from (%)</span>
+        <input type="number" min="2" max="100" x-model="f._rel_t_confirmed" class="fld"></label>
+    </div>
+    <p class="text-xs text-slate-500 dark:text-slate-400">Between &ldquo;hide below&rdquo; and &ldquo;likely&rdquo; a finding is labelled unclear and stays visible.</p>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('scoring')" :disabled="busy" class="btn-primary">Save scoring</button>
+      <span class="text-sm" :class="msg.scoring.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.scoring.text"></span>
+    </div>
+  </section>
+
+  {# --------------------------------------------------------- embeddings #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Embeddings <span class="text-xs font-normal text-slate-400">(optional)</span></h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Similarity between a short description of the target and each borderline finding is one signal among several. By default the endpoint from
+      Settings &rarr; Web Search is used; fill in the fields below to use a different one for relevance. Vectors are cached, so rerunning costs nothing.
+    </p>
+    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 sf-chk"><input type="checkbox" :checked="f._rel_use_embeddings === '1'" @change="f._rel_use_embeddings = $event.target.checked ? '1' : '0'"> Use embeddings</label>
+    <label class="block"><span class="lbl">Endpoint URL <span class="text-slate-400">(empty: the Web Search one)</span></span>
+      <input type="url" x-model="f._rel_embeddings_url" placeholder="http://192.168.1.10:8642/v1" autocomplete="off" class="fld font-mono"></label>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Model</span>
+        <input type="text" x-model="f._rel_embeddings_model" autocomplete="off" class="fld font-mono" placeholder="(Web Search model)"></label>
+      <label class="block"><span class="lbl">API key <span class="text-slate-400">(if it needs one)</span></span>
+        <input type="password" x-model="f._rel_embeddings_apikey" autocomplete="new-password" class="fld font-mono"
+               @focus="if (f._rel_embeddings_apikey === MASK) f._rel_embeddings_apikey = ''"
+               @blur="if (!f._rel_embeddings_apikey && v._rel_embeddings_apikey === MASK && !cleared) f._rel_embeddings_apikey = MASK">
+        <span class="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+          <template x-if="v._rel_embeddings_apikey === MASK && f._rel_embeddings_apikey === MASK"><span class="text-sf-success">A key is set. Click to replace. </span></template>
+          <button type="button" x-show="v._rel_embeddings_apikey === MASK && f._rel_embeddings_apikey !== ''" @click="cleared = true; f._rel_embeddings_apikey = ''" class="text-red-400 hover:underline">Remove it</button>
+        </span></label>
+    </div>
+    <label class="block md:max-w-xs"><span class="lbl">Neutral similarity (%) <span class="text-slate-400">(above this raises the score, below lowers it)</span></span>
+      <input type="number" min="0" max="100" x-model="f._rel_embed_mid" class="fld"></label>
+    <label class="block md:max-w-xs"><span class="lbl">Most new texts per assessment</span>
+      <input type="number" min="0" max="20000" x-model="f._rel_max_embed_texts" class="fld"></label>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('embeddings')" :disabled="busy" class="btn-primary">Save embeddings</button>
+      <button type="button" @click="testEmbeddings()" :disabled="busy" class="btn-secondary" title="Embeds a short text with the values above, saved or not">Test embeddings</button>
+      <span class="text-sm" :class="msg.embeddings.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.embeddings.text"></span>
+    </div>
+    <div x-show="out.embeddings" class="rounded border p-3 text-sm break-words sf-break"
+         :class="out.embeddings && out.embeddings.ok ? 'border-green-500/40 bg-green-500/5 text-green-600 dark:text-green-400' : 'border-red-500/40 bg-red-500/5 text-red-600 dark:text-red-400'">
+      <p x-text="out.embeddings && out.embeddings.message"></p>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------------ AI #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">AI judgement <span class="text-xs font-normal text-slate-400">(optional)</span></h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Findings that are still unclear after the local rules are sent in small batches to the model configured under AI Assistant, which answers
+      same / different / unknown for each. Identical findings are asked once. Failures leave the local score in place.
+      <template x-if="!aiReady"><span class="text-amber-600 dark:text-amber-400"> The AI Assistant is not enabled or has no endpoint yet, so this stage is skipped.</span></template>
+    </p>
+    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 sf-chk"><input type="checkbox" :checked="f._rel_use_ai === '1'" @change="f._rel_use_ai = $event.target.checked ? '1' : '0'"> Use the AI model for borderline findings</label>
+    <label class="block"><span class="lbl">Model <span class="text-slate-400">(empty: the AI Assistant default)</span></span>
+      <input type="text" x-model="f._rel_ai_model" list="rel-ai-models" autocomplete="off" class="fld font-mono" placeholder="hermes">
+      <datalist id="rel-ai-models"><template x-for="m in aiModels" :key="m.id"><option :value="m.id" x-text="m.label"></option></template></datalist></label>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Most AI calls per assessment</span>
+        <input type="number" min="0" max="200" x-model="f._rel_max_llm_calls" class="fld"></label>
+      <label class="block"><span class="lbl">Most tokens per assessment</span>
+        <input type="number" min="0" max="2000000" x-model="f._rel_max_llm_tokens" class="fld"></label>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('ai')" :disabled="busy" class="btn-primary">Save AI judgement</button>
+      <span class="text-sm" :class="msg.ai.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.ai.text"></span>
+    </div>
+  </section>
+
+  {# --------------------------------------------------------- sample test #}
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Try it</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Scores one made-up finding against a made-up target through the real pipeline (rules, embeddings, AI), with the values on this page,
+      saved or not. Nothing is stored.
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Target</span><input type="text" x-model="t.target" class="fld"></label>
+      <label class="block"><span class="lbl">Context hints</span><input type="text" x-model="t.context" class="fld"></label>
+    </div>
+    <label class="block"><span class="lbl">Finding</span><input type="text" x-model="t.candidate" class="fld"></label>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="testPair()" :disabled="busy" class="btn-secondary">Score this pair</button>
+    </div>
+    <div x-show="pair" class="rounded border border-slate-200 dark:border-sf-border p-3 text-sm space-y-2 break-words sf-break">
+      <p x-show="pair && pair.message" class="text-red-500" x-text="pair && pair.message"></p>
+      <template x-for="s in (pair ? pair.signals : [])" :key="s.stage">
+        <div class="border-b border-slate-100 dark:border-sf-border/60 pb-2 last:border-0">
+          <p class="font-medium text-slate-700 dark:text-slate-200" x-text="stageTitle(s)"></p>
+          <p class="text-xs text-slate-500 dark:text-slate-400" x-show="s.skipped" x-text="s.skipped"></p>
+          <ul class="list-disc pl-5 text-xs text-slate-600 dark:text-slate-300" x-show="s.reasons"><template x-for="r in (s.reasons || [])" :key="r"><li x-text="r"></li></template></ul>
+          <p class="text-xs text-slate-600 dark:text-slate-300" x-show="s.similarity !== undefined" x-text="'Cosine similarity ' + s.similarity + ' (adjusts the score by ' + s.delta + ') in ' + s.ms + ' ms'"></p>
+          <p class="text-xs text-slate-600 dark:text-slate-300" x-show="s.verdict" x-text="s.verdict + ' (' + s.confidence + '): ' + s.reason + ' - ' + s.ms + ' ms, ' + s.tokens + ' tokens'"></p>
+        </div>
+      </template>
+      <p x-show="pair && pair.final" class="font-semibold text-slate-800 dark:text-slate-100"
+         x-text="pair && pair.final ? 'Result: ' + pair.final.label + ' (' + Math.round(pair.final.score * 100) + '%) using ' + pair.final.method : ''"></p>
+    </div>
+  </section>
+</div>
+
+<style>
+  .lbl { display:block; font-size:.875rem; font-weight:500; color:rgb(71 85 105); }
+  .dark .lbl { color:rgb(226 232 240); }
+  .fld { display:block; width:100%; margin-top:.25rem; padding:.5rem .75rem; border-radius:.375rem; font-size:.875rem;
+         border:1px solid rgb(148 163 184 / .5); background:transparent; color:inherit; }
+  .btn-primary { padding:.5rem 1rem; border-radius:.375rem; background:var(--color-sf-accent, #06b6d4); color:#fff; font-size:.875rem; }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity:.5; cursor:wait; }
+  .btn-secondary { padding:.5rem 1rem; border-radius:.375rem; font-size:.875rem; border:1px solid rgb(148 163 184 / .6); }
+  .btn-secondary:hover { border-color: var(--color-sf-accent, #06b6d4); }
+  @media (max-width: 767px) {
+    .fld { min-height:44px; font-size:16px; }
+    .btn-primary, .btn-secondary { min-height:44px; flex:1 1 9rem; text-align:center; }
+    .sf-chk label, label.sf-chk { min-height:44px; align-items:center; }
+    .sf-chk input[type=checkbox] { width:20px; height:20px; flex-shrink:0; }
+  }
+</style>
+
+<script>
+function relevanceSettings(v, aiModels, aiReady) {
+  const GROUPS = {
+    scoring: ['_rel_enabled', '_rel_prune_default', '_rel_auto_assess', '_rel_t_unrelated', '_rel_t_likely', '_rel_t_confirmed'],
+    embeddings: ['_rel_use_embeddings', '_rel_embeddings_url', '_rel_embeddings_model', '_rel_embeddings_apikey', '_rel_embed_mid', '_rel_max_embed_texts'],
+    ai: ['_rel_use_ai', '_rel_ai_model', '_rel_max_llm_calls', '_rel_max_llm_tokens'],
+  };
+  const csrf = () => window.__SF_CSRF_TOKEN__ || '';
+  const readJson = async (r) => {
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch (e) { throw new Error('the server did not answer with JSON; your sign-in may have expired, reload the page'); }
+  };
+  return {
+    MASK: '********', v: v, f: { ...v }, cleared: false, busy: false, aiModels: aiModels || [], aiReady: aiReady,
+    out: { embeddings: null }, pair: null,
+    msg: { scoring: { ok: true, text: '' }, embeddings: { ok: true, text: '' }, ai: { ok: true, text: '' } },
+    t: { target: 'Marcus Elias Thornwood', context: 'location: Massachusetts', candidate: 'Marcus Adrian Thornwood, MD, Missouri' },
+
+    stageTitle(s) {
+      const names = { heuristics: 'Local rules', embeddings: 'Embeddings', ai: 'AI model' };
+      const base = names[s.stage] || s.stage;
+      return s.score !== undefined ? base + ': ' + s.label + ' (' + Math.round(s.score * 100) + '%)' : base;
+    },
+    changed(group) {
+      return GROUPS[group].filter(k => this.f[k] !== undefined && String(this.f[k]) !== String(this.v[k] === undefined ? '' : this.v[k]));
+    },
+    async save(group) {
+      this.busy = true; this.msg[group] = { ok: true, text: 'Saving…' };
+      const opts = {};
+      this.changed(group).forEach(k => { if (this.f[k] !== this.MASK) opts[k] = this.f[k]; });
+      try {
+        if (!Object.keys(opts).length) { this.msg[group] = { ok: true, text: 'Nothing changed.' }; this.busy = false; return; }
+        const r = await fetch('/api/savesettings', { method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf() },
+          body: new URLSearchParams({ allopts: JSON.stringify(opts) }).toString() });
+        const d = await readJson(r);
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'save failed');
+        GROUPS[group].forEach(k => {
+          const secret = k === '_rel_embeddings_apikey';
+          this.v[k] = secret ? (this.f[k] === '' ? '' : this.MASK) : this.f[k];
+          if (secret) { this.f[k] = this.v[k]; this.cleared = false; }
+        });
+        this.msg[group] = { ok: true, text: 'Saved.' };
+      } catch (e) { this.msg[group] = { ok: false, text: 'Save failed: ' + (e.message || e) }; }
+      this.busy = false;
+    },
+    async testEmbeddings() {
+      this.busy = true; this.out.embeddings = null;
+      try {
+        const r = await fetch('/api/embeddings/test', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+          body: JSON.stringify({ embeddings_url: this.f._rel_embeddings_url || undefined, embeddings_model: this.f._rel_embeddings_model || undefined,
+                                 embeddings_apikey: this.f._rel_embeddings_apikey === this.MASK ? '' : this.f._rel_embeddings_apikey }) });
+        this.out.embeddings = await readJson(r);
+      } catch (e) { this.out.embeddings = { ok: false, message: 'Test failed: ' + (e.message || e) }; }
+      this.busy = false;
+    },
+    async testPair() {
+      this.busy = true; this.pair = null;
+      try {
+        const body = { target: this.t.target, context: this.t.context, candidate: this.t.candidate,
+                       _rel_embeddings_url: this.f._rel_embeddings_url, _rel_embeddings_model: this.f._rel_embeddings_model || undefined,
+                       _rel_embeddings_apikey: this.f._rel_embeddings_apikey === this.MASK ? '' : this.f._rel_embeddings_apikey,
+                       _rel_ai_model: this.f._rel_ai_model, _rel_use_embeddings: this.f._rel_use_embeddings, _rel_use_ai: this.f._rel_use_ai };
+        const r = await fetch('/api/relevance/test', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() }, body: JSON.stringify(body) });
+        this.pair = await readJson(r);
+      } catch (e) { this.pair = { message: 'Test failed: ' + (e.message || e), signals: [] }; }
+      this.busy = false;
+    },
+  };
+}
+</script>

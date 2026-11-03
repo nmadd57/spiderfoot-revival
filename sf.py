@@ -72,6 +72,23 @@ def main() -> None:
         '_ai_default_model': 'moonshotai/kimi-k2.6',
         '_ai_fallback_model': 'z-ai/glm-5.1',
         '_ai_redact_pii': False,
+        # Relevance scoring (person and business-name scans): is a finding actually about the target?
+        '_rel_enabled': True,
+        '_rel_prune_default': True,
+        '_rel_auto_assess': True,
+        '_rel_use_embeddings': True,
+        '_rel_embeddings_url': '',
+        '_rel_embeddings_model': '',
+        '_rel_embeddings_apikey': '',
+        '_rel_embed_mid': 50,
+        '_rel_use_ai': True,
+        '_rel_ai_model': '',
+        '_rel_t_unrelated': 25,
+        '_rel_t_likely': 55,
+        '_rel_t_confirmed': 80,
+        '_rel_max_llm_calls': 8,
+        '_rel_max_llm_tokens': 150000,
+        '_rel_max_embed_texts': 1500,
     }
 
     sfOptdescs = {
@@ -94,6 +111,22 @@ def main() -> None:
         '_ai_default_model': "Default OpenRouter model. 'moonshotai/kimi-k2.6' or 'z-ai/glm-5.1'.",
         '_ai_fallback_model': "Fallback model if default fails. 'moonshotai/kimi-k2.6' or 'z-ai/glm-5.1'.",
         '_ai_redact_pii': "Mask emails, public IPs, and the scan target's root domain before sending payloads to OpenRouter.",
+        '_rel_enabled': "Score findings of person and business-name scans for relevance to the target.",
+        '_rel_prune_default': "Default for new scans: do not follow up findings that are clearly about somebody else.",
+        '_rel_auto_assess': "Run the full relevance assessment when a scan finishes.",
+        '_rel_use_embeddings': "Use the embeddings endpoint as one relevance signal.",
+        '_rel_embeddings_url': "Optional embeddings endpoint for relevance (empty: the one under Web Search).",
+        '_rel_embeddings_model': "Embedding model for relevance (empty: the Web Search one).",
+        '_rel_embeddings_apikey': "API key for the relevance embeddings endpoint.",
+        '_rel_embed_mid': "Cosine similarity (percent) treated as neutral by the embeddings signal.",
+        '_rel_use_ai': "Let the AI assistant endpoint judge borderline findings.",
+        '_rel_ai_model': "Model for relevance judgements (empty: the AI assistant default).",
+        '_rel_t_unrelated': "Findings scoring below this percentage are hidden as unrelated.",
+        '_rel_t_likely': "Findings scoring at least this percentage are labelled likely.",
+        '_rel_t_confirmed': "Findings scoring at least this percentage are labelled confirmed.",
+        '_rel_max_llm_calls': "Most AI calls per relevance assessment.",
+        '_rel_max_llm_tokens': "Most AI tokens per relevance assessment.",
+        '_rel_max_embed_texts': "Most new texts sent to the embeddings endpoint per assessment.",
         '_modulesenabled': "Modules enabled for the scan."  # This is a hack to get a description for an option not actually available.
     }
 
@@ -526,6 +559,12 @@ def start_web_server(sfWebUiConfig: dict, sfConfig: dict, loggingQueue=None) -> 
             )
     except Exception as e:
         log.warning(f"Zombie scan reconciliation skipped: {e}")
+
+    # Relevance assessments that were running when the server stopped cannot finish; mark them failed so they can be run again.
+    try:
+        SpiderFootDb(sfConfig).relevanceRunsReconcile()
+    except Exception as e:
+        log.warning(f"Relevance run reconciliation skipped: {e}")
 
     app = create_app(config=sfConfig)
     app.config['SF_LOGGING_QUEUE'] = loggingQueue

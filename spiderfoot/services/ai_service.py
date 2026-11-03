@@ -625,6 +625,13 @@ def build_scan_prompt(
         f"TARGET: {scan.get('target')}",
         f"SCAN STATUS: {scan.get('status')}, "
         f"{scan.get('event_count')} events from {scan.get('module_count')} modules",
+    ]
+    if scan.get("excluded_unrelated"):
+        parts.append(
+            f"NOTE: {scan['excluded_unrelated']} further findings were judged to be about other people or "
+            "organisations with a similar name and are left out; do not mention them as findings."
+        )
+    parts += [
         "",
         "EVENT TYPE COUNTS (top 30):",
     ]

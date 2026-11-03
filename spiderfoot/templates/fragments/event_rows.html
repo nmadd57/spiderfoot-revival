@@ -1,11 +1,15 @@
 {# Event rows — flat view, paginated #}
 {# Returned by /frag/events for HTMX search/filter/pagination #}
 
+{% include 'fragments/relevance_hidden.html' %}
+
 {% for event in events %}
   {% include 'components/event_row.html' %}
 {% else %}
 <div class="px-3 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">No matching events found.</div>
 {% endfor %}
+
+{% include 'fragments/relevance_hidden_groups.html' %}
 
 {# Pagination #}
 {% if total_pages is defined and total_pages > 1 %}
@@ -22,7 +26,7 @@
         <button
           hx-get="/frag/events?id={{ scan_id }}&page={{ p }}"
           hx-target="#event-rows"
-          hx-include="[name='q'],[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category']"
+          hx-include="[name='q'],[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category'],[name='rel']"
           class="inline-flex items-center justify-center min-w-[44px] md:min-w-0 min-h-[44px] md:min-h-0 px-2.5 py-1 text-sm md:text-xs rounded {{ 'bg-sf-accent/20 text-sf-accent font-medium' if p == page else 'bg-slate-100 dark:bg-sf-elevated text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200' }} transition-colors">
           {{ p }}
         </button>

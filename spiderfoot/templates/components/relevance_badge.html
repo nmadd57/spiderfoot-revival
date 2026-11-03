@@ -1,0 +1,16 @@
+{# Relevance badge: label + colour, the reasons on hover / tap. rel = {label, score, reasons, method, override} #}
+{% macro badge(rel) %}
+{%- if rel -%}
+{% set cls = {
+  'confirmed': 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-500/30',
+  'likely': 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/40 dark:text-sky-300 dark:border-sky-500/30',
+  'unclear': 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-500/30',
+  'unrelated': 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-700/40 dark:text-slate-400 dark:border-slate-500/30'
+}[rel.label] %}
+<span class="inline-flex items-center shrink-0 order-1 md:order-none text-xs md:text-[11px] md:leading-[inherit] font-medium px-2 py-0.5 rounded border whitespace-nowrap {{ cls }}"
+      title="{{ rel.label | capitalize }} ({{ (rel.score * 100) | round | int }}%). {{ rel.reasons | join('. ') }}"
+      data-relevance="{{ rel.label }}">
+  {{ rel.label | capitalize }}{% if rel.override %} &middot; you{% endif %}
+</span>
+{%- endif -%}
+{% endmacro %}

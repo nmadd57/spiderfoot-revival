@@ -140,6 +140,80 @@ Every tool applies the access rules: `list_scans` and the `get_*` tools only see
 
 `test/unit/identity_helpers.py` has a fake OIDC provider (RSA key, discovery, JWKS, token and userinfo endpoints, PKCE check, all in memory) and helpers; see `test_auth_oidc.py` (login flow and every bad-token case), `test_route_policy.py` (every route, every persona), `test_scan_access_http.py` (lists, search, sharing, ownership, access settings), `test_identity_db.py` (migration of an old database), `services/test_access.py` (the matrix) and `services/test_mcp_identity.py`.
 
+## Relevance Scoring (namesakes and fan-out)
+
+A name match is not an identity match. For person (`HUMAN_NAME`) and business (`COMPANY_NAME`) scans every event is scored 0..1 for "is this about the target"; scans of domains, IPs and other targets are never scored or gated. Code: `services/relevance.py` (scorer), `relevance_names.py` (names, nicknames, slugs, company names), `relevance_profile.py` (target profile and context hints), `relevance_embed.py`, `relevance_llm.py`, `relevance_job.py` (staged pipeline, background job, scan-time gate, settings validation, sample test), `relevance_view.py` (display helpers), `db_relevance.py` (tables), `blueprints/relevance.py` (routes).
+
+### Data model (created idempotently on every start, like the identity tables)
+
+| Table | Purpose |
+|---|---|
+| `tbl_event_relevance (scan_id, event_hash, score, label, reasons JSON, method, updated)` | one row per scored event |
+| `tbl_scan_context (scan_id, context, prune, created)` | the user's context hints and the prune switch of the scan |
+| `tbl_relevance_override (scan_id, event_hash, verdict mine/not_related, user_id, created)` | corrections; they win over any score and are anchors / negative anchors |
+| `tbl_relevance_run (scan_id, status, phase, progress, method, calls, tokens, embedded, started, ended, message, counts)` | status of the last assessment (`queued`, `running`, `done`, `failed`, `skipped`); runs left `running` by a restart are marked failed at start-up |
+| `tbl_embedding_cache (model, text_hash, dim, vec BLOB, created)` | vectors keyed by (model@endpoint, sha256 of the text) |
+
+`method` is `seed`, `override`, `scan-live`/`scan-gate` (written while the scan ran), `heuristics`, `heuristics+embeddings`, `heuristics+ai` or both. Deleting a scan removes its relevance rows; the embedding cache is shared.
+
+### Pipeline
+
+1. **Evidence per event.** Person scans: the names an event carries (the name field of a `HUMAN_NAME`, the head of a `PROFESSIONAL_LICENSE`, `first/middle/last` and alias fields of raw JSON, the handle in a profile URL or email) are compared to the target. Classes and base scores: `exact` 0.88 (middle name agrees), `exact_initial` 0.78, `name_only` 0.45 (0.55 when the target has no middle name), `initial_only` 0.30, `middle_as_first` 0.36, `last_only` 0.12, `conflict_initial` 0.12, `conflict_middle` 0.04, `different` 0.03; account names (slugs) count 0.05 less. Nicknames match (Nick/Nicholas); ids, counters and file extensions in handles are ignored.
+   Adjustments: source reliability (web search hits -0.05, account finders -0.02/-0.03; a record that says it matched on the name only -0.10); a namesake-density penalty up to -0.10 when 10 or more people in the scan share a name without a middle name to compare; place against the hints +0.15 / -0.35 (same / different state), against the states of confirmed addresses +0.05 / -0.12, a place named in the hints +0.10; employer or hint words +0.25 / +0.12; a named relative +0.15; birth year +0.20 / -0.25; identifiers shared with an anchor +0.45; the same value from other modules +0.06 each up to +0.12. Conflicts are capped at 0.30 (0.60 with an anchor).
+   Business scans: normalised company-name similarity to the target (same 0.90, close 0.60, partial 0.35, a different name found by searching 0.30) plus the same place and anchor adjustments.
+2. **Records.** Events with the same CRD, NPI or CIK number, and short events (address, phone, firm, email) whose text appears in a sibling record of the same module and parent, share their name evidence: a positive match with a middle name wins, else a conflict, else a bare match. This is how a one-line "Nicholas Thornwood" broker summary is overruled by its raw record listing "NICHOLAS R THORNWOOD".
+3. **Lineage.** Events are processed parents first (breadth first from the roots, once each, no recursion). With evidence of its own an event scores `own x (0.4 + 0.6 x parent)` (the target's direct children are not damped); without evidence it scores `parent x decay` where decay is 1.0 raw data, 0.95 filings and LEIs, 0.85 companies, 0.8 addresses, phones, people and URLs, 0.75 emails, 0.7 affiliates, 0.5 WiFi access points, times 0.75 when the parent is only "unclear". Direct children of the target without any evidence score 0.45 (business scans 0.60) of the parent: a search hit is not an identity. An address in another state than the hints or confirmed findings is multiplied by 0.6. Children of something marked not related are capped at 0.12.
+4. **Embeddings (borderline findings only).** Embedding similarity to the person's name measures only that the name appears, which every namesake shares, so the target's own name is stripped from both texts and the comparison is between the context (hints: place, employer, field, plus confirmed attributes) and the finding's text (URL words, title and snippet of web hits). Without context hints the stage is skipped with a note. Adjustment `clamp(similarity - mid, -0.10, +0.20)`, `mid` = 0.50 (Settings). Texts are sent in batches of 64, identical texts once, at most `_rel_max_embed_texts` new texts per run, cached.
+5. **AI adjudication (borderline `unclear` findings only).** Identical findings are grouped, the groups with the largest subtree go first, and batches of 10 `{id, type, text}` go to the AI endpoint (`_ai_*` settings, `_ai_redact_pii` honoured) with the target profile, asking for `{"results":[{"id","verdict":"same|different|unknown","confidence","reason"}]}`. The reply is parsed defensively (code fences, think tags, prose, NaN, duplicates, unknown ids are dropped). `same` raises the own score to at least `0.55 + 0.35 x confidence`; `different` lowers it to at most `0.30 - 0.25 x confidence`; `unknown` changes nothing. Caps: `_rel_max_llm_calls` (8) and `_rel_max_llm_tokens` (150,000, counted from the endpoint's own usage figures). Any failure keeps the local score.
+6. **Labels.** `confirmed` >= 0.80, `likely` >= 0.55, `unclear` >= 0.25, `unrelated` below (settings `_rel_t_*`, percent, must rise). "Unclear" stays visible.
+
+Each stage recomputes the lineage pass (cheap), so a borderline entity's verdict reaches everything under it. Performance: 11,244 events in about 2 s, 20,000 synthetic events in under 10 s in the test (no network stages).
+
+### When it runs
+
+* **In the scan** (`sfscan.py`, `relevance_job.RelevanceGate`): the engine scores every event before dispatching it (`LiveScorer`: own evidence and lineage, no records or density, about 0.05 ms per event). An event of an identity type (`IDENTITY_TYPES`: people, companies, filings, LEIs, accounts, addresses, phones, emails, raw records, ...) that scores below the hide threshold is marked `storeOnly`, which the dispatcher already honours: it is stored but no module but the storage module receives it. Events whose source was held are held too, which stops the fan-out. A cached embedding can veto a hold (the cache is only read, never filled, by the gate). `prune` off scores without holding. Held events carry the reason in the results.
+* **After the scan** (`runRelevance`, in the scan's own process): the full pipeline, with embeddings and AI when the scan finished, heuristics only when it was aborted. Progress is in `tbl_relevance_run`.
+* **On demand**: `POST /api/relevance/assess` starts the same function on a worker thread (`start_job`; one per scan, refused while running). It reads the stored events, overrides and context and replaces the stored scores, so it can be run any number of times.
+
+### Routes and permissions
+
+| Route | Access |
+|---|---|
+| `GET/POST /api/relevance/status?id=` | scan view |
+| `GET /frag/relevance-card?id=` | scan view |
+| `POST /api/relevance/assess` (`id`, optional `context`) | scan edit |
+| `POST /api/relevance/mark` (`id`, `hashes`, `verdict` mine/not_related/clear, `scope` event/lineage) | scan edit |
+| `POST /api/relevance/test` | administrator |
+| `/frag/events?rel=hide/all/strong/unclear/unrelated&under=<hash>`, exports and search `include_unrelated=1` | scan view |
+
+`/frag/events` does not read hidden events at all (`scanResultEvent(hideLabels=..., sourceLimit=...)`): the old query copied the parent's whole data for every child.
+
+### Settings (`_rel_*`, Settings > Relevance)
+
+`_rel_enabled`, `_rel_prune_default`, `_rel_auto_assess`, `_rel_use_embeddings`, `_rel_embeddings_url/_model/_apikey` (override; empty means the sfp_searxng ones), `_rel_embed_mid`, `_rel_max_embed_texts`, `_rel_use_ai`, `_rel_ai_model`, `_rel_max_llm_calls`, `_rel_max_llm_tokens`, `_rel_t_unrelated/_likely/_confirmed`. Saving validates ranges, on/off values, URLs (`urlcheck`) and that the thresholds rise. `_rel_embeddings_apikey` is redacted in `/api/optsraw`; the page only ever receives `********`.
+
+### Measured on a real person-name scan (11,245 events)
+
+Scan of a common person name that was aborted at 11,245 events (2,913 filings, 2,247 raw records, 2,203 addresses, 927 emails, 864 WiFi access points, 406 licences, 339 companies...), scored offline from an export of its events:
+
+| Stage | Result |
+|---|---|
+| Local rules + lineage, no hints | 2.1 s; 1 confirmed (the target), 3 likely (accounts with the exact handle), 111 unclear, 11,129 unrelated (99.0%) |
+| Same with the hint "location: Massachusetts" | 87 unclear |
+| ... plus embeddings (117 texts, mxbai-embed-large-v1, 1024 dimensions, 4.4 s; a rerun is cached) | 52 unclear, 11,188 unrelated |
+| No hints, plus the AI model (hermes, 3 calls of 10 groups, 112 s, 48,672 tokens as reported by the endpoint, about 16,000 per call because the server adds its own prompt) | 102 unclear, 11,138 unrelated; 30 of 87 borderline groups judged before the call cap |
+
+What the local rules separate: other-middle-name physicians (NPI), brokers whose raw record lists another middle initial, every officer, company, address, WiFi access point and email found under them, and namesake profiles with another middle initial or first name are unrelated; the exact-handle accounts, name-only registry and profile hits and the leads found from them stay unclear or likely. Embedding similarity of a finding that contains the target's name scores about 0.65-0.70 for every namesake alike (it measures the name), so names are stripped and only context is compared: with a Boston/software hint, findings that match scored 0.68-0.78 and namesakes 0.33-0.51. The AI model answered the requested JSON schema for every batch (30 of 30 ids), mostly "unknown" for name-only items and "different" with a reason for another first name or middle name; it is conservative, slow (35-70 s per batch of 10) and cannot tell namesakes apart without hints.
+
+Known weak spots: a handle with no name in it ("JetsFan006") stays unclear (nothing says it is not the target); the AI judged a band account "different: no personal name given", which is more than the evidence supports; a person who goes by their middle name ("Tom" for Thomas) scores 0.36 before adjustments and may be unclear or unrelated depending on the source.
+
+
+### Gotchas
+
+* `SpiderFootScanner` keeps its module registries in class-level dicts; a test that runs a real scan must clear `_SpiderFootScanner__moduleInstances` and `__modconfig` afterwards.
+* The thread pool needs more threads than modules (each module's worker thread is separate, but a pool of 3 deadlocks in tests with 3 modules): tests use `_maxthreads` 12.
+* `configUnserialize` has no float support: all `_rel_*` thresholds are integer percents.
+
 ## Module Anatomy
 
 ```python

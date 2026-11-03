@@ -19,9 +19,10 @@ import typing
 import uuid
 
 from spiderfoot.db_identity import IdentityDbMixin, PRESERVED_CONFIG_PREFIXES
+from spiderfoot.db_relevance import RelevanceDbMixin
 
 
-class SpiderFootDb(IdentityDbMixin):
+class SpiderFootDb(IdentityDbMixin, RelevanceDbMixin):
     """SpiderFoot database
 
     Attributes:
@@ -430,6 +431,9 @@ class SpiderFootDb(IdentityDbMixin):
 
             # Migration: users, scan access grants, scan owner column and personal MCP tokens.
             self._migrate_identity()
+
+            # Migration: relevance scores, scan context hints, overrides and the embedding cache.
+            self._migrate_relevance()
 
             # Always sync eventDetails into tbl_event_types so that existing
             # databases pick up newly added event types on upgrade. Each
@@ -1162,7 +1166,10 @@ class SpiderFootDb(IdentityDbMixin):
         data: list = None,
         sourceId: list = None,
         correlationId: str = None,
-        filterFp: bool = False
+        filterFp: bool = False,
+        sourceLimit: int = 0,
+        hideLabels: typing.Optional[typing.Iterable[str]] = None,
+        hashes: typing.Optional[typing.Iterable[str]] = None,
     ) -> list:
         """Obtain the data for a scan and event type.
 
@@ -1174,6 +1181,10 @@ class SpiderFootDb(IdentityDbMixin):
             sourceId (list): filter by the ID of the source event
             correlationId (str): filter by the ID of a correlation result
             filterFp (bool): filter false positives
+            sourceLimit (int): when positive, return at most this many characters of the source event's data
+                (the parent's data is copied once per child, which is very heavy for big raw records)
+            hideLabels (list): leave out events whose relevance label is one of these (they are not even read)
+            hashes (list): only these events
 
         Returns:
             list: scan results
@@ -1189,8 +1200,9 @@ class SpiderFootDb(IdentityDbMixin):
         if not isinstance(eventType, str) and not isinstance(eventType, list):
             raise TypeError(f"eventType is {type(eventType)}; expected str() or list()") from None
 
-        qry = "SELECT ROUND(c.generated) AS generated, c.data, \
-            s.data as 'source_data', \
+        source_col = "substr(s.data, 1, ?)" if sourceLimit and sourceLimit > 0 else "s.data"
+        qry = f"SELECT ROUND(c.generated) AS generated, c.data, \
+            {source_col} as 'source_data', \
             c.module, c.type, c.confidence, c.visibility, c.risk, c.hash, \
             c.source_event_hash, t.event_descr, t.event_type, s.scan_instance_id, \
             c.false_positive as 'fp', s.false_positive as 'parent_fp' \
@@ -1202,11 +1214,23 @@ class SpiderFootDb(IdentityDbMixin):
         qry += "WHERE c.scan_instance_id = ? AND c.source_event_hash = s.hash AND \
             s.scan_instance_id = c.scan_instance_id AND t.event = c.type"
 
-        qvars = [instanceId]
+        qvars = [int(sourceLimit)] if sourceLimit and sourceLimit > 0 else []
+        qvars.append(instanceId)
 
         if correlationId:
             qry += " AND ce.event_hash = c.hash AND ce.correlation_id = ?"
             qvars.append(correlationId)
+
+        if hideLabels:
+            labels = list(hideLabels)
+            qry += (" AND NOT EXISTS (SELECT 1 FROM tbl_event_relevance rv WHERE rv.scan_id = c.scan_instance_id "
+                    "AND rv.event_hash = c.hash AND rv.label IN (" + ','.join(['?'] * len(labels)) + "))")
+            qvars.extend(labels)
+
+        if hashes is not None:
+            wanted = list(hashes)[:30000]
+            qry += " AND c.hash IN (" + ','.join(['?'] * len(wanted)) + ")"
+            qvars.extend(wanted)
 
         if eventType != "ALL":
             if isinstance(eventType, list):
@@ -1420,6 +1444,7 @@ class SpiderFootDb(IdentityDbMixin):
                     self.dbh.execute(qry8, qvars)
                 except sqlite3.Error:
                     pass  # grants table may not exist in older databases
+                self.relevanceDeleteScan(instanceId)
                 self.dbh.execute(qry3, qvars)
                 self.dbh.execute(qry4, qvars)
                 self.dbh.execute(qry2, qvars)

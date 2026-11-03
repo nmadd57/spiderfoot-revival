@@ -19,6 +19,9 @@ window.scanForm = (initialModules, presets) => ({
     manageOpen: false,
     pendingDeleteId: null,
     droppedModules: [],
+    context: '',          // optional hints that help tell the target from namesakes
+    prune: true,          // do not follow up findings that are clearly about somebody else
+    hintsOpen: false,
 
     /**
      * modules — keyed by module name (sfp_xxx).
@@ -95,6 +98,11 @@ window.scanForm = (initialModules, presets) => ({
         results.push({ value: item, type: this.detectTargetType(item) });
       }
       return results;
+    },
+
+    /** Whether any target is a person or business name (relevance hints apply to those only). */
+    get hasNameTarget() {
+      return this.parsedTargets.some(t => t.type === 'Name' || t.type === 'Business');
     },
 
     // --------------------------------------------------------- business names
@@ -686,6 +694,11 @@ window.scanForm = (initialModules, presets) => ({
           scantarget: t.value,
           modulelist: enabledMods.join(','),
         });
+        // Relevance hints and the prune switch apply to person and business-name targets only
+        if (t.type === 'Name' || t.type === 'Business') {
+          if ((this.context || '').trim()) body.set('context', this.context.trim());
+          body.set('prune', this.prune ? '1' : '0');
+        }
         // Optional "Share with" list from the new scan form (only present when sign-in is on)
         try {
           const shared = JSON.parse(document.getElementById('share-with-json')?.value || '[]');

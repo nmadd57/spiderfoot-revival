@@ -21,6 +21,7 @@ import dns.resolver
 
 from sflib import SpiderFoot
 from spiderfoot import SpiderFootDb, SpiderFootEvent, SpiderFootPlugin, SpiderFootTarget, SpiderFootHelpers, SpiderFootThreadPool, SpiderFootCorrelator, logger
+from spiderfoot.services import relevance_job
 
 
 def startSpiderFootScanner(loggingQueue, *args, **kwargs):
@@ -48,6 +49,7 @@ class SpiderFootScanner():
     __moduleInstances = dict()
     __modconfig = dict()
     __scanName = None
+    __gate = None
 
     def __init__(self, scanName: str, scanId: str, targetValue: str, targetType: str, moduleList: list, globalOpts: dict, start: bool = True) -> None:
         """Initialize SpiderFootScanner object.
@@ -119,6 +121,18 @@ class SpiderFootScanner():
 
         self.__sf.scanId = self.__scanId
         self.__dbh.scanInstanceCreate(self.__scanId, self.__scanName, self.__targetValue, owner=self.__config.get('__scan_owner'))
+
+        # Context hints and the "prune unrelated matches" switch of this scan; with the scan-time relevance gate
+        # (person and business-name scans only) they keep findings about namesakes from fanning out.
+        prune = bool(self.__config.get('__scan_prune', relevance_job.prune_default(self.__config)))
+        try:
+            self.__dbh.scanContextSet(self.__scanId, str(self.__config.get('__scan_context') or ''), prune)
+            self.__gate = relevance_job.RelevanceGate.for_scan(
+                self.__dbh, self.__scanId, self.__config, self.__targetValue, targetType,
+                str(self.__config.get('__scan_context') or ''), prune)
+        except Exception:
+            self.__sf.error("Could not set up relevance scoring for this scan", exc_info=True)
+            self.__gate = None
 
         # Create our target
         try:
@@ -428,7 +442,26 @@ class SpiderFootScanner():
                 self.__setStatus("FINISHED", None, time.time() * 1000)
                 self.runCorrelations()
                 self.__sf.status(f"Scan [{self.__scanId}] completed.")
+            self.runRelevance(full=not failed)
             self.__dbh.close()
+
+    def runRelevance(self, full: bool = True) -> None:
+        """Final relevance assessment of the scan (embeddings and AI too when the scan finished normally)."""
+        if self.__gate is None or not self.__moduleInstances:
+            return
+        try:
+            self.__gate.flush()
+            if self.__gate.held_count:
+                self.__sf.status(f"Relevance: {self.__gate.held_count} unrelated findings were not followed up.")
+            if self.__config.get('_rel_auto_assess', True) in (False, 0, '0', 'false', 'False'):
+                return
+            summary = relevance_job.assess_scan(self.__config, self.__scanId, dbh=self.__dbh, network=full)
+            if summary.get('counts'):
+                c = summary['counts']
+                self.__sf.status(f"Relevance ({summary.get('method')}): {c.get('confirmed', 0)} confirmed, {c.get('likely', 0)} likely, "
+                                 f"{c.get('unclear', 0)} unclear, {c.get('unrelated', 0)} unrelated.")
+        except Exception:
+            self.__sf.error("Relevance assessment failed", exc_info=True)
 
     def runCorrelations(self) -> None:
         """Run correlation rules."""
@@ -492,6 +525,8 @@ class SpiderFootScanner():
                     sfEvent = self.eventQueue.get_nowait()
                     self.__sf.debug(f"waitForThreads() got event, {sfEvent.eventType}, from eventQueue.")
                 except queue.Empty:
+                    if self.__gate is not None:
+                        self.__gate.flush()
                     # check if we're finished
                     if self.threadsFinished(log_status):
                         sleep(.1)
@@ -517,6 +552,14 @@ class SpiderFootScanner():
 
                 if not isinstance(sfEvent, SpiderFootEvent):
                     raise TypeError(f"sfEvent is {type(sfEvent)}; expected SpiderFootEvent")
+
+                # Relevance gate: a finding about somebody else is stored but not passed to the other modules
+                if self.__gate is not None and sfEvent.eventType != 'ROOT':
+                    try:
+                        if self.__gate.check(sfEvent.hash, sfEvent.eventType, sfEvent.module, sfEvent.data, sfEvent.sourceEventHash):
+                            sfEvent.storeOnly = True
+                    except Exception:
+                        self.__sf.debug("relevance gate failed for an event", exc_info=True)
 
                 # for every module
                 for mod in self.__moduleInstances.values():

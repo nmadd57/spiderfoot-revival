@@ -302,5 +302,6 @@ class TestNoSecretsInOutput:
 
 
 class TestCatalogue:
-    def test_sixteen_tools(self):
-        assert len(TOOLS) == 16
+    def test_eighteen_tools(self):
+        # sixteen plus reassess_relevance and mark_event
+        assert len(TOOLS) == 18

@@ -170,6 +170,41 @@
       <p class="md:hidden mt-1.5 text-xs text-slate-500 dark:text-slate-400">A label for this scan. Defaults to the target if left blank.</p>
     </div>
 
+    {# Optional context hints for person and business-name targets #}
+    <div x-show="hasNameTarget" x-cloak x-init="prune = {{ 'true' if rel_prune_default else 'false' }}" class="mt-4" data-relevance-hints>
+      <button type="button" @click="hintsOpen = !hintsOpen" :aria-expanded="hintsOpen"
+              class="text-sm text-sf-accent hover:text-cyan-300 transition-colors flex items-center gap-1.5 min-h-[44px] md:min-h-0">
+        <svg class="w-3 h-3 transition-transform" :class="hintsOpen && 'rotate-90'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7"/>
+        </svg>
+        Help narrow the results
+        <span class="font-normal text-slate-400 dark:text-slate-500">(optional)</span>
+      </button>
+      <div x-show="hintsOpen" x-transition class="mt-2 space-y-3">
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          Common names pull in namesakes. Tell us what you know about the target so findings about other people can be set aside:
+          where they live, who they work for, how old they are, email addresses, usernames, websites or phone numbers they use, relatives.
+          Free text works, or one <span class="font-mono">key: value</span> per line.
+        </p>
+        <label for="sf-context" class="sr-only">Context hints</label>
+        <textarea id="sf-context" x-model="context" rows="4" maxlength="4000"
+                  placeholder="location: Boston, MA&#10;employer: Acme Robotics&#10;born: 1985&#10;email: me@example.com&#10;username: nickm&#10;relative: Jane Thornwood"
+                  class="w-full px-3 py-2.5 rounded-md border border-slate-300 dark:border-sf-border bg-white dark:bg-sf-elevated
+                         text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500
+                         focus:outline-none focus:ring-2 focus:ring-sf-accent/50 focus:border-sf-accent text-base md:text-sm font-mono"></textarea>
+        <label class="flex items-start gap-3 min-h-[44px] md:min-h-0 cursor-pointer">
+          <input type="checkbox" x-model="prune" class="mt-1 w-5 h-5 md:w-4 md:h-4 shrink-0 accent-cyan-500">
+          <span class="text-sm text-slate-700 dark:text-slate-300">
+            Prune unrelated matches
+            <span class="block text-xs text-slate-500 dark:text-slate-400">
+              Findings that are clearly about somebody else (another middle name, another person) are kept but not followed up by other modules,
+              which stops one namesake turning into thousands of records. Nothing is deleted; you can show and correct them afterwards.
+            </span>
+          </span>
+        </label>
+      </div>
+    </div>
+
     {% if sign_in_enabled %}
     {# Optional: share the new scan right away (the owner can change this later on the scan page) #}
     <div x-data="newScanShare()" x-init="load()" class="space-y-2 mt-4">

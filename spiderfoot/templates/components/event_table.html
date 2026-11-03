@@ -4,10 +4,16 @@
 {# cat_chips: list of dicts with key, label, count for category filter chips #}
 {# scan_id: current scan ID #}
 
-<div class="p-3 md:p-5" x-data="{
+<div class="p-3 md:p-5" @sf-rel-set.document="setRel($event.detail)" @sf-rel-back.document="setRel(rel)" x-data="{
   activeCat: '',
   viewMode: localStorage.getItem('sf_view_mode') || '',
   activeSort: 'data',
+  rel: ['hide', 'all', 'strong', 'unclear', 'unrelated'].includes(localStorage.getItem('sf_rel')) ? localStorage.getItem('sf_rel') : 'hide',
+  setRel(val) {
+    this.rel = val;
+    try { localStorage.setItem('sf_rel', val); } catch (e) {}
+    this.$nextTick(() => htmx.trigger(this.$refs.catTrigger, 'do-filter'));
+  },
   dedupOn: localStorage.getItem('sf_dedup') !== '0',
   setDedup(val) {
     this.dedupOn = val;
@@ -39,7 +45,7 @@
                hx-get="/frag/events?id={{ scan_id }}"
                hx-trigger="keyup changed delay:300ms"
                hx-target="#event-rows"
-               hx-include="[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category']"
+               hx-include="[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category'],[name='rel']"
                class="w-full pl-9 pr-3 py-2 min-h-[44px] md:min-h-0 text-sm rounded-md border border-slate-200 dark:border-sf-border
                       bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                       placeholder-slate-400 dark:placeholder-slate-500
@@ -51,7 +57,7 @@
               hx-get="/frag/events?id={{ scan_id }}"
               hx-trigger="change"
               hx-target="#event-rows"
-              hx-include="[name='q'],[name='sort'],[name='group_by'],[name='dedup'],[name='category']"
+              hx-include="[name='q'],[name='sort'],[name='group_by'],[name='dedup'],[name='category'],[name='rel']"
               class="w-full sm:w-auto min-w-0 px-3 py-2 min-h-[44px] md:min-h-0 text-sm rounded-md border border-slate-200 dark:border-sf-border
                      bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
                      focus:outline-none focus:ring-2 focus:ring-sf-accent/50 focus:border-sf-accent
@@ -65,7 +71,7 @@
               hx-get="/frag/events?id={{ scan_id }}"
               hx-trigger="change"
               hx-target="#event-rows"
-              hx-include="[name='q'],[name='type_filter'],[name='group_by'],[name='dedup'],[name='category']"
+              hx-include="[name='q'],[name='type_filter'],[name='group_by'],[name='dedup'],[name='category'],[name='rel']"
               @change="activeSort = $el.value"
               class="w-full sm:w-auto min-w-0 px-3 py-2 min-h-[44px] md:min-h-0 text-sm rounded-md border border-slate-200 dark:border-sf-border
                      bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
@@ -76,7 +82,24 @@
         <option value="module">Sort: Module</option>
         <option value="type">Sort: Type</option>
         <option value="confidence">Sort: Confidence</option>
+        {% if has_relevance %}<option value="relevance">Sort: Relevance</option>{% endif %}
       </select>
+      {% if has_relevance %}
+      <label class="sr-only" for="rel-filter">Relevance</label>
+      <select name="rel" id="rel-filter" x-model="rel" @change="setRel($el.value)"
+              class="w-full sm:w-auto min-w-0 col-span-2 sm:col-span-1 px-3 py-2 min-h-[44px] md:min-h-0 text-sm rounded-md border border-slate-200 dark:border-sf-border
+                     bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200
+                     focus:outline-none focus:ring-2 focus:ring-sf-accent/50 focus:border-sf-accent transition-colors sm:min-w-[150px]"
+              title="How much of what looks unrelated to the target to show">
+        <option value="hide">Relevance: hide unrelated</option>
+        <option value="all">Relevance: show all</option>
+        <option value="strong">Relevance: confirmed + likely</option>
+        <option value="unclear">Relevance: unclear only</option>
+        <option value="unrelated">Relevance: unrelated only</option>
+      </select>
+      {% else %}
+      <input type="hidden" name="rel" value="all">
+      {% endif %}
       </div>
     </div>
 
@@ -107,7 +130,7 @@
             hx-get="/frag/events?id={{ scan_id }}"
             hx-trigger="do-filter"
             hx-target="#event-rows"
-            hx-include="[name='q'],[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category']">
+            hx-include="[name='q'],[name='type_filter'],[name='sort'],[name='group_by'],[name='dedup'],[name='category'],[name='rel']">
       </span>
 
       <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto md:shrink-0">

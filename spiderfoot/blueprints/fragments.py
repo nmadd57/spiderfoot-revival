@@ -6,7 +6,7 @@ from collections import OrderedDict
 from flask import Blueprint, current_app, render_template, request
 
 from spiderfoot import SpiderFootDb
-from spiderfoot.services import access, ai_service, identity, scan_listing
+from spiderfoot.services import access, ai_service, identity, relevance_job, relevance_view, scan_listing
 from spiderfoot.services.event_service import (
     EVENT_CATEGORIES, categorize_event_summary,
     human_size, dedup_events, build_event_dict,
@@ -92,6 +92,24 @@ def _load_scans(which=''):
     return scans
 
 
+def _can_edit(scan_id, dbh):
+    user = identity.current_user()
+    if user is None:
+        return False
+    try:
+        return access.can(user, scan_id, 'edit', dbh, identity.request_settings().unowned_visible)
+    except Exception:
+        return False
+
+
+def _hidden_by_type(dbh, scan_id):
+    """{event type: number of events hidden as unrelated}; empty when the scan has no relevance data."""
+    try:
+        return {t: c.get('unrelated', 0) for t, c in dbh.relevanceCountsByType(scan_id).items() if c.get('unrelated')}
+    except Exception:
+        return {}
+
+
 @frag_bp.route('/scan-table')
 def scan_table():
     """Return the <tbody> rows for the scan table (HTMX swap target)."""
@@ -135,6 +153,13 @@ def results_tab():
         except Exception as e:
             log.debug("Could not load correlations for %s: %s", scan_id, e)
 
+        hidden = _hidden_by_type(dbh, scan_id)
+        if hidden and request.args.get('rel', 'hide') == 'hide':
+            event_summary = [(r[0], r[1], r[2], max(0, int(r[3] or 0) - hidden.get(r[0], 0)),
+                              min(int(r[4] or 0), max(0, int(r[3] or 0) - hidden.get(r[0], 0)))) + tuple(r[5:])
+                             for r in event_summary]
+            event_summary = [r for r in event_summary if r[3] > 0]
+
         categories = categorize_event_summary(event_summary)
 
         return render_template(
@@ -153,6 +178,12 @@ def results_tab():
         except Exception:
             event_types = []
 
+        hidden = _hidden_by_type(dbh, scan_id)
+        hide_unrelated = bool(hidden) and request.args.get('rel', 'hide') == 'hide'
+        if hide_unrelated:
+            event_types = [(r[0], r[1], r[2], max(0, int(r[3] or 0) - hidden.get(r[0], 0))) + tuple(r[4:]) for r in event_types]
+            event_types = [r for r in event_types if r[3] > 0]
+
         type_count_map = {}
         for et in event_types:
             type_count_map[et[0]] = int(et[3] or 0)
@@ -165,11 +196,18 @@ def results_tab():
             if count > 0:
                 cat_chips.append({'key': cat_key, 'label': cat_info['label'], 'count': count})
 
+        try:
+            rel_counts = dbh.relevanceCounts(scan_id)
+        except Exception:
+            rel_counts = {}
         return render_template(
             'components/event_table.html',
             event_types=event_types,
             scan_id=scan_id,
             cat_chips=cat_chips,
+            has_relevance=sum(rel_counts.values()) > 0,
+            rel_counts=rel_counts,
+            can_edit=_can_edit(scan_id, dbh),
         )
 
     elif tab == 'graph':
@@ -270,6 +308,20 @@ def log_lines():
     return render_template('fragments/log_lines.html', logs=logs)
 
 
+REL_MODES = ('hide', 'all', 'strong', 'unclear', 'unrelated')
+
+
+def _rel_allows(mode: str, label) -> bool:
+    """Whether the Relevance filter lets an event with this label through (no label: the scan has no relevance data)."""
+    if label is None or mode == 'all':
+        return True
+    if mode == 'hide':
+        return label != 'unrelated'
+    if mode == 'strong':
+        return label in ('confirmed', 'likely')
+    return label == mode
+
+
 @frag_bp.route('/events')
 def events_fragment():
     """Return filtered event table rows (HTMX swap target for search/filter)."""
@@ -280,6 +332,10 @@ def events_fragment():
     sort_by = request.args.get('sort', 'data')
     group_by = request.args.get('group_by', '')
     dedup = request.args.get('dedup', '1')  # Default: deduplicated
+    rel_mode = request.args.get('rel', 'hide')
+    if rel_mode not in REL_MODES:
+        rel_mode = 'hide'
+    under = request.args.get('under', '')
     try:
         page = int(request.args.get('page', 1))
     except (ValueError, TypeError):
@@ -290,6 +346,12 @@ def events_fragment():
         return ''
 
     dbh = _get_db()
+    try:
+        view = relevance_view.View(dbh, scan_id)
+    except Exception:
+        view = None
+    if view is not None and not view.has_data:
+        view = None
 
     # If category filter is set, expand to type codes
     if category_filter and category_filter in EVENT_CATEGORIES:
@@ -297,10 +359,43 @@ def events_fragment():
     else:
         allowed_types = None
 
+    # "Show only what hangs off this entity" (the collapsed "N findings under X hidden" lines)
+    under_set = None
+    under_info = None
+    if under and view is not None:
+        try:
+            rows = dbh.scanEventsForRelevance(scan_id)
+            under_set = set(relevance_view.descendants(rows, under)) | {under}
+            ent = next((r for r in rows if r[0] == under), None)
+            if ent is not None:
+                under_info = {'hash': under, 'type': ent[1], 'data': relevance_view.short_data(ent[3]), 'count': len(under_set) - 1}
+        except Exception:
+            under_set = None
+
+    # Events that the Relevance filter hides are not even read (the query copies the parent's data for every child,
+    # which is heavy for big raw records); the parent's data is cut to what the page can show.
+    hide_labels = None
+    if view is not None and under_set is None:
+        hide_labels = {'hide': ('unrelated',), 'strong': ('unclear', 'unrelated'), 'unclear': ('confirmed', 'likely', 'unrelated'),
+                       'unrelated': ('confirmed', 'likely', 'unclear')}.get(rel_mode)
     try:
-        raw_events = dbh.scanResultEvent(scan_id, type_filter or 'ALL')
+        raw_events = dbh.scanResultEvent(scan_id, type_filter or 'ALL', sourceLimit=4000, hideLabels=hide_labels,
+                                         hashes=under_set if under_set is not None else None)
     except Exception:
         raw_events = []
+
+    # What was left out as unrelated (before the text search): the count and the groups under their entity
+    unrelated_rows = []
+    if view is not None and rel_mode == 'hide' and under_set is None:
+        try:
+            types = None
+            if allowed_types is not None:
+                types = list(allowed_types)
+            if type_filter and type_filter != 'ALL':
+                types = [type_filter] if types is None else [t for t in types if t == type_filter]
+            unrelated_rows = dbh.relevanceUnrelatedRows(scan_id, types)
+        except Exception:
+            unrelated_rows = []
 
     events = []
     for e in raw_events:
@@ -318,7 +413,16 @@ def events_fragment():
             if query not in searchable:
                 continue
 
-        events.append(build_event_dict(e))
+        label = view.label(e[8]) if view is not None else None
+        if under_set is not None:
+            if e[8] not in under_set:
+                continue
+        elif not _rel_allows(rel_mode, label):
+            continue
+
+        evt = build_event_dict(e)
+        evt['rel'] = view.info(e[8]) if view is not None else None
+        events.append(evt)
 
     # Sorting
     _SORT_KEYS = {
@@ -327,9 +431,10 @@ def events_fragment():
         'module': lambda ev: (ev['module'] or '').lower(),
         'type': lambda ev: (ev['type'] or '').lower(),
         'confidence': lambda ev: ev['confidence'] or 0,
+        'relevance': lambda ev: (ev['rel'] or {}).get('score', 0.5),
     }
     sort_fn = _SORT_KEYS.get(sort_by, _SORT_KEYS['data'])
-    reverse = sort_by in ('date', 'confidence')
+    reverse = sort_by in ('date', 'confidence', 'relevance')
     events.sort(key=sort_fn, reverse=reverse)
 
     raw_count = len(events)
@@ -339,6 +444,21 @@ def events_fragment():
         events = dedup_events(events)
 
     total_count = len(events)
+
+    # The unrelated findings that were left out, collapsed under the entity they hang off
+    hidden_groups = []
+    hidden_events = len(unrelated_rows)
+    if unrelated_rows and not query:
+        try:
+            hidden_groups = relevance_view.hidden_groups(
+                view, ({'hash': r[0], 'source_hash': r[1], 'type': r[2], 'data': r[3]} for r in unrelated_rows))
+        except Exception:
+            hidden_groups = []
+    elif query:
+        hidden_events = 0      # the count does not know about the text search
+
+    common = dict(scan_id=scan_id, can_edit=_can_edit(scan_id, dbh), rel_mode=rel_mode, hidden_events=hidden_events,
+                  hidden_groups=hidden_groups, under_info=under_info, has_relevance=view is not None)
 
     # Grouped view
     if group_by in ('module', 'type'):
@@ -361,9 +481,9 @@ def events_fragment():
         return render_template(
             'fragments/event_rows_grouped.html',
             groups=grouped,
-            scan_id=scan_id,
             group_by=group_by,
             total_count=total_count,
+            **common,
         )
 
     # Flat view with pagination
@@ -380,8 +500,28 @@ def events_fragment():
         total_count=total_count,
         raw_count=raw_count,
         dedup=dedup,
-        scan_id=scan_id,
+        **common,
     )
+
+
+@frag_bp.route('/relevance-card')
+def relevance_card():
+    """The Relevance card of a scan page: counts per label, the last assessment, the Re-assess button."""
+    scan_id = request.args.get('id', '')
+    dbh = _get_db()
+    from spiderfoot.blueprints.relevance import status_payload
+    st = status_payload(dbh, scan_id)
+    cfg = current_app.config.get('SF_CONFIG', {})
+    run = st['run']
+    seed = dbh.scanSeedInfo(scan_id)
+    scorable = False
+    if seed is not None:
+        from spiderfoot.services import relevance_profile
+        scorable = relevance_profile.TargetProfile(seed[0], seed[1] or 'HUMAN_NAME').scorable
+    ctx_text = st['context']
+    return render_template('fragments/relevance_card.html', scan_id=scan_id, st=st, run=run, scorable=scorable,
+                           enabled=relevance_job.enabled(cfg), can_edit=_can_edit(scan_id, dbh),
+                           labels=relevance_view.LABELS, label_text=relevance_view.LABEL_TEXT, ctx_text=ctx_text)
 
 
 def _build_api_card_data(sf_config: dict, group_by: str = 'category') -> list:
@@ -536,6 +676,19 @@ def settings_section():
         mod = (sf_config.get('__modules__') or {}).get('sfp_searxng', {})
         fields = {f['opt']: f['value'] for f in module_options.build_fields('sfp_searxng', mod, saved_config)}
         return render_template('fragments/settings_search.html', v=fields)
+
+    elif section == 'relevance':
+        v = {}
+        for key, default in relevance_job.DEFAULTS.items():
+            val = config.get(key, default)
+            if key == '_rel_embeddings_apikey':
+                v[key] = '********' if str(val or '').strip() else ''
+            elif isinstance(default, bool):
+                v[key] = '1' if val not in (False, 0, '0', 'false', 'False', None) else '0'
+            else:
+                v[key] = str(val if val is not None else '')
+        ai_ready = bool(config.get('_ai_enabled') and (config.get('_ai_base_url') or config.get('_ai_openrouter_key')))
+        return render_template('fragments/settings_relevance.html', v=v, ai_models=ai_service.model_choices(config), ai_ready=ai_ready)
 
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)

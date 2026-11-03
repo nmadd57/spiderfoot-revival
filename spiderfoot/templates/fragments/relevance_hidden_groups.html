@@ -1,0 +1,39 @@
+{# Findings left out as unrelated: one line per unrelated entity with the number of findings that hang off it #}
+{% if has_relevance and rel_mode == 'hide' and hidden_events and not under_info %}
+<div class="mt-3 rounded border border-slate-200 dark:border-sf-border bg-slate-50 dark:bg-sf-base" data-hidden-unrelated>
+  <div class="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300">
+    <span><strong>{{ "{:,}".format(hidden_events) }}</strong> finding{{ 's' if hidden_events != 1 else '' }} hidden as unrelated</span>
+    <button type="button" onclick="document.dispatchEvent(new CustomEvent('sf-rel-set', {detail: 'all'}))"
+            class="ml-auto min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-sf-accent/50 text-sf-accent hover:bg-sf-accent/10">Show them</button>
+  </div>
+  {% if hidden_groups %}
+  {% macro group_line(g) %}
+    <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm md:text-xs text-slate-500 dark:text-slate-400">
+      <span class="min-w-0 sf-break">
+        <strong class="text-slate-700 dark:text-slate-200">{{ "{:,}".format(g.count) }}</strong>
+        finding{{ 's' if g.count != 1 else '' }} under
+        <span class="font-mono text-slate-700 dark:text-slate-200">{{ g.data }}</span>
+        <span class="text-slate-400">({{ g.type | replace('_', ' ') | lower }})</span> hidden
+      </span>
+      <button type="button"
+              hx-get="/frag/events?id={{ scan_id }}&under={{ g.hash }}&rel=all" hx-target="#event-rows"
+              hx-include="[name='dedup'],[name='group_by']"
+              class="ml-auto min-h-[44px] md:min-h-0 px-3 py-1 text-sm md:text-xs rounded border border-slate-300 dark:border-sf-border hover:bg-slate-100 dark:hover:bg-sf-elevated">Show</button>
+    </li>
+  {% endmacro %}
+  <ul class="border-t border-slate-200 dark:border-sf-border divide-y divide-slate-200 dark:divide-sf-border/60">
+    {% for g in hidden_groups[:6] %}{{ group_line(g) }}{% endfor %}
+  </ul>
+  {% if hidden_groups | length > 6 %}
+  <details class="border-t border-slate-200 dark:border-sf-border">
+    <summary class="cursor-pointer px-3 py-2.5 min-h-[44px] md:min-h-0 text-sm md:text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+      {{ hidden_groups | length - 6 }} more group{{ 's' if hidden_groups | length - 6 != 1 else '' }}
+    </summary>
+    <ul class="divide-y divide-slate-200 dark:divide-sf-border/60">
+      {% for g in hidden_groups[6:] %}{{ group_line(g) }}{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,93 @@
+{# Relevance card of the scan page. st = status payload, run = last assessment, scorable = person or business-name scan.
+   Polls itself while an assessment runs. #}
+{% if scorable and enabled %}
+{% set total = st.counts.values() | sum %}
+{% set hidden = st.counts.unrelated %}
+<div id="relevance-card-inner"
+     {% if st.running %}hx-get="/frag/relevance-card?id={{ scan_id }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}
+     class="bg-white dark:bg-sf-surface border border-slate-200 dark:border-sf-border rounded-lg p-4 md:p-5 mb-4 md:mb-6">
+
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Relevance</h2>
+    <span class="text-xs text-slate-400 dark:text-slate-500 min-w-0">How likely each finding is about your target and not somebody with the same name</span>
+    {% if can_edit %}
+    <button type="button"
+            hx-post="/api/relevance/assess" hx-vals='{"id": "{{ scan_id }}"}' hx-swap="none"
+            hx-on::after-request="htmx.ajax('GET', '/frag/relevance-card?id={{ scan_id }}', {target: '#relevance-card-inner', swap: 'outerHTML'})"
+            {% if st.running %}disabled{% endif %}
+            class="ml-auto min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-sf-accent/50 text-sf-accent hover:bg-sf-accent/10 disabled:opacity-50 disabled:cursor-wait transition-colors"
+            title="Score every finding again with your corrections, the embeddings and the AI model">
+      {{ 'Assessing...' if st.running else 'Re-assess' }}
+    </button>
+    {% endif %}
+  </div>
+
+  {% if st.running %}
+  <div class="mt-3" role="status">
+    <div class="h-1.5 rounded bg-slate-200 dark:bg-sf-elevated overflow-hidden">
+      <div class="h-full bg-sf-accent transition-all" style="width: {{ ((run.progress or 0) * 100) | round | int }}%"></div>
+    </div>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ (run.phase or 'starting') | capitalize }}&hellip;</p>
+  </div>
+  {% endif %}
+
+  {% if total %}
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3">
+    {% for key in labels %}
+    {% set n = st.counts[key] %}
+    {% set tone = {'confirmed': 'text-emerald-600 dark:text-emerald-400', 'likely': 'text-sky-600 dark:text-sky-400',
+                   'unclear': 'text-amber-600 dark:text-amber-400', 'unrelated': 'text-slate-500 dark:text-slate-400'}[key] %}
+    <div class="rounded border border-slate-200 dark:border-sf-border px-3 py-2 min-w-0" data-rel-count="{{ key }}">
+      <p class="text-xs text-slate-500 dark:text-slate-400">{{ label_text[key] }}</p>
+      <p class="text-xl font-mono font-bold {{ tone }}">{{ "{:,}".format(n) }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if hidden %}
+  <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-rel-hidden-counter>
+    <strong>{{ "{:,}".format(hidden) }}</strong> finding{{ 's' if hidden != 1 else '' }} hidden as unrelated
+    <button type="button"
+            onclick="try { localStorage.setItem('sf_rel', 'all'); } catch (e) {}; document.dispatchEvent(new CustomEvent('sf-rel-set', {detail: 'all'})); const t = document.querySelector('[data-tab=data]'); if (t) t.click();"
+            class="ml-1 inline-flex items-center min-h-[44px] md:min-h-0 text-sf-accent hover:underline">&mdash; show</button>
+  </p>
+  {% endif %}
+
+  <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+    {% if run.status == 'done' %}
+      Last assessed {{ run.ended | datetimeformat }} using
+      <span class="font-medium">{{ (run.method or 'heuristics').replace('+', ' + ').replace('ai', 'AI') }}</span>{% if run.embedded %} &middot; {{ "{:,}".format(run.embedded) }} texts embedded{% endif %}{% if run.calls %} &middot; {{ run.calls }} AI call{{ 's' if run.calls != 1 else '' }}, {{ "{:,}".format(run.tokens) }} tokens{% endif %}{% if st.overrides %} &middot; {{ st.overrides }} correction{{ 's' if st.overrides != 1 else '' }} by you{% endif %}
+    {% elif run.status == 'failed' %}
+      <span class="text-red-500">The last assessment failed: {{ run.message }}</span>
+    {% else %}
+      Scored while the scan ran (heuristics only); the full assessment runs when the scan finishes.
+    {% endif %}
+    {% if run.message and run.status == 'done' %}<span class="block">{{ run.message }}</span>{% endif %}
+  </p>
+  {% elif not st.running %}
+  <p class="mt-3 text-sm text-slate-500 dark:text-slate-400" data-rel-none>
+    {% if can_edit %}This scan has not been assessed yet. Press Re-assess to score its findings.{% else %}This scan has not been assessed yet.{% endif %}
+  </p>
+  {% endif %}
+
+  {% if st.context or can_edit %}
+  <details class="mt-3 text-sm">
+    <summary class="cursor-pointer min-h-[44px] md:min-h-0 inline-flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Context hints{% if st.context %} (set){% endif %}</summary>
+    {% if can_edit %}
+    <form class="mt-2 space-y-2"
+          hx-post="/api/relevance/assess" hx-swap="none"
+          hx-on::after-request="htmx.ajax('GET', '/frag/relevance-card?id={{ scan_id }}', {target: '#relevance-card-inner', swap: 'outerHTML'})">
+      <input type="hidden" name="id" value="{{ scan_id }}">
+      <textarea name="context" rows="3" maxlength="4000" placeholder="location: Boston, MA&#10;employer: Acme Robotics&#10;email: me@example.com"
+                class="w-full px-3 py-2 text-base md:text-sm rounded-md border border-slate-200 dark:border-sf-border bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200 font-mono">{{ ctx_text }}</textarea>
+      <button type="submit" class="min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs font-medium rounded border border-sf-accent/50 text-sf-accent hover:bg-sf-accent/10">Save and re-assess</button>
+    </form>
+    {% else %}
+    <pre class="mt-2 whitespace-pre-wrap text-xs font-mono text-slate-600 dark:text-slate-300">{{ ctx_text }}</pre>
+    {% endif %}
+  </details>
+  {% endif %}
+</div>
+{% else %}
+<div id="relevance-card-inner"></div>
+{% endif %}

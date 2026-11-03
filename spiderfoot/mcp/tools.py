@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from spiderfoot import SpiderFootHelpers
 from spiderfoot.mcp import catalog, guardrails, schema
 from spiderfoot.mcp.context import ToolError, collect_secrets, scrub
-from spiderfoot.services import access, module_options
+from spiderfoot.services import access, module_options, relevance_job, relevance_view
 
 log = logging.getLogger('spiderfoot.mcp')
 
@@ -411,6 +411,14 @@ def list_scans(cc, args):
     return _page(scans, args, 'scans')
 
 
+def _relevance_summary(view, ctx) -> dict:
+    run = view.run
+    return {'assessed': view.has_data, 'counts': view.counts() if view.has_data else None,
+            'hiddenByDefault': 'unrelated findings are left out of get_scan_events unless include_unrelated is true',
+            'status': run.get('status'), 'method': run.get('method') or None, 'assessedAt': _iso(run.get('ended')) if run.get('ended') else None,
+            'aiCalls': run.get('calls'), 'aiTokens': run.get('tokens'), 'pruneUnrelated': ctx['prune'], 'hasContextHints': bool(ctx['context'])}
+
+
 @tool('get_scan', 'Get scan status',
       'Status of one scan: state (done is true for FINISHED, ABORTED, ERROR-FAILED), target, timing, total events, '
       'correlation counts by risk, error count, the modules selected, how many have produced results, and an '
@@ -428,6 +436,8 @@ def get_scan(cc, args):
         errors = len(dbh.scanErrors(scan_id, 101))
         selected = _scan_modules(dbh, scan_id)
         ttype = dbh.scanTargetType(scan_id)
+        rel_view = relevance_view.View(dbh, scan_id)
+        rel_ctx = dbh.scanContextGet(scan_id)
     name, target, created, started, ended, status = row
     with_results = len({m[0] for m in by_module} & set(selected))
     done = status in TERMINAL
@@ -442,6 +452,7 @@ def get_scan(cc, args):
         'correlations': risk, 'errors': min(errors, 100), 'moreErrors': errors > 100,
         'modulesSelected': len(selected), 'modulesWithResults': with_results, 'modules': selected,
         'progress': {'percent': percent, 'estimate': not done, 'basis': 'modules that have produced results so far'},
+        'relevance': _relevance_summary(rel_view, rel_ctx),
     }
 
 
@@ -464,26 +475,53 @@ def get_scan_summary(cc, args):
       'Read the events (findings) of a scan: type, data (cut to 500 characters), producing module, the source event '
       'it came from, confidence, risk, and time. Filter by event_type (exact id from get_scan_summary), module and a '
       'text query, and page with limit/offset (at most 300 per call). Works on running scans too and returns what '
-      'has been found so far.',
+      'has been found so far. For person and business-name scans every event carries a relevance label '
+      '(confirmed, likely, unclear, unrelated), a score from 0 to 1 and the reasons; findings judged unrelated '
+      '(namesakes and what was found about them) are left out unless include_unrelated is true, and min_relevance '
+      'keeps only events at or above a score. eventId is what mark_event takes.',
       {'scan_id': _SCAN_ID,
        'event_type': {'type': 'string', 'maxLength': 60, 'description': 'Only this event type, for example INTERNET_NAME.'},
        'module': {'type': 'string', 'maxLength': 80, 'description': 'Only events produced by this module id.'},
        'query': {'type': 'string', 'maxLength': 200, 'description': 'Only events whose data contains this text (case-insensitive).'},
        'include_false_positives': {'type': 'boolean', 'default': False, 'description': 'Include events marked as false positives.'},
+       'include_unrelated': {'type': 'boolean', 'default': False, 'description': 'Include findings scored as unrelated to the target (default: left out).'},
+       'min_relevance': {'type': 'number', 'minimum': 0, 'maximum': 1, 'description': 'Only events whose relevance score is at least this (0 to 1).'},
        'limit': _LIMIT, 'offset': _OFFSET}, ['scan_id'])
 def get_scan_events(cc, args):
     with cc.ctx.db() as dbh:
         scan_id, row = _find_scan(cc, dbh, args['scan_id'])
         rows = dbh.scanResultEvent(scan_id, args.get('event_type', '').strip() or 'ALL', args.get('module', '').strip() or None,
                                    filterFp=not args['include_false_positives'])
+        view = relevance_view.View(dbh, scan_id)
     query = args.get('query', '').strip().lower()
     if query:
         rows = [r for r in rows if query in str(r[1]).lower()]
-    events = [{'type': r[4], 'data': _clip(r[1], DATA_LIMIT), 'truncated': len(str(r[1])) > DATA_LIMIT, 'module': r[3],
+    hidden = 0
+    if view.has_data:
+        floor = args.get('min_relevance')
+        kept = []
+        for r in rows:
+            if view.hidden(r[8], args['include_unrelated']):
+                hidden += 1
+                continue
+            if floor is not None and (view.score(r[8]) if view.score(r[8]) is not None else 1.0) < floor:
+                continue
+            kept.append(r)
+        rows = kept
+
+    def rel(r):
+        info = view.info(r[8])
+        return {'label': info['label'], 'score': info['score'], 'reasons': [_clip(x, 200) for x in info['reasons'][:6]],
+                'markedByUser': info['override'] or None} if info else None
+
+    events = [{'eventId': r[8], 'type': r[4], 'data': _clip(r[1], DATA_LIMIT), 'truncated': len(str(r[1])) > DATA_LIMIT, 'module': r[3],
                'source': _clip(r[2], 200), 'confidence': r[5], 'risk': r[7], 'generated': _iso(r[0]),
-               'falsePositive': bool(r[13])} for r in rows[args['offset']:args['offset'] + args['limit']]]
+               'falsePositive': bool(r[13]), 'relevance': rel(r)} for r in rows[args['offset']:args['offset'] + args['limit']]]
     out = {'scanId': scan_id, 'status': row[5], 'total': len(rows), 'offset': args['offset'], 'returned': len(events),
            'hasMore': args['offset'] + len(events) < len(rows), 'events': events}
+    if hidden:
+        out['hiddenAsUnrelated'] = hidden
+        out['note'] = f'{hidden} findings judged unrelated to the target were left out; pass include_unrelated=true to read them.'
     return out
 
 
@@ -526,7 +564,7 @@ def get_scan_log(cc, args):
 # ---------------------------------------------------------------------------------------------
 # writing
 
-def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target_type=None):
+def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target_type=None, context='', prune=None):
     """The guarded path to a running scan, shared by create_scan and rerun_scan."""
     from spiderfoot.blueprints.api import clean_user_input, normalize_target, start_scan_core
     target, ttype = normalize_target(clean_user_input([raw_target])[0], target_type)
@@ -552,7 +590,7 @@ def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target
         raise ToolError('No modules left to run. ' + _dropped_text(dropped))
     scan_name = (NAME_PREFIX + (name or raw_target).strip())[:100]
     res = start_scan_core(scan_name, raw_target, modulelist=','.join(keep), config=cc.ctx.config, dbh=dbh,
-                          logging_queue=cc.ctx.logging_queue, target_type=target_type, owner=cc.user.id)
+                          logging_queue=cc.ctx.logging_queue, target_type=target_type, owner=cc.user.id, context=context, prune=prune)
     dropped.update(res.dropped)
     if not res.ok:
         raise ToolError(res.error + (' ' + _dropped_text(dropped) if dropped else ''))
@@ -590,6 +628,13 @@ def _dropped_text(dropped: dict) -> str:
        'modules': {'type': 'array', 'items': {'type': 'string', 'maxLength': 80}, 'maxItems': 300, 'description': 'Module ids to run, for example ["sfp_dnsresolve","sfp_crt"].'},
        'preset': {'type': 'string', 'maxLength': 100, 'description': 'Preset id or name from list_presets.'},
        'use_case': {'type': 'string', 'enum': list(USE_CASES), 'description': 'Footprint, Investigate or Passive.'},
+       'context': {'type': 'string', 'maxLength': 4000, 'description': (
+           'Person and business-name scans only. What you know about the target, so findings about namesakes can be set aside: '
+           'free text or key: value lines, for example "location: Boston, MA", "employer: Acme Robotics", "born: 1985", '
+           '"email: me@example.com", "username: nickm", "relative: Jane Thornwood".')},
+       'prune_unrelated': {'type': 'boolean', 'description': (
+           'Person and business-name scans only. Do not follow up findings that are clearly about somebody else '
+           '(default: the operator\'s setting, normally true). Nothing is deleted.')},
        'confirm_active': _CONFIRM_ACTIVE}, ['target'], read_only=False, idempotent=False)
 def create_scan(cc, args):
     cc.require('scan', 'start scans')
@@ -613,7 +658,8 @@ def create_scan(cc, args):
             ids = sorted(m['id'] for m in index.values() if args['use_case'] in m['useCases'])
         if not ids:
             raise ToolError('No modules selected.')
-        return _launch(cc, dbh, index, args.get('name'), args['target'], ids, args['confirm_active'])
+        return _launch(cc, dbh, index, args.get('name'), args['target'], ids, args['confirm_active'],
+                       context=relevance_view.clean_context(args.get('context')), prune=args.get('prune_unrelated'))
 
 
 @tool('stop_scan', 'Stop a running scan',
@@ -655,12 +701,70 @@ def rerun_scan(cc, args):
             or SpiderFootHelpers.targetTypeFromString(f'"{row[1]}"')
         name = row[0][len(NAME_PREFIX):] if str(row[0]).startswith(NAME_PREFIX) else row[0]
         gone = [m for m in ids if m not in known]
-        out = _launch(cc, dbh, index, name, row[1], [m for m in ids if m in known], args['confirm_active'], ttype)
+        old_ctx = dbh.scanContextGet(scan_id)
+        out = _launch(cc, dbh, index, name, row[1], [m for m in ids if m in known], args['confirm_active'], ttype,
+                      context=old_ctx['context'], prune=old_ctx['prune'] if old_ctx['exists'] else None)
     if gone:
         out['dropped'] = (out['dropped'] + [{'module': m, 'reason': 'module no longer exists'} for m in gone])[:50]
         out['droppedCount'] += len(gone)
     out['rerunOf'] = scan_id
     return out
+
+
+@tool('reassess_relevance', 'Re-assess relevance of a scan',
+      'Score every finding of a person or business-name scan again for "is this about the target", using the scan\'s '
+      'context hints, the corrections made with mark_event, the embeddings endpoint and the AI model if the operator '
+      'configured them. It runs in the background; poll get_scan and read its relevance section (status, counts). '
+      'Needs edit access to the scan. Nothing is deleted.',
+      {'scan_id': _SCAN_ID,
+       'context': {'type': 'string', 'maxLength': 4000, 'description': 'Replace the scan\'s context hints first (same format as create_scan).'}},
+      ['scan_id'], read_only=False, idempotent=True)
+def reassess_relevance(cc, args):
+    cc.require('scan', 'start or change scans')
+    with cc.ctx.db() as dbh:
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'edit')
+        if not relevance_job.enabled(cc.ctx.config):
+            raise ToolError('Relevance scoring is switched off in the SpiderFoot settings.')
+        if args.get('context') is not None:
+            dbh.scanContextSet(scan_id, relevance_view.clean_context(args['context']), dbh.scanContextGet(scan_id)['prune'])
+    started = relevance_job.start_job(cc.ctx.config, scan_id)
+    return {'scanId': scan_id, 'started': started, 'alreadyRunning': not started,
+            'next': 'Poll get_scan and read relevance.status until it is done, then read get_scan_events.'}
+
+
+@tool('mark_event', 'Mark a finding as yours or not related',
+      'Correct the relevance of a finding. verdict "mine" says the finding really is about the target (it also becomes '
+      'an anchor: its email, username, phone or domain then count as proof for other findings), "not_related" says it is '
+      'about somebody else (with scope "lineage", the default, everything found from it is marked too), "clear" removes '
+      'your earlier decision. Decisions win over any score and are used by every later re-assessment. event_id comes from '
+      'get_scan_events. Needs edit access to the scan.',
+      {'scan_id': _SCAN_ID,
+       'event_id': {'type': 'string', 'minLength': 1, 'maxLength': 80, 'description': 'The eventId of a finding, from get_scan_events.'},
+       'verdict': {'type': 'string', 'enum': ['mine', 'not_related', 'clear'],
+                   'description': 'mine: it is about the target. not_related: it is about somebody else. clear: remove your earlier decision.'},
+       'scope': {'type': 'string', 'enum': ['event', 'lineage'], 'default': 'lineage',
+                 'description': 'lineage: the finding and everything found from it (not_related), or the finding alone.'}},
+      ['scan_id', 'event_id', 'verdict'], read_only=False, idempotent=True)
+def mark_event(cc, args):
+    cc.require('scan', 'start or change scans')
+    with cc.ctx.db() as dbh:
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'edit')
+        rows = dbh.scanEventsForRelevance(scan_id)
+        if args['event_id'] not in {r[0] for r in rows}:
+            raise ToolError(f"Event '{args['event_id']}' is not in scan {scan_id}. Use the eventId from get_scan_events.")
+        targets = [args['event_id']]
+        if args['scope'] == 'lineage' and args['verdict'] != 'mine':
+            targets += relevance_view.descendants(rows, args['event_id'])
+        if args['verdict'] == 'clear':
+            changed = dbh.overrideClear(scan_id, targets)
+        else:
+            changed = dbh.overrideSet(scan_id, targets, args['verdict'], cc.user.id)
+            score, label, why = (1.0, 'confirmed', 'You marked this as yours') if args['verdict'] == 'mine' \
+                else (0.0, 'unrelated', 'You marked this as not related')
+            dbh.relevanceStore(scan_id, [(h, score, label, [why], 'override') for h in targets])
+    started = relevance_job.start_job(cc.ctx.config, scan_id) if relevance_job.enabled(cc.ctx.config) else False
+    return {'scanId': scan_id, 'eventId': args['event_id'], 'verdict': args['verdict'], 'eventsChanged': changed,
+            'reassessing': started, 'note': 'Scores that depend on this decision are recomputed in the background.'}
 
 
 @tool('delete_scan', 'Delete a scan',
