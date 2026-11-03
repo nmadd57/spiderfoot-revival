@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import secrets
 import threading
 import time
@@ -193,24 +194,51 @@ def decode_token(token: str, issuer: str, doc: dict, audiences: list, nonce=None
     return dict(claims)
 
 
+MAX_CLAIM_GROUPS = 200
+_CONTROL = re.compile(r'[\x00-\x1f\x7f-\x9f]')
+
+
 def extract_groups(claims: dict, claim: str) -> list:
-    """Group names from a claim (a list, a comma-separated string, or absent)."""
+    """Group names from a claim: a list (the normal case, Dex sends an array), a single string (one name, or
+    several separated by commas or newlines) or nothing at all (Dex leaves the claim out when the user has no
+    groups). Names are trimmed; blanks, control characters, non-text values and absurd lengths are dropped."""
     value = (claims or {}).get(claim)
     if isinstance(value, str):
-        value = [v for v in value.replace(',', ' ').split()]
-    if not isinstance(value, list):
+        value = value.replace('\n', ',').split(',')
+    if not isinstance(value, (list, tuple)):
         return []
-    return sorted({str(v).strip() for v in value if isinstance(v, (str, int)) and str(v).strip()})
+    out = set()
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (str, int)):
+            continue
+        name = str(item).strip()
+        if name and len(name) <= 200 and not _CONTROL.search(name):
+            out.add(name)
+    return sorted(out)[:MAX_CLAIM_GROUPS]
+
+
+def _text(value, limit=200) -> str:
+    """A claim value as clean text: only strings count (a list or object is not a name), no control characters."""
+    if not isinstance(value, str):
+        return ''
+    return _CONTROL.sub('', value).strip()[:limit]
 
 
 def profile(claims: dict) -> dict:
-    sub = str(claims.get('sub', ''))
+    """Subject and display fields from ID token (or userinfo) claims.
+
+    Dex's ``sub`` is an opaque encoded string, so it is only the last resort for a display name:
+    ``preferred_username``, then ``email``, then ``name`` are tried first.
+    """
+    sub = claims.get('sub')
+    sub = sub.strip() if isinstance(sub, str) else ''
     if sub.startswith('local:'):
         # 'local:' is the namespace of passwd-file and no-sign-in administrators; a provider cannot claim it
         raise OidcError('invalid_token', 'The token was not accepted.')
-    username = str(claims.get('preferred_username') or claims.get('email') or claims.get('name') or sub)
-    return {'subject': sub, 'username': username[:200], 'email': str(claims.get('email') or '')[:200],
-            'display_name': str(claims.get('name') or claims.get('preferred_username') or claims.get('email') or sub)[:200]}
+    preferred, email, name = _text(claims.get('preferred_username')), _text(claims.get('email')), _text(claims.get('name'))
+    username = preferred or email or name or sub[:200]
+    return {'subject': sub, 'username': username, 'email': email,
+            'display_name': name or preferred or email or username}
 
 
 def userinfo(doc: dict, access_token: str, ttl: int = 60) -> dict:
@@ -376,5 +404,6 @@ def test_connection(settings) -> dict:
         'pkce': 'S256' in (doc.get('code_challenge_methods_supported') or []),
         'groups_scope': ('groups' in scopes) if isinstance(scopes, list) else None,
         'groups_claim': (settings.groups_claim in claims) if isinstance(claims, list) else None,
+        'claims_supported': sorted({c for c in claims if isinstance(c, str)})[:60] if isinstance(claims, list) else None,
         'scopes_requested': settings.scopes,
     }

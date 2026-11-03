@@ -1,0 +1,4 @@
+<div id="report-progress" class="rounded-lg border border-cyan-300/50 dark:border-cyan-700/40 bg-cyan-50/50 dark:bg-cyan-900/10 p-3 mb-4" role="status"
+     hx-get="/frag/report?id={{ scan_id }}&part=progress" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% include 'fragments/report_progress.html' %}
+</div>

@@ -1,8 +1,9 @@
-{# Settings > Access (administrators): single sign-on (OIDC), the mapping from groups to roles, session lifetime and the
-   directory of people who have signed in. view = the saved settings (the client secret is never included, only whether
-   one is set); users = the signed-in accounts (no secrets). #}
+{# Settings > Access (administrators): single sign-on (OIDC), the group registry (which provider groups are administrators or
+   users), session lifetime and the directory of people who have signed in. view = the saved settings (the client secret is
+   never included, only whether one is set); users = the signed-in accounts (no secrets); group_data = the registry, the group
+   names seen at sign-in and the default role (see blueprints/access.py groups_view). #}
 
-<div class="space-y-6 min-w-0" x-data='accessSettings({{ view | tojson }}, {{ users | tojson }})'>
+<div class="space-y-6 min-w-0" x-data='accessSettings({{ view | tojson }}, {{ users | tojson }}, {{ group_data | tojson }})'>
 
   <div>
     <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Access</h2>
@@ -83,23 +84,166 @@
     </div>
   </section>
 
-  {# ------------------------------------------------------------ Roles #}
-  <section class="acc-card space-y-3">
-    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Groups and roles</h3>
-    <p class="text-sm text-slate-500 dark:text-slate-400">
-      One group name per line (or separated by commas). Members of an admin group are administrators and see every scan and all settings.
-      Members of a user group (or anybody, when the user groups list is empty) can run scans, see their own and shared scans, and keep their agent tokens.
-      Anyone else who signs in is turned away.
+  {# ------------------------------------------------------------ Groups #}
+  <section class="acc-card space-y-4" aria-labelledby="acc-groups-h">
+    <div>
+      <h3 id="acc-groups-h" class="text-base font-semibold text-slate-800 dark:text-slate-100">Groups</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        Register the groups your identity provider sends in the <span class="font-mono" x-text="f.oidc_groups_claim || 'groups'"></span> claim.
+        Members of an <b>Admin</b> group are administrators: they see every scan and all settings.
+        Members of a <b>User</b> group can run scans, see their own and shared scans, and keep agent tokens.
+        If someone is in several groups the highest role wins. Names must match exactly (upper and lower case count).
+        Changes apply to everyone on their next request.
+      </p>
+    </div>
+
+    <p class="text-sm rounded border border-amber-500/40 bg-amber-500/5 p-3 text-amber-700 dark:text-amber-400 sf-break"
+       x-show="gd.effectiveDefault === 'user' && gd.groups.length" x-cloak>
+      Anyone who can sign in at the identity provider currently gets <b>User</b> access, whatever their groups.
+      Choose <b>Denied</b> under "Unlisted accounts" to let in registered groups only.
     </p>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <p class="text-sm rounded border border-slate-300/60 dark:border-sf-border p-3 text-slate-600 dark:text-slate-300" x-show="!gd.groups.length" x-cloak>
+      No group is registered yet. Add at least one Admin group before turning single sign-on on.
+    </p>
+    <p class="text-sm text-red-500" x-show="gd.source === 'unreadable'" x-cloak role="alert">The saved group list is damaged, so nobody can sign in. Set <span class="font-mono">SF_OIDC_ENABLED=0</span> and restart to get back in.</p>
+
+    <p class="text-sm" :class="gOk ? 'text-green-600' : 'text-red-500'" x-show="gmsg" x-cloak x-text="gmsg" :role="gOk ? 'status' : 'alert'"></p>
+
+    {# Registered groups #}
+    <ul class="divide-y divide-slate-100 dark:divide-sf-border" x-show="gd.groups.length" x-cloak aria-label="Registered groups">
+      <template x-for="g in gd.groups" :key="'g:' + g.name">
+        <li class="py-3 space-y-2">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="font-mono text-sm text-slate-800 dark:text-slate-100 sf-break min-w-0" x-text="g.name"></span>
+            <span class="acc-role" :class="'acc-role-' + g.role" x-text="g.role"></span>
+            <span class="text-xs text-slate-500 dark:text-slate-400" x-text="g.members + (g.members === 1 ? ' known user' : ' known users')"></span>
+            <span class="text-xs text-sf-accent" x-show="g.mine">you</span>
+          </div>
+          <p class="text-sm text-slate-600 dark:text-slate-300 sf-break" x-show="g.description && editing !== g.name" x-text="g.description"></p>
+          <p class="text-xs text-slate-400 dark:text-slate-500" x-text="'added' + (g.addedBy ? ' by ' + g.addedBy : '') + (g.added ? ' ' + when(g.added) : '')"></p>
+
+          <div class="space-y-2" x-show="editing === g.name" x-cloak>
+            <label class="acc-field">
+              <span class="acc-label">Description</span>
+              <input class="acc-input" x-model="editDesc" maxlength="200" autocomplete="off" @keydown.enter.prevent="saveDesc(g)">
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="acc-btn acc-btn-primary" :disabled="busy" @click="saveDesc(g)">Save description</button>
+              <button type="button" class="acc-btn acc-btn-secondary" @click="editing = ''">Cancel</button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-2" x-show="editing !== g.name && confirming !== g.name">
+            <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy" @click="setRole(g, g.role === 'admin' ? 'user' : 'admin')"
+                    :aria-label="(g.role === 'admin' ? 'Make ' : 'Make ') + g.name + (g.role === 'admin' ? ' a user group' : ' an admin group')"
+                    x-text="g.role === 'admin' ? 'Make User' : 'Make Admin'"></button>
+            <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy" @click="editing = g.name; editDesc = g.description; confirming = ''"
+                    :aria-label="'Edit the description of ' + g.name">Edit description</button>
+            <button type="button" class="acc-btn acc-btn-danger" :disabled="busy" @click="confirming = g.name; editing = ''"
+                    :aria-label="'Remove ' + g.name">Remove</button>
+          </div>
+
+          <div class="rounded border border-red-500/40 bg-red-500/5 p-3 space-y-2" x-show="confirming === g.name" x-cloak role="alertdialog" :aria-label="'Remove ' + g.name">
+            <p class="text-sm text-slate-700 dark:text-slate-200 sf-break">
+              Remove <span class="font-mono" x-text="g.name"></span>? Its members lose the role this group gives them on their next request
+              (<span x-text="gd.effectiveDefault === 'user' ? 'they stay Users if they have no other registered group, because unlisted accounts are allowed' : 'they are turned away unless another registered group admits them'"></span>).
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="acc-btn acc-btn-danger-solid" :disabled="busy" @click="remove(g)">Yes, remove it</button>
+              <button type="button" class="acc-btn acc-btn-secondary" @click="confirming = ''">Cancel</button>
+            </div>
+          </div>
+        </li>
+      </template>
+    </ul>
+
+    {# Add a group #}
+    <form class="space-y-3 border-t border-slate-100 dark:border-sf-border pt-3" @submit.prevent="addGroup()" aria-label="Add a group">
+      <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Add a group</h4>
+      <div class="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_10rem_minmax(0,3fr)] gap-3">
+        <label class="acc-field">
+          <span class="acc-label">Group name</span>
+          <input class="acc-input font-mono" x-model="gform.name" maxlength="100" list="acc-seen-names" placeholder="spiderfoot" autocomplete="off" spellcheck="false" required>
+          <datalist id="acc-seen-names"><template x-for="n in gd.seen" :key="'d:' + n.name"><option :value="n.name"></option></template></datalist>
+        </label>
+        <label class="acc-field">
+          <span class="acc-label">Role</span>
+          <select class="acc-input" x-model="gform.role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label class="acc-field">
+          <span class="acc-label">Description <span class="font-normal text-slate-400">(optional)</span></span>
+          <input class="acc-input" x-model="gform.description" maxlength="200" autocomplete="off">
+        </label>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="acc-btn acc-btn-primary" :disabled="busy || !gform.name.trim()">Add group</button>
+      </div>
+    </form>
+
+    {# Seen at sign-in #}
+    <div class="space-y-2 border-t border-slate-100 dark:border-sf-border pt-3">
+      <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Seen at sign-in</h4>
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        Groups the identity provider sent for people who signed in (including people who were turned away) and that are not registered yet.
+      </p>
+      <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!gd.seen.length" x-cloak>Nothing new. Every group seen so far is registered.</p>
+      <ul class="divide-y divide-slate-100 dark:divide-sf-border" x-show="gd.seen.length" x-cloak aria-label="Groups seen at sign-in">
+        <template x-for="n in gd.seen" :key="'s:' + n.name">
+          <li class="py-2 space-y-2">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="font-mono text-sm text-slate-800 dark:text-slate-100 sf-break min-w-0" x-text="n.name"></span>
+              <span class="text-xs text-slate-500 dark:text-slate-400" x-text="n.denied ? 'only seen on a refused sign-in' : (n.users + (n.users === 1 ? ' known user' : ' known users'))"></span>
+              <span class="text-xs text-sf-accent" x-show="n.mine">you</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy" @click="addSeen(n.name, 'user')" :aria-label="'Add ' + n.name + ' as User'">Add as User</button>
+              <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy" @click="addSeen(n.name, 'admin')" :aria-label="'Add ' + n.name + ' as Admin'">Add as Admin</button>
+            </div>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    {# Unlisted accounts #}
+    <div class="space-y-2 border-t border-slate-100 dark:border-sf-border pt-3">
+      <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Unlisted accounts</h4>
       <label class="acc-field">
-        <span class="acc-label">Admin groups</span>
-        <textarea class="acc-input font-mono" rows="3" x-model="f.oidc_admin_groups" :disabled="locked('oidc_admin_groups')" placeholder="spiderfoot-admins" spellcheck="false"></textarea>
+        <span class="acc-label">Signed-in users without a registered group are</span>
+        <select class="acc-input" x-model="defaultRole" :disabled="gd.defaultRoleLocked">
+          <option value="">Automatic: User until a User group is registered, then Denied</option>
+          <option value="user">User</option>
+          <option value="none">Denied</option>
+        </select>
+        <span class="acc-hint" x-show="gd.defaultRoleLocked">Set by the environment (<span class="font-mono">SF_OIDC_DEFAULT_ROLE</span>).</span>
+        <span class="acc-hint">Now in effect: <b x-text="gd.effectiveDefault === 'user' ? 'User' : 'Denied'"></b>.
+          Pick Denied on a public site so only people in a registered group can use SpiderFoot.</span>
       </label>
-      <label class="acc-field">
-        <span class="acc-label">User groups <span class="font-normal text-slate-400">(empty: any signed-in account)</span></span>
-        <textarea class="acc-input font-mono" rows="3" x-model="f.oidc_user_groups" :disabled="locked('oidc_user_groups')" placeholder="spiderfoot-users" spellcheck="false"></textarea>
-      </label>
+      <div class="flex flex-wrap gap-2" x-show="!gd.defaultRoleLocked">
+        <button type="button" class="acc-btn acc-btn-secondary" :disabled="busy || defaultRole === gd.defaultRole" @click="saveDefault()">Apply</button>
+      </div>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------ Dex #}
+  <section class="acc-card" aria-label="Using Dex">
+    <button type="button" class="w-full flex items-center justify-between gap-3 min-h-[44px] text-left" @click="dexOpen = !dexOpen" :aria-expanded="dexOpen ? 'true' : 'false'">
+      <span class="text-base font-semibold text-slate-800 dark:text-slate-100">Using Dex as the identity provider</span>
+      <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0" x-text="dexOpen ? 'Hide' : 'Show'"></span>
+    </button>
+    <div x-show="dexOpen" x-cloak class="space-y-2 pt-2">
+      <dl class="grid grid-cols-1 sm:grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+        <dt class="text-slate-500 dark:text-slate-400">Issuer</dt><dd class="font-mono break-all" x-text="f.oidc_issuer || 'the issuer URL of your Dex, for example https://dex.example.com/dex'"></dd>
+        <dt class="text-slate-500 dark:text-slate-400">Redirect URI to register</dt><dd class="font-mono break-all select-all" x-text="f.oidc_redirect_uri || view.redirectUri"></dd>
+        <dt class="text-slate-500 dark:text-slate-400">Scopes</dt><dd class="font-mono">openid profile email groups</dd>
+        <dt class="text-slate-500 dark:text-slate-400">Groups claim</dt><dd class="font-mono">groups</dd>
+      </dl>
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        Add a static client for SpiderFoot to Dex with that redirect URI. Dex puts the user's groups in the ID token as a list and leaves the claim out
+        when there are none (the person is then treated as having no groups). Sign in once, then add the group names listed under "Seen at sign-in".
+      </p>
     </div>
   </section>
 
@@ -154,6 +298,8 @@
           <dd x-text="test.groups_scope === null ? 'the provider does not list its scopes' : (test.groups_scope ? 'advertised' : 'not advertised: check that groups reach the ID token')"></dd>
           <dt class="text-slate-500 dark:text-slate-400">Groups claim</dt>
           <dd x-text="test.groups_claim === null ? 'the provider does not list its claims' : (test.groups_claim ? 'advertised' : 'not advertised')"></dd>
+          <dt class="text-slate-500 dark:text-slate-400" x-show="test.claims_supported && test.claims_supported.length">Claims offered</dt>
+          <dd class="font-mono break-all" x-show="test.claims_supported && test.claims_supported.length" x-text="(test.claims_supported || []).join(', ')"></dd>
         </dl>
       </template>
     </div>
@@ -162,7 +308,7 @@
   {# ------------------------------------------------------------ Users #}
   <section class="acc-card space-y-3">
     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">People who have signed in</h3>
-    <p class="text-sm text-slate-500 dark:text-slate-400">Read only. Roles follow the group mapping above and are checked on every request.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Read only. Roles follow the registered groups above and are checked on every request.</p>
     <p class="text-sm text-slate-600 dark:text-slate-300" x-show="!users.length">Nobody has signed in yet.</p>
 
     {# Phones: cards #}
@@ -221,6 +367,10 @@
   .acc-btn:disabled { opacity:.5; cursor:not-allowed; }
   .acc-btn-primary { background:var(--color-sf-accent, #06b6d4); color:#fff; }
   .acc-btn-secondary { border:1px solid rgb(148 163 184 / .6); }
+  .acc-btn-danger { border:1px solid rgb(239 68 68 / .6); color:rgb(220 38 38); }
+  .dark .acc-btn-danger { color:rgb(248 113 113); }
+  .acc-btn-danger-solid { background:rgb(220 38 38); color:#fff; }
+  .dark .acc-input option { background:#1e293b; color:#e2e8f0; }
   .acc-btn-secondary:hover:not(:disabled) { border-color:var(--color-sf-accent, #06b6d4); }
   .acc-switch { position:relative; flex-shrink:0; width:3rem; height:1.75rem; border-radius:9999px; background:rgb(148 163 184 / .5); transition:background .15s; }
   .acc-switch::after { content:''; position:absolute; inset:-8px 0; }
@@ -236,14 +386,15 @@
 </style>
 
 <script>
-function accessSettings(initial, people) {
+function accessSettings(initial, people, groupData) {
   const csrf = () => (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-  const lines = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean).join('\n');
-  const prep = (fields) => Object.assign({}, fields, {
-    oidc_admin_groups: lines(fields.oidc_admin_groups), oidc_user_groups: lines(fields.oidc_user_groups) });
+  const prep = (fields) => Object.assign({}, fields);
+  const emptyGroups = { groups: [], seen: [], defaultRole: '', effectiveDefault: 'user', defaultRoleLocked: false, source: 'stored', ssoOn: false };
   return {
     view: initial, f: prep(initial.fields), users: people || [],
     secret: '', clearSecret: false, ack: false, busy: false, msg: '', msgOk: true, test: null, copied: false,
+    gd: Object.assign({}, emptyGroups, groupData || {}), gform: { name: '', role: 'user', description: '' }, gmsg: '', gOk: true,
+    editing: '', editDesc: '', confirming: '', defaultRole: (groupData || {}).defaultRole || '', dexOpen: false,
 
     locked(name) { return (this.view.env || []).includes(name); },
     when(ts) {
@@ -269,9 +420,6 @@ function accessSettings(initial, people) {
                        'oidc_enabled', 'auth_session_hours', 'auth_unowned_visible', 'auth_trust_proxy']) {
         if (!this.locked(k)) body[k] = String(f[k] === undefined ? '' : f[k]);
       }
-      for (const k of ['oidc_admin_groups', 'oidc_user_groups']) {
-        if (!this.locked(k)) body[k] = String(f[k] || '').split(/[\n,]/).map(s => s.trim()).filter(Boolean);
-      }
       if (this.secret) body.oidc_client_secret = this.secret;
       if (this.clearSecret) body.clear_secret = true;
       if (this.ack) body.acknowledge = true;
@@ -280,6 +428,52 @@ function accessSettings(initial, people) {
       if (!r.ok) { this.msg = r.error; return; }
       this.view = r.data; this.f = prep(r.data.fields); this.secret = ''; this.clearSecret = false; this.ack = false;
       this.msg = 'Saved.';
+    },
+    async gcall(path, body) {
+      this.busy = true; this.gmsg = '';
+      try {
+        const r = await fetch('/api/access/groups' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+                                                             body: JSON.stringify(body) });
+        let d = {};
+        try { d = await r.json(); } catch (e) { d = {}; }
+        if (!r.ok) { this.gOk = false; this.gmsg = (d && d.error) || 'Request failed.'; return false; }
+        this.gd = Object.assign({}, emptyGroups, d); this.defaultRole = this.gd.defaultRole || '';
+        this.gOk = true; this.editing = ''; this.confirming = '';
+        return true;
+      } catch (e) { this.gOk = false; this.gmsg = 'Request failed.'; return false; }
+      finally { this.busy = false; }
+    },
+    async addGroup() {
+      const name = this.gform.name.trim();
+      if (!name) return;
+      if (name.includes(',')) { this.gOk = false; this.gmsg = 'A group name cannot contain a comma.'; return; }
+      if (this.gd.groups.some(g => g.name === name)) { this.gOk = false; this.gmsg = 'That group is already registered.'; return; }
+      if (await this.gcall('', { name, role: this.gform.role, description: this.gform.description })) {
+        this.gmsg = 'Added ' + name + ' as ' + (this.gform.role === 'admin' ? 'Admin' : 'User') + '.';
+        this.gform = { name: '', role: this.gform.role, description: '' };
+      }
+    },
+    async addSeen(name, role) {
+      if (await this.gcall('', { name, role })) this.gmsg = 'Added ' + name + ' as ' + (role === 'admin' ? 'Admin' : 'User') + '.';
+    },
+    async setRole(g, role) {
+      if (await this.gcall('/update', { name: g.name, role })) this.gmsg = g.name + ' is now ' + (role === 'admin' ? 'Admin' : 'User') + '.';
+    },
+    async saveDesc(g) {
+      if (await this.gcall('/update', { name: g.name, description: this.editDesc })) this.gmsg = 'Description saved.';
+    },
+    async remove(g) {
+      if (await this.gcall('/remove', { name: g.name })) this.gmsg = 'Removed ' + g.name + '.';
+    },
+    async saveDefault() {
+      this.gmsg = '';
+      const r = await this.call('settings', { oidc_default_role: this.defaultRole });
+      this.gOk = r.ok;
+      if (!r.ok) { this.gmsg = r.error; return; }
+      this.view = r.data; this.f = prep(r.data.fields);
+      const g = await fetch('/api/access/groups').then(x => x.json()).catch(() => null);
+      if (g && g.groups) { this.gd = Object.assign({}, emptyGroups, g); this.defaultRole = this.gd.defaultRole || ''; }
+      this.gmsg = 'Saved.';
     },
     async runTest() {
       this.msg = ''; this.test = null;

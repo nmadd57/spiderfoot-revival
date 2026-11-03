@@ -7,10 +7,12 @@ from locking themselves out).
 
 import logging
 import re
+import threading
 
 from flask import Blueprint, jsonify, request
 
 from spiderfoot.services import access, identity, oidc, session_auth
+from spiderfoot.services import groups as groupreg
 
 access_bp = Blueprint('access', __name__)
 log = logging.getLogger(f"spiderfoot.{__name__}")
@@ -141,17 +143,32 @@ def user_picker():
 
 @access_bp.route('/groups', methods=['GET'])
 def group_picker():
-    """Group names seen on signed-in users, for suggestions (any name may still be typed)."""
-    return _no_store(jsonify(_db().userGroups()))
+    """Group names for the sharing picker: the registered groups plus those seen on signed-in users (names only;
+    any name may still be typed)."""
+    names = {e['name'] for e in identity.request_settings().registry}
+    names.update(_db().userGroups())
+    return _no_store(jsonify(sorted(names, key=lambda n: (n.lower(), n))))
 
 
 # ------------------------------------------------------------------------------------ settings
 
-_LIST_KEYS = ('_oidc_admin_groups', '_oidc_user_groups')
 _TEXT_KEYS = ('_oidc_issuer', '_oidc_client_id', '_oidc_scopes', '_oidc_groups_claim', '_oidc_redirect_uri',
-              '_oidc_mcp_audience')
-_ALL_KEYS = _TEXT_KEYS + _LIST_KEYS + ('_oidc_enabled', '_auth_session_hours', '_auth_unowned_visible', '_auth_trust_proxy')
+              '_oidc_mcp_audience', '_oidc_default_role')
+_ALL_KEYS = _TEXT_KEYS + ('_oidc_enabled', '_auth_session_hours', '_auth_unowned_visible', '_auth_trust_proxy')
 _FIELD_NAMES = {k: k.lstrip('_') for k in _ALL_KEYS + identity.SECRET_KEYS}
+
+
+_registry_lock = threading.Lock()
+
+
+def _lockout(after, user, remove: bool) -> str:
+    """Why ``after`` (sign-in on, with this registry and default role) would lock the administrators out, or ''."""
+    if not after.admin_groups:
+        return ('The last admin group cannot be removed or made a user group while single sign-on is on.' if remove else
+                'Register at least one admin group (see Groups below), otherwise nobody could manage SpiderFoot after sign-in is enabled.')
+    if not user.local and identity.role_for(user.groups, after) != access.ROLE_ADMIN:
+        return 'This change would remove your own administrator access. Keep one of your groups as an admin group.'
+    return ''
 
 
 def settings_view(settings, request_origin: str) -> dict:
@@ -160,6 +177,7 @@ def settings_view(settings, request_origin: str) -> dict:
     for key in _ALL_KEYS:
         out['fields'][_FIELD_NAMES[key]] = settings.get(key)
     out['fields']['oidc_enabled'] = '0' if settings.get('_oidc_enabled').lower() in ('0', 'false', 'no', 'off') else '1'
+    out['fields']['oidc_default_role'] = settings.default_role_setting
     out['fields']['oidc_scopes'] = settings.scopes
     out['fields']['oidc_groups_claim'] = settings.groups_claim
     out['fields']['auth_session_hours'] = str(settings.session_hours).rstrip('0').rstrip('.')
@@ -214,8 +232,6 @@ def access_settings_set():
                 return _error('The client secret is not valid.')
             updates[key] = value
             continue
-        if key in _LIST_KEYS and isinstance(value, list):
-            value = ','.join(identity.split_groups(value))
         if isinstance(value, bool):
             value = '1' if value else '0'
         if not isinstance(value, (str, int, float)) or len(str(value)) > 2000:
@@ -234,6 +250,8 @@ def access_settings_set():
                 return _error('The session lifetime must be a number of hours.')
             if not 0.1 <= hours <= identity.MAX_SESSION_HOURS:
                 return _error('The session lifetime must be between 0.1 and 720 hours.')
+        if key == '_oidc_default_role' and value not in groupreg.DEFAULT_ROLES:
+            return _error("Unlisted accounts can be 'user' or 'none' (or automatic).")
         if key in ('_oidc_enabled', '_auth_unowned_visible') and value not in ('0', '1'):
             return _error('That setting must be on or off.')
         updates[key] = value
@@ -246,14 +264,15 @@ def access_settings_set():
 
     # Never let a change shut every administrator out
     if after.oidc_configured:
-        if not after.admin_groups:
-            return _error('Enter at least one admin group, otherwise nobody could manage SpiderFoot after sign-in is enabled.')
+        problem = _lockout(after, user, remove=False)
+        if problem:
+            return _error(problem)
         if not before.oidc_configured and body.get('acknowledge') is not True:
             return _error('Confirm that you understand everyone must sign in with SSO from now on.')
-        if not user.local and identity.role_for(user.groups, after) != access.ROLE_ADMIN:
-            return _error('This change would remove your own administrator access. Add one of your groups as an admin group.')
     if updates:
-        dbh.configSet(updates)
+        with _registry_lock:
+            identity.ensure_registry_saved(dbh, before)
+            dbh.configSet(updates)
         oidc.clear_cache()
         log.info("Access settings changed: %s", ', '.join(sorted(_FIELD_NAMES[k] for k in updates)))
     fresh = identity.load_settings(dbh)
@@ -290,3 +309,89 @@ def access_users():
                     'role': row.role if row else 'denied', 'groups': u['groups'], 'lastLogin': u['last_login'],
                     'local': u['subject'].startswith('local:')})
     return _no_store(jsonify(out))
+
+
+# ------------------------------------------------------------------------------------ group registry
+
+def groups_view(settings, dbh, viewer=None) -> dict:
+    """The registry for the Groups card: registered groups with their member counts, the group names seen at
+    sign-in that are not registered yet, and the default role for unlisted accounts. No secrets, no user data
+    beyond counts."""
+    people = dbh.userList()
+    counts = {}
+    for u in people:
+        for name in u['groups']:
+            counts[name] = counts.get(name, 0) + 1
+    mine = set(viewer.groups) if viewer is not None else set()
+    registered = {e['name'] for e in settings.registry}
+    rows = [{'name': e['name'], 'role': e['role'], 'description': e['description'], 'addedBy': e['added_by'],
+             'added': e['added'], 'members': counts.get(e['name'], 0), 'mine': e['name'] in mine}
+            for e in sorted(settings.registry, key=lambda e: (e['role'] != access.ROLE_ADMIN, e['name'].lower(), e['name']))]
+    denied = groupreg.denied_names(settings.get(identity.DENIED_KEY))
+    seen = [{'name': n, 'users': counts.get(n, 0), 'denied': n in denied and counts.get(n, 0) == 0, 'mine': n in mine}
+            for n in sorted((set(counts) | set(denied)) - registered, key=lambda n: (n.lower(), n))]
+    return {'groups': rows, 'seen': seen, 'defaultRole': settings.default_role_setting, 'effectiveDefault': settings.default_role,
+            'defaultRoleLocked': '_oidc_default_role' in settings.from_env, 'source': settings.registry_source,
+            'ssoOn': settings.oidc_configured, 'known': len(people)}
+
+
+def _groups_response(dbh, viewer, status=200):
+    fresh = identity.load_settings(dbh)
+    resp = _no_store(jsonify(groups_view(fresh, dbh, viewer)))
+    resp.status_code = status
+    return resp
+
+
+def _change_registry(change, what: str):
+    """Apply ``change(registry) -> registry`` under a lock, with the lockout guards, and answer with the new view."""
+    user, dbh = identity.current_user(), _db()
+    with _registry_lock:
+        before = identity.load_settings(dbh)
+        if before.registry_source == 'unreadable':
+            return _error('The saved group list is damaged. Fix it in the database or set SF_OIDC_ENABLED=0 and restart.', 409)
+        try:
+            registry = change(before.registry)
+        except groupreg.GroupError as e:
+            return _error(str(e), e.status)
+        after = before.with_registry(registry)
+        if after.oidc_configured:
+            removing = len(after.admin_groups) < len(before.admin_groups) and not after.admin_groups
+            problem = _lockout(after, user, remove=removing)
+            if problem:
+                return _error(problem)
+        identity.save_registry(dbh, registry)
+    log.info("Group registry: %s by user id %s", what, user.id)
+    return _groups_response(dbh, user)
+
+
+@access_bp.route('/access/groups', methods=['GET'])
+def groups_list():
+    user, dbh = identity.current_user(), _db()
+    with _registry_lock:
+        identity.ensure_registry_saved(dbh, identity.load_settings(dbh))
+    return _groups_response(dbh, user)
+
+
+@access_bp.route('/access/groups', methods=['POST'])
+def groups_add():
+    body = _body()
+    adder = identity.current_user()
+    label = (adder.username or adder.label or '')[:200]
+    return _change_registry(lambda reg: groupreg.add(reg, body.get('name'), body.get('role'), body.get('description'), label),
+                            'group added')
+
+
+@access_bp.route('/access/groups/update', methods=['POST'])
+def groups_update():
+    body = _body()
+    role = body.get('role') if 'role' in body else None
+    description = body.get('description') if 'description' in body else None
+    if role is None and description is None:
+        return _error('Say what to change: the role or the description.')
+    return _change_registry(lambda reg: groupreg.change(reg, body.get('name'), role, description), 'group changed')
+
+
+@access_bp.route('/access/groups/remove', methods=['POST'])
+def groups_remove():
+    body = _body()
+    return _change_registry(lambda reg: groupreg.remove(reg, body.get('name')), 'group removed')

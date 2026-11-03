@@ -20,9 +20,10 @@ import uuid
 
 from spiderfoot.db_identity import IdentityDbMixin, PRESERVED_CONFIG_PREFIXES
 from spiderfoot.db_relevance import RelevanceDbMixin
+from spiderfoot.db_report import ReportDbMixin
 
 
-class SpiderFootDb(IdentityDbMixin, RelevanceDbMixin):
+class SpiderFootDb(IdentityDbMixin, RelevanceDbMixin, ReportDbMixin):
     """SpiderFoot database
 
     Attributes:
@@ -434,6 +435,9 @@ class SpiderFootDb(IdentityDbMixin, RelevanceDbMixin):
 
             # Migration: relevance scores, scan context hints, overrides and the embedding cache.
             self._migrate_relevance()
+
+            # Migration: written scan reports and the per-scan report preference.
+            self._migrate_report()
 
             # Always sync eventDetails into tbl_event_types so that existing
             # databases pick up newly added event types on upgrade. Each
@@ -1445,6 +1449,7 @@ class SpiderFootDb(IdentityDbMixin, RelevanceDbMixin):
                 except sqlite3.Error:
                     pass  # grants table may not exist in older databases
                 self.relevanceDeleteScan(instanceId)
+                self.reportDeleteScan(instanceId)
                 self.dbh.execute(qry3, qvars)
                 self.dbh.execute(qry4, qvars)
                 self.dbh.execute(qry2, qvars)

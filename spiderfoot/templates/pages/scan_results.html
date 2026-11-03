@@ -4,6 +4,7 @@
 
 {% block head %}
 <script defer src="{{ url_for('static', filename='js/relevance.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/report.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -43,6 +44,11 @@
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Aborted</span>
           {% else %}
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">{{ scan.status }}</span>
+          {% endif %}
+          {% if report_ready %}
+            <a href="#report" @click.prevent="setTab('report'); htmx.ajax('GET', '/frag/report?id={{ scan.id }}', {target: '#tab-content', swap: 'innerHTML'})"
+               class="inline-flex items-center min-h-[44px] md:min-h-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 hover:opacity-80"
+               title="A written report of this scan is ready">Report ready</a>
           {% endif %}
         </div>
         <p class="text-sm text-slate-500 dark:text-slate-400 sf-break">{{ scan.name }}</p>
@@ -218,6 +224,21 @@
         {{ icons.shield_check(class="w-4 h-4") }}
         Correlations
       </button>
+      {# Tab: Report #}
+      <button
+        @click="setTab('report')"
+        data-tab="report"
+        hx-get="/frag/report?id={{ scan.id }}"
+        hx-target="#tab-content"
+        hx-swap="innerHTML"
+        :class="activeTab === 'report'
+          ? 'border-b-2 border-sf-accent text-sf-accent'
+          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
+        class="inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-medium whitespace-nowrap transition-colors">
+        {{ icons.document_text(class="w-4 h-4") }}
+        Report
+        {% if report_ready %}<span class="w-1.5 h-1.5 rounded-full bg-violet-500" aria-hidden="true"></span>{% endif %}
+      </button>
       {# Tab: Log #}
       <button
         @click="setTab('log')"
@@ -244,7 +265,11 @@
     </div>
 
     <div id="tab-content"
-         x-init="$nextTick(() => { htmx.ajax('GET', '/frag/results-tab?id={{ scan.id }}&tab=' + activeTab, {target: '#tab-content', swap: 'innerHTML'}) })"
+         x-init="$nextTick(() => {
+           const sp = new URLSearchParams(location.search);
+           const extra = (activeTab === 'data' && sp.get('q')) ? '&init_q=' + encodeURIComponent(sp.get('q')) + '&init_type=' + encodeURIComponent(sp.get('type') || '') : '';
+           const url = activeTab === 'report' ? '/frag/report?id={{ scan.id }}' : '/frag/results-tab?id={{ scan.id }}&tab=' + activeTab + extra;
+           htmx.ajax('GET', url, {target: '#tab-content', swap: 'innerHTML'}) })"
          hx-swap="innerHTML">
       <div class="p-6 md:p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
         Loading...

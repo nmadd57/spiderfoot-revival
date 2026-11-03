@@ -1,0 +1,96 @@
+{# Report tab of the scan page.
+   shown = the report version on screen (or None), body_html = its rendered markdown (safe), toc = [{level,title,id}], active = the
+   queued/running version, failed = a newer failed version, versions = light rows with .when, can_edit, ai_ready, models, default_model #}
+<div id="report-panel" class="p-3 md:p-5 min-w-0" x-data="{ model: {{ default_model | tojson | forceescape }}, busy: false, msg: '' }"
+     @sf-report-changed.window="htmx.ajax('GET', '/frag/report?id={{ scan_id }}', {target: '#tab-content', swap: 'innerHTML'})">
+
+  {# ---- controls ---- #}
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-full sm:w-auto sm:mr-2">Report</h2>
+
+    {% if versions | selectattr('status', 'equalto', 'done') | list | length > 1 %}
+    <label class="sr-only" for="report-version">Version</label>
+    <select id="report-version" class="min-h-[44px] md:min-h-0 px-2 py-1.5 text-sm rounded-md border border-slate-200 dark:border-sf-border bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200 max-w-full"
+            onchange="htmx.ajax('GET', '/frag/report?id={{ scan_id }}&v=' + this.value, {target: '#tab-content', swap: 'innerHTML'})">
+      {% for v in versions if v.status == 'done' %}
+      <option value="{{ v.version }}" {% if shown and shown.version == v.version %}selected{% endif %}>v{{ v.version }} &middot; {{ v.when }} &middot; {{ 'AI' if v.mode == 'ai' else 'figures only' }}</option>
+      {% endfor %}
+    </select>
+    {% elif shown %}
+    <span class="text-xs text-slate-500 dark:text-slate-400">v{{ shown.version }} &middot; {{ versions | selectattr('version', 'equalto', shown.version) | map(attribute='when') | first }}</span>
+    {% endif %}
+
+    {% if can_edit %}
+    {% if models and models | length > 1 and ai_ready %}
+    <label class="sr-only" for="report-model">Model</label>
+    <select id="report-model" x-model="model" class="min-h-[44px] md:min-h-0 px-2 py-1.5 text-sm rounded-md border border-slate-200 dark:border-sf-border bg-white dark:bg-sf-elevated text-slate-800 dark:text-slate-200 max-w-full">
+      {% for m in models %}<option value="{{ m.id }}">{{ m.label }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <button type="button" :disabled="busy || {{ 'true' if active else 'false' }}"
+            @click="busy = true; msg = ''; sfReportGenerate('{{ scan_id }}', model).then(r => { busy = false; msg = r; }).catch(e => { busy = false; msg = e.message; })"
+            class="min-h-[44px] md:min-h-0 px-4 py-1.5 text-sm font-medium rounded-md bg-sf-accent text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-wait">
+      {{ 'Regenerate report' if shown else 'Generate report' }}
+    </button>
+    {% endif %}
+
+    {% if shown %}
+    <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+      <a href="/api/report/export?id={{ scan_id }}&v={{ shown.version }}&format=md" class="inline-flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded border border-slate-200 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-elevated">Markdown</a>
+      <a href="/api/report/export?id={{ scan_id }}&v={{ shown.version }}&format=html" class="inline-flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded border border-slate-200 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-elevated">HTML</a>
+      <a href="/api/report/export?id={{ scan_id }}&v={{ shown.version }}&format=json" class="inline-flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded border border-slate-200 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-elevated">JSON</a>
+      <button type="button" onclick="sfReportPrint('{{ scan_id }}', {{ shown.version }})" class="inline-flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded border border-slate-200 dark:border-sf-border text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-sf-elevated" title="Opens the print-friendly version; choose Save as PDF in the print dialog">Print / save as PDF</button>
+      {% if can_edit %}
+      <button type="button" onclick="sfReportDelete('{{ scan_id }}', {{ shown.version }})" class="inline-flex items-center min-h-[44px] md:min-h-0 px-3 py-1.5 text-sm md:text-xs rounded border border-red-300/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">Delete v{{ shown.version }}</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  <p x-show="msg" x-cloak class="text-sm text-slate-600 dark:text-slate-300 mb-3" x-text="msg" role="status"></p>
+
+  {# ---- the version being written ---- #}
+  {% if active %}
+  {% include 'fragments/report_progress_box.html' %}
+  {% endif %}
+
+  {% if failed and not active %}
+  <div class="rounded-lg border border-red-300/60 bg-red-50/60 dark:bg-red-900/10 p-3 mb-4 text-sm text-red-700 dark:text-red-300">
+    Report v{{ failed.version }} could not be written{% if failed.message %}: {{ failed.message }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if not ai_ready and (can_edit or not shown) %}
+  <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">The AI assistant is off or not configured (Settings &rarr; AI Assistant), so a report contains figures and lists only, with no written analysis.</p>
+  {% endif %}
+
+  {# ---- the report ---- #}
+  {% if shown %}
+  <div class="flex flex-wrap items-center gap-2 mb-3 text-xs">
+    {% if shown.mode == 'ai' %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-medium">AI-generated &middot; verify before relying on it</span>
+    <span class="text-slate-500 dark:text-slate-400">{{ shown.model_used or shown.model }} &middot; {{ shown.calls }} calls &middot; {{ '{:,}'.format(shown.tokens or 0) }} tokens</span>
+    {% else %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 font-medium">Figures only &middot; no AI</span>
+    {% endif %}
+    {% if shown.scan_status and shown.scan_status != 'FINISHED' %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-medium">Partial results ({{ shown.scan_status | lower }})</span>
+    {% endif %}
+  </div>
+  <div class="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
+    {% if toc %}
+    <nav aria-label="Report contents" class="hidden lg:block sticky top-4 self-start max-h-[80vh] overflow-y-auto text-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Contents</p>
+      <ul class="space-y-1">
+        {% for t in toc %}
+        <li class="{{ 'pl-3' if t.level == 3 else '' }}"><a href="#{{ t.id }}" onclick="sfReportJump(event, '{{ t.id }}')" class="text-slate-600 dark:text-slate-300 hover:text-sf-accent">{{ t.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+    <article id="report-body" class="sf-report min-w-0" data-scan="{{ scan_id }}">{{ body_html | safe }}</article>
+  </div>
+  {% elif not active and not failed %}
+  <p class="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">No report has been written for this scan yet.{% if can_edit %} Use &ldquo;Generate report&rdquo; to write one.{% endif %}</p>
+  {% endif %}
+</div>
+<script>if (window.sfReportInit) window.sfReportInit(document.getElementById('report-panel'));</script>

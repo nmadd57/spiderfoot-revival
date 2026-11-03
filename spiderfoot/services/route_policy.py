@@ -139,12 +139,22 @@ POLICIES: typing.Dict[str, Policy] = {
     'access.access_settings_set': ADMIN,
     'access.access_test': ADMIN,
     'access.access_users': ADMIN,
+    'access.groups_list': ADMIN,
+    'access.groups_add': ADMIN,
+    'access.groups_update': ADMIN,
+    'access.groups_remove': ADMIN,
     # -- relevance (reads need view, corrections and re-assessment need edit)
     'relevance.status': scan(V),
     'relevance.assess': scan(E),
     'relevance.mark': scan(E),
     'relevance.test': ADMIN,
     'frag.relevance_card': scan(V),
+    # -- scan reports (reading needs view; writing one spends tokens, so it needs edit)
+    'report.status': scan(V),
+    'report.export': scan(V),
+    'report.generate': scan(E),
+    'report.delete': scan(E),
+    'report_frag.view': scan(V),
     # -- agent (MCP)
     'mcp_admin.get_settings': USER,
     'mcp_admin.set_settings': ADMIN,
@@ -212,7 +222,7 @@ def refuse(status: int, message: str):
                                                  version=''), status)
         except Exception:  # nosec B110 - fall back to plain text
             return make_response(message + '\n', status)
-    if endpoint.startswith('frag.') or endpoint.startswith('ai.'):
+    if endpoint.startswith(('frag.', 'ai.', 'report_frag.')):
         resp = make_response(f'<p class="text-sm text-slate-400 p-8 text-center">{message}</p>', status)
         resp.headers['Cache-Control'] = 'no-store'
         return resp

@@ -158,6 +158,7 @@ def authenticate(token: str, dbh, settings):
             raise McpAuthError(401, e.code) from None
         role = identity.role_for(who['groups'], settings)
         if role == identity.ROLE_DENIED:
+            identity.note_denied_groups(dbh, settings, who['groups'])
             existing = dbh.userGetBySubject(who['subject'])
             if existing:
                 dbh.userUpsert(who['subject'], who['username'], who['email'], who['display_name'], who['groups'],

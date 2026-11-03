@@ -78,7 +78,17 @@ SpiderFoot has distinct users, native OpenID Connect (OIDC) sign-in, group-based
 
 ### Roles
 
-`services/identity.py`: `role_for(groups)` is `admin` for members of `_oidc_admin_groups`, `user` for members of `_oidc_user_groups` (or anybody when that list is empty), otherwise `denied` (friendly 403 page and a log line, no account created). The role is evaluated on every request from the groups stored at the last login, so changing the mapping or a user's groups applies immediately (a session or personal token of a denied account stops working at once). Passwd-file (HTTP Basic) users and the no-sign-in administrator are always `admin`, and Basic authentication keeps working unchanged for API clients (CSRF is skipped for Basic requests that carry no session).
+The group registry (`services/groups.py`, stored as JSON in `_oidc_groups`: a list of `{name, role admin|user, description (<=200), added_by, added}`, managed in Settings > Access > Groups) maps the provider's groups to roles. `services/identity.py`: `role_for(groups, settings)` is `admin` when any group is registered as admin, else `user` when any is registered as user, else the **default role** for unlisted accounts, else `denied` (friendly 403 page and a log line, no account created). Names are compared exactly (case-sensitive) after trimming whitespace; a name is 1 to 100 characters without control characters or commas. The default role is `_oidc_default_role`: empty (automatic, the default: `user` while no user-role group is registered, `none` as soon as one is, which is what the old two lists did), `user` or `none`. The role is evaluated on every request from the groups stored at the last login and from the registry read from the database, nothing is cached across requests, so a registry change, a default-role change or a user's groups apply immediately (a session or personal token of a denied account stops working at once). Passwd-file (HTTP Basic) users and the no-sign-in administrator are always `admin`, and Basic authentication keeps working unchanged for API clients (CSRF is skipped for Basic requests that carry no session).
+
+Migration: while `_oidc_groups` is absent the registry is derived in memory from the old options `_oidc_admin_groups` / `_oidc_user_groups` plus the environment seeds `SF_OIDC_ADMIN_GROUPS` / `SF_OIDC_USER_GROUPS` (admin wins on a clash) and written the first time an administrator opens the Access page or changes anything. After that the old options are ignored. The seeds only apply while the saved registry is empty, and they never lock the UI. An unreadable `_oidc_groups` value yields an empty registry with default role `none` (nobody is let in; set `SF_OIDC_ENABLED=0`).
+
+Guards (`blueprints/access.py`): SSO cannot be on without an admin group; removing or demoting the last admin group is refused; a change that would remove the acting administrator's own admin access (non-local users) is refused. Both apply to group changes and to the default-role setting.
+
+Seen groups: the Groups card lists group names found in `tbl_users.groups` that are not registered, and names from refused sign-ins (web and MCP), kept in `_oidc_denied_groups` (JSON name to last seen, at most 100 names, rewritten at most once a day per name) so a group can be registered before anybody in it has been let in.
+
+Endpoints (administrators, CSRF like the rest, fixed error messages): `GET /api/access/groups` (registry with member counts, seen groups, default role), `POST /api/access/groups` (`name`, `role`, `description`; 409 when registered), `POST /api/access/groups/update` (`name`, `role` and/or `description`), `POST /api/access/groups/remove` (`name`); the default role is saved with `POST /api/access/settings` (`oidc_default_role`: `""`, `user`, `none`). The sharing picker `GET /api/groups` returns registered and seen names (names only).
+
+OIDC claims (`services/oidc.py`): `extract_groups` accepts a list (Dex sends an array), a single string (one name, or several separated by commas or newlines) or nothing (Dex omits the claim for users without groups: no groups; the userinfo endpoint is still asked once); entries must be non-empty text without control characters, at most 200 characters, at most 200 groups. `profile` takes `preferred_username`, then `email`, then `name` for the username and `name`, then those, for the display name; only text claims count, and Dex's opaque `sub` is the last resort. Dex access tokens (JWTs signed with the ID token keys) are accepted by the MCP path like any other.
 
 ### Access rules (`services/access.py`)
 
@@ -98,7 +108,7 @@ One table, `POLICIES`, lists every endpoint and what it requires; `before_reques
 | scan **view** | `/scaninfo`, `scanstatus`, `scansummary`, `scancorrelations`, `scaneventresults`, `scaneventresultsunique`, `scanopts`, `scanlog`, `scanerrors`, `scanhistory`, `scanelementtypediscovery`, `scanexportlogs`, `scancorrelationsexport`, `scaneventresultexport`, `scaneventresultexportmulti`, `scanexportjsonmulti`, `scanviz`, `scanvizmulti`, `/frag/results-tab`, `/frag/events`, `/frag/log-lines`, `/frag/scan/<id>/summary` (AI), `/frag/correlation/<id>/explain` (AI, resolved to its scan), `GET /api/scan/<id>/access` (view-only users see only their own level; edit and above see the grants) |
 | scan **edit** | `stopscan`, `rerunscan`, `rerunscanmulti` (the new scan belongs to the caller), `resultsetfp` |
 | scan **owner** | `scandelete`, `POST/DELETE /api/scan/<id>/access` (share, change level, remove) |
-| **admin** | `/api/query` (raw SQL), `/api/scan/<id>/owner`, Settings (`savesettings`, `savesettingsraw`, `optsraw`, `optsexport`, `vacuum`), module catalogue **write** and module settings (`modulestate`, `modulesettings`, `moduletest`, preset create/update/delete/default), API usage, quotas and key checks (`/api/usage*`), AI/SearXNG/embeddings tests, `POST /api/mcp/settings`, `/api/access/*` (OIDC settings, test, user directory), `/frag/settings-section` for every section except `appearance` and `mcp` |
+| **admin** | `/api/query` (raw SQL), `/api/scan/<id>/owner`, Settings (`savesettings`, `savesettingsraw`, `optsraw`, `optsexport`, `vacuum`), module catalogue **write** and module settings (`modulestate`, `modulesettings`, `moduletest`, preset create/update/delete/default), API usage, quotas and key checks (`/api/usage*`), AI/SearXNG/embeddings tests, `POST /api/mcp/settings`, `/api/access/*` (OIDC settings, test, user directory, group registry), `/frag/settings-section` for every section except `appearance` and `mcp` |
 
 ### Native OIDC (`services/oidc.py`, `blueprints/auth.py`)
 
@@ -119,14 +129,15 @@ Environment first, then Settings > Access (stored in `tbl_config`; env-set value
 | `SF_OIDC_CLIENT_ID` / `SF_OIDC_CLIENT_SECRET` | `_oidc_client_id` / `_oidc_client_secret` | client credentials (the secret is optional: PKCE-only public client) |
 | `SF_OIDC_SCOPES` | `_oidc_scopes` | default `openid profile email groups` |
 | `SF_OIDC_GROUPS_CLAIM` | `_oidc_groups_claim` | default `groups` |
-| `SF_OIDC_ADMIN_GROUPS` / `SF_OIDC_USER_GROUPS` | `_oidc_admin_groups` / `_oidc_user_groups` | comma lists |
+| `SF_OIDC_ADMIN_GROUPS` / `SF_OIDC_USER_GROUPS` | (seed for `_oidc_groups`) | comma lists; used only while the group registry is empty, never lock the UI |
+| `SF_OIDC_DEFAULT_ROLE` | `_oidc_default_role` | `user` or `none`: what an account without a registered group is (empty: automatic) |
 | `SF_OIDC_REDIRECT_URI` | `_oidc_redirect_uri` | default `<origin>/auth/callback` |
 | `SF_OIDC_MCP_AUDIENCE` | `_oidc_mcp_audience` | audience of access tokens for the MCP server (default: the client id) |
 | `SF_AUTH_SESSION_HOURS` | `_auth_session_hours` | default 12 |
 | `SF_AUTH_UNOWNED_VISIBLE` | `_auth_unowned_visible` | `1`: scans without an owner are readable by everyone |
 | `SF_TRUST_PROXY` | `_auth_trust_proxy` | proxy hops whose `X-Forwarded-*` headers are trusted (`1` = one) |
 
-Turning SSO on from Settings > Access requires at least one admin group and an explicit acknowledgement, and a change that would remove the saving administrator's own admin access is refused. Register `<origin>/auth/callback` at the provider (the page shows it).
+Turning SSO on from Settings > Access requires at least one registered admin group (add it in the Groups card first) and an explicit acknowledgement, and a change that would remove the saving administrator's own admin access is refused. Register `<origin>/auth/callback` at the provider (the page shows it).
 
 ### MCP identity (`services/mcp_auth.py`, `mcp/wsgi.py`, `mcp/tools.py`)
 
@@ -213,6 +224,45 @@ Known weak spots: a handle with no name in it ("JetsFan006") stays unclear (noth
 * `SpiderFootScanner` keeps its module registries in class-level dicts; a test that runs a real scan must clear `_SpiderFootScanner__moduleInstances` and `__modconfig` afterwards.
 * The thread pool needs more threads than modules (each module's worker thread is separate, but a pool of 3 deadlocks in tests with 3 modules): tests use `_maxthreads` 12.
 * `configUnserialize` has no float support: all `_rel_*` thresholds are integer percents.
+
+## Written Scan Reports
+
+A report is a versioned, citation-checked document written by the configured AI endpoint (or, without one, a deterministic document) from computed digests of a scan. Code: `services/report_digest.py` (digests, citation index), `report_sections.py` (units, prompts, fallbacks, checks), `report_llm.py` (chat client), `report_render.py` (markdown renderer, assembly, HTML export), `report_job.py` (job, queue, worker, settings), `db_report.py` (tables), `blueprints/report.py` (routes), `templates/fragments/report_tab.html`, `static/js/report.js`.
+
+### Data model (created idempotently on every start)
+
+| Table | Purpose |
+|---|---|
+| `tbl_scan_report (id, scan_id, version, status queued/running/done/failed, mode ai/deterministic, trigger auto/manual/mcp, phase, progress, sections_done/total, model, model_used, calls, prompt_tokens, completion_tokens, tokens, markdown, sections JSON, digests JSON, citations JSON, warnings JSON, options JSON, message, scan_status, scan_ended, requested_by, created, started, ended)` | one row per version; `UNIQUE (scan_id, version)`; only the newest `_report_keep` finished or failed versions are kept |
+| `tbl_report_pref (scan_id, want)` | the per-scan "write a report when finished" choice made at start (absent: the settings decide) |
+
+### Pipeline
+
+1. **Digests** (`report_digest.build`, about 0.1 s for 11,000 events, 20,000 events well under 15 s): scan facts and duration, inferred module profile (preset, use case or custom), totals by type, module and relevance label, unique findings per category, identity block (computed verdict, confirmed/likely/unclear/unrelated counts, why excluded and why unclear as name-free reason classes, overrides), risks (risk-score levels, exposure and reputation counts, correlations), coverage (silent modules, key/quota problems classified with `usage.classify`, other errors). Findings judged unrelated are only counted. A `CitationIndex` assigns `E12` ids to the findings that may be quoted (capped by `_report_appendix_max`; quotas per section shrink together) and `C3` ids to correlations.
+2. **Units** (`report_sections.build_units`): summary, scope, identity, one unit per non-empty finding category, risks, limits, next. Each has a `DATA` block cut to `_report_section_tokens` (lowest-ranked item lines dropped first), a short TASK (word limit, "only the listed findings are shown", "do not repeat COUNTS"), the set of ids it may cite, Python-written *facts* (counts, scope table, limitation bullets) and a deterministic fallback. Written in priority order (summary, identity, risks, findings, limits, next, scope) so an endpoint that gives out still leaves the core.
+3. **Writing** (`report_llm.ReportLLM`): non-streaming chat completion per unit, temperature 0.2, `max_tokens` 1,600 (doubled once if a reasoning model runs out while thinking); on failure one retry on the same model, then one attempt on the fallback model; two failed units in a row mark the endpoint dead and the remaining units use their fallbacks. Caps `_report_max_calls` and `_report_max_tokens` (the endpoint's own usage figures). Empty categories and risk-free scans make no call.
+4. **Checks** (`validate_citations`, `check_numbers`): only bracketed ids that were offered to that section and exist are kept (`[E1, E2]`, `(E3)` and a bare `E5` are normalised, `[E12 shows ...]` is cut to its id); dropped ids, figures not found in the section's data (years and numbers under 10 are ignored), a section with three or more sentences and no citation, and the share of sentences carrying a citation go to the Verification notes.
+5. **Assembly** (`report_render.assemble`): header block (title, target, dates, duration, status, model, calls, tokens, "AI-generated; verify before relying on it", partial-results notice), sections, appendix A (only cited findings: type, module, finding, relevance, source link, "open" link to the Data tab search) and B (correlations), verification notes. Secrets from the configuration and saved settings are scrubbed (`mcp/context.collect_secrets` / `scrub`) from prompts, stored text and exports.
+
+### When it runs
+
+`SpiderFootScanner.queueReport` (scan process, after `runRelevance`) calls `report_job.enqueue_for_scan`: FINISHED always, ABORTED / ERROR-FAILED when `_report_include_aborted`, only when the scan has findings, the per-scan preference allows it, and (without an explicit preference) `_report_auto` is on and the AI assistant is configured; one automatic report per end of a scan. The worker (`report_job.start_worker`, started by `sf.py`) polls the queue every 5 s, waits while the scan runs or a relevance assessment is queued/running (up to 2 h), claims rows atomically and runs at most `_report_concurrency` at a time; only one report per scan can be queued or running. Running rows left by a restart go back to the queue and reuse their saved digests and finished sections.
+
+### Routes and permissions
+
+| Route | Access |
+|---|---|
+| `GET/POST /api/report/status?id=` | scan view |
+| `GET /api/report/export?id=&format=md/html/json&v=&inline=1` | scan view |
+| `GET /frag/report?id=&v=&part=progress` (the Report tab, polled every 3 s while a report is written) | scan view |
+| `POST /api/report/generate` (`id`, optional `model` from the configured models) | scan edit |
+| `POST /api/report/delete` (`id`, `version`; not a queued or running one) | scan edit |
+| Settings > Reports (`/frag/settings-section?section=reports`, `/api/savesettings`) | administrator |
+| MCP `get_scan_report`, `generate_scan_report` | scan view / scan edit plus the operator's `_mcp_allow_scan` |
+
+### Measured on a real person-name scan (11,245 events, aborted)
+
+See the CHANGELOG and the evaluation notes of the release: 10 AI calls (about 40 s each on the local model `hermes`), about 400 s, 163,000 tokens as reported by the endpoint (about 16,000 per call, most of it a prompt the server adds), prompts of 600-1,800 tokens. The report states that the identity is mostly unconfirmed and that 99% of matches were excluded as other people.
 
 ## Module Anatomy
 

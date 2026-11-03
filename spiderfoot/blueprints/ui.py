@@ -6,7 +6,7 @@ from spiderfoot import SpiderFootDb
 from spiderfoot.__version__ import __version__
 from spiderfoot.helpers import SpiderFootHelpers
 from spiderfoot.services.preset_service import serialize_preset
-from spiderfoot.services import access, ai_service, identity, relevance_job, scan_listing
+from spiderfoot.services import access, ai_service, identity, relevance_job, report_job, scan_listing
 from spiderfoot.services.ai_persistence import (
     fetch_models_for_scan, fetch_cached
 )
@@ -348,6 +348,8 @@ def newscan():
         presets=presets,
         auto_hidden=auto_hidden,
         rel_prune_default=relevance_job.prune_default(current_app.config['SF_CONFIG']) and relevance_job.enabled(current_app.config['SF_CONFIG']),
+        report_default=report_job.on(current_app.config['SF_CONFIG'], '_report_auto', True) and report_job.ai_ready(current_app.config['SF_CONFIG']),
+        report_ai_ready=report_job.ai_ready(current_app.config['SF_CONFIG']),
     )
 
 
@@ -482,6 +484,11 @@ def scaninfo():
     except Exception:
         hidden_unrelated = 0
 
+    try:
+        report_ready = bool(dbh.reportReadyMap([scan_id]))
+    except Exception:
+        report_ready = False
+
     # AI summary context (always populated; fragment hides itself if disabled)
     ai_enabled = bool(current_app.config['SF_CONFIG'].get('_ai_enabled'))
     default_model = current_app.config['SF_CONFIG'].get(
@@ -531,6 +538,7 @@ def scaninfo():
         active_cache=active_cache,
         can_edit=access.level_value(scan['level']) >= access.EDIT,
         can_manage=access.level_value(scan['level']) >= access.OWNER,
+        report_ready=report_ready,
     )
 
 

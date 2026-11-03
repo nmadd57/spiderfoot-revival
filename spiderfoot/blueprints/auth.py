@@ -78,6 +78,7 @@ def callback():
     if role == identity.ROLE_DENIED:
         log.warning("OIDC login denied: account %s is in none of the groups that may use SpiderFoot (groups: %s)",
                     hashlib.sha256(who['subject'].encode()).hexdigest()[:12], ','.join(who['groups'][:20]) or '-')
+        identity.note_denied_groups(dbh, settings, who['groups'])
         existing = dbh.userGetBySubject(who['subject'])
         if existing:  # keep the stored groups current so tokens of this account stop working at once
             dbh.userUpsert(who['subject'], who['username'], who['email'], who['display_name'], who['groups'],

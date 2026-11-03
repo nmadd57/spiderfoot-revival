@@ -21,7 +21,7 @@ import dns.resolver
 
 from sflib import SpiderFoot
 from spiderfoot import SpiderFootDb, SpiderFootEvent, SpiderFootPlugin, SpiderFootTarget, SpiderFootHelpers, SpiderFootThreadPool, SpiderFootCorrelator, logger
-from spiderfoot.services import relevance_job
+from spiderfoot.services import relevance_job, report_job
 
 
 def startSpiderFootScanner(loggingQueue, *args, **kwargs):
@@ -133,6 +133,13 @@ class SpiderFootScanner():
         except Exception:
             self.__sf.error("Could not set up relevance scoring for this scan", exc_info=True)
             self.__gate = None
+
+        # "Write a report when finished": the choice made when the scan was started (absent: the settings decide)
+        try:
+            if self.__config.get('__scan_report') is not None:
+                self.__dbh.reportPrefSet(self.__scanId, bool(self.__config['__scan_report']))
+        except Exception:
+            self.__sf.error("Could not record the report preference of this scan", exc_info=True)
 
         # Create our target
         try:
@@ -443,6 +450,7 @@ class SpiderFootScanner():
                 self.runCorrelations()
                 self.__sf.status(f"Scan [{self.__scanId}] completed.")
             self.runRelevance(full=not failed)
+            self.queueReport()
             self.__dbh.close()
 
     def runRelevance(self, full: bool = True) -> None:
@@ -462,6 +470,14 @@ class SpiderFootScanner():
                                  f"{c.get('unclear', 0)} unclear, {c.get('unrelated', 0)} unrelated.")
         except Exception:
             self.__sf.error("Relevance assessment failed", exc_info=True)
+
+    def queueReport(self) -> None:
+        """Queue the written report of the scan (the web server's report worker writes it, after the relevance assessment above)."""
+        try:
+            if self.__moduleInstances and report_job.enqueue_for_scan(self.__config, self.__dbh, self.__scanId):
+                self.__sf.status("A written report of this scan has been queued.")
+        except Exception:
+            self.__sf.error("Could not queue the report of this scan", exc_info=True)
 
     def runCorrelations(self) -> None:
         """Run correlation rules."""

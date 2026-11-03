@@ -169,7 +169,7 @@ def create_app(config=None):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        response.headers['Content-Security-Policy'] = (
+        response.headers.setdefault('Content-Security-Policy', (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com blob:; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -177,7 +177,7 @@ def create_app(config=None):
             "font-src 'self' https://fonts.gstatic.com; "
             "frame-src 'self'; "
             "connect-src 'self'"
-        )
+        ))                                 # a route may set a stricter one (the report's HTML export does)
         return response
 
     # Register blueprints
@@ -189,6 +189,7 @@ def create_app(config=None):
     from spiderfoot.blueprints.auth import auth_bp
     from spiderfoot.blueprints.access import access_bp
     from spiderfoot.blueprints.relevance import relevance_bp
+    from spiderfoot.blueprints.report import report_bp, report_frag_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(access_bp, url_prefix='/api')
@@ -198,6 +199,8 @@ def create_app(config=None):
     app.register_blueprint(ai_bp, url_prefix='/frag')
     app.register_blueprint(mcp_admin_bp, url_prefix='/api/mcp')
     app.register_blueprint(relevance_bp, url_prefix='/api/relevance')
+    app.register_blueprint(report_bp, url_prefix='/api/report')
+    app.register_blueprint(report_frag_bp, url_prefix='/frag/report')
 
     # Register the API blueprint a second time at the root for backwards
     # compatibility with sfcli.py and existing JS that call endpoints

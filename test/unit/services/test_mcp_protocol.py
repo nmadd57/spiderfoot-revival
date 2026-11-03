@@ -127,7 +127,8 @@ class TestToolList:
         names = [t['name'] for t in listed]
         assert names == ['list_modules', 'get_module', 'list_presets', 'suggest_modules', 'validate_target', 'list_event_types',
                          'list_scans', 'get_scan', 'get_scan_summary', 'get_scan_events', 'get_scan_correlations', 'get_scan_log',
-                         'create_scan', 'stop_scan', 'rerun_scan', 'reassess_relevance', 'mark_event', 'delete_scan']
+                         'get_scan_report', 'create_scan', 'stop_scan', 'rerun_scan', 'reassess_relevance', 'generate_scan_report',
+                         'mark_event', 'delete_scan']
         for t in listed:
             assert len(t['description']) > 60, t['name']
             _check_schema(t['inputSchema'], t['name'])

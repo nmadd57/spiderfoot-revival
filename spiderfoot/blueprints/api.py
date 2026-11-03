@@ -26,7 +26,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 import openpyxl
 
 from spiderfoot import SpiderFootDb, SpiderFootHelpers, __version__
-from spiderfoot.services import access, identity, relevance_job, relevance_view, scan_listing
+from spiderfoot.services import access, identity, relevance_job, relevance_view, report_job, scan_listing
 from spiderfoot.services.preset_service import serialize_preset, validate_module_names
 
 api_bp = Blueprint('api', __name__)
@@ -1105,15 +1105,15 @@ def normalize_target(scantarget, target_type=None):
 
 
 def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase='', config=None, dbh=None,
-                    logging_queue=None, target_type=None, owner=None, context='', prune=None):
+                    logging_queue=None, target_type=None, owner=None, context='', prune=None, report=None):
     """Validate the request, pick the modules and spawn the scan process.
 
     The one implementation behind the /startscan route and the MCP create_scan tool. Needs an
     application context (module availability is read the way the New Scan page reads it).
     ``owner`` is the id of the user who owns the new scan (None: unowned). ``context`` is the optional free
     text / ``key: value`` hints that help tell the target from namesakes, and ``prune`` (None: the setting's
-    default) switches the scan-time pruning of unrelated matches. Returns a ScanStartResult; never raises for
-    bad input.
+    default) switches the scan-time pruning of unrelated matches. ``report`` (None: the settings decide) asks for a
+    written report when the scan ends (True) or not (False). Returns a ScanStartResult; never raises for bad input.
     """
     from sflib import SpiderFoot
     from sfscan import startSpiderFootScanner
@@ -1154,6 +1154,8 @@ def start_scan_core(scanname, scantarget, modulelist='', typelist='', usecase=''
     cfg['__scan_context'] = relevance_view.clean_context(context)
     if prune is not None:
         cfg['__scan_prune'] = bool(prune)
+    if report is not None:
+        cfg['__scan_report'] = bool(report)
     sf = SpiderFoot(cfg)
 
     modlist = list()
@@ -1288,7 +1290,8 @@ def startscan():
         request.values.get('usecase', ''),
         config=get_config(), dbh=dbh, logging_queue=get_logging_queue(), owner=owner,
         context=request.values.get('context', ''),
-        prune=(relevance_view.truthy(request.values.get('prune')) if request.values.get('prune') not in (None, '') else None))
+        prune=(relevance_view.truthy(request.values.get('prune')) if request.values.get('prune') not in (None, '') else None),
+        report=(relevance_view.truthy(request.values.get('report')) if request.values.get('report') not in (None, '') else None))
     if res.ok:
         _apply_share_with(dbh, res.scan_id, owner)
         return jsonify(["SUCCESS", res.scan_id])
@@ -1322,6 +1325,8 @@ def rerunscan():
     cfg['__scan_context'] = old_ctx['context']
     if old_ctx['exists']:
         cfg['__scan_prune'] = old_ctx['prune']
+    if dbh.reportPrefGet(id) is not None:
+        cfg['__scan_report'] = dbh.reportPrefGet(id)
 
     scanconfig = dbh.scanConfigGet(id)
     if not scanconfig:
@@ -1393,6 +1398,10 @@ def rerunscanmulti():
             cfg['__scan_prune'] = old_ctx['prune']
         else:
             cfg.pop('__scan_prune', None)
+        if dbh.reportPrefGet(id) is not None:
+            cfg['__scan_report'] = dbh.reportPrefGet(id)
+        else:
+            cfg.pop('__scan_report', None)
 
         if len(scanconfig) == 0:
             return jsonify(["ERROR", "Something went wrong internally."])
@@ -1645,7 +1654,7 @@ def savesettingsraw():
             if val == '********':
                 continue
             cleanopts[opt] = val
-        problem = relevance_job.validate_settings(cleanopts, config)
+        problem = relevance_job.validate_settings(cleanopts, config) or report_job.validate_settings(cleanopts, config)
         if problem:
             return jsonify(["ERROR", problem])
 
@@ -1719,7 +1728,7 @@ def savesettings():
             if val == '********':
                 continue
             cleanopts[opt] = val
-        problem = relevance_job.validate_settings(cleanopts, config)
+        problem = relevance_job.validate_settings(cleanopts, config) or report_job.validate_settings(cleanopts, config)
         if problem:
             return jsonify(["ERROR", problem])
 

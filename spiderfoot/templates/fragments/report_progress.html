@@ -1,0 +1,10 @@
+{# progress of the report being written: active = the queued/running row, worker = whether the report worker runs #}
+<div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+  <span class="font-medium text-slate-700 dark:text-slate-200">Writing report v{{ active.version }}&hellip;</span>
+  <span class="text-xs text-slate-500 dark:text-slate-400">{% if active.sections_total %}{{ active.sections_done }} of {{ active.sections_total }} parts{% endif %}{% if active.calls %} &middot; {{ active.calls }} AI calls{% endif %}</span>
+</div>
+<div class="h-1.5 rounded bg-slate-200 dark:bg-sf-elevated overflow-hidden mt-2"><div class="h-full bg-sf-accent transition-all" style="width: {{ ((active.progress or 0) * 100) | round | int }}%"></div></div>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+  {% if active.status == 'queued' %}Queued{% if active.message %}: {{ active.message }}{% elif not worker %} (waiting for the report worker){% endif %}
+  {% else %}{{ (active.phase or 'starting') | capitalize }}{% endif %}
+</p>

@@ -105,3 +105,41 @@ input:focus, select:focus, textarea:focus {
   .sf-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .sf-scroll-x::-webkit-scrollbar { display: none; }
 }
+
+/* ---- Scan report (rendered markdown; written by hand so it does not depend on the Tailwind build) ---- */
+.sf-report { font-size: 0.9375rem; line-height: 1.6; color: #1e293b; overflow-wrap: anywhere; }
+.dark .sf-report { color: #cbd5e1; }
+.sf-report h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 .75rem; }
+.sf-report h2 { font-size: 1.15rem; font-weight: 600; margin: 1.75rem 0 .5rem; padding-bottom: .25rem; border-bottom: 1px solid rgba(148, 163, 184, .35); scroll-margin-top: 1rem; }
+.sf-report h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .35rem; scroll-margin-top: 1rem; }
+.sf-report h4 { font-size: .95rem; font-weight: 600; margin: 1rem 0 .3rem; }
+.sf-report p { margin: .5rem 0; }
+.sf-report ul, .sf-report ol { margin: .5rem 0; padding-left: 1.4rem; }
+.sf-report ul { list-style: disc; }
+.sf-report ol { list-style: decimal; }
+.sf-report li { margin: .2rem 0; }
+.sf-report blockquote { margin: .75rem 0; padding: .4rem .8rem; border-left: 3px solid #0891b2; background: rgba(8, 145, 178, .08); border-radius: 0 .25rem .25rem 0; }
+.sf-report blockquote p { margin: .2rem 0; }
+.sf-report code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .85em; background: rgba(148, 163, 184, .2); padding: 0 .25rem; border-radius: .2rem; }
+.sf-report pre { overflow-x: auto; background: rgba(148, 163, 184, .15); padding: .5rem; border-radius: .25rem; }
+.sf-report a { color: #0e7490; text-decoration: underline; text-underline-offset: 2px; }
+.dark .sf-report a { color: #22d3ee; }
+.sf-report a.cite { text-decoration: none; font-size: .78em; font-weight: 600; vertical-align: super; padding: 0 .1rem; }
+.sf-report .tbl-wrap { overflow-x: auto; margin: .6rem 0 1rem; max-width: 100%; }
+.sf-report table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+.sf-report th, .sf-report td { border: 1px solid rgba(148, 163, 184, .35); padding: .3rem .5rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.sf-report th { background: rgba(148, 163, 184, .15); font-weight: 600; }
+.sf-report table.stack td[data-label="Id"], .sf-report table.stack td[data-label="Module"], .sf-report table.stack td[data-label="Relevance"],
+.sf-report table.stack td[data-label="Type"], .sf-report table.stack td[data-label="Open"], .sf-report table.stack td[data-label="Source"] { white-space: nowrap; overflow-wrap: normal; }
+.sf-report tr.sf-cite-hit td { background: rgba(250, 204, 21, .28); }
+@media (max-width: 767px) {
+  .sf-report { font-size: 1rem; }
+  /* wide tables (the appendix) become one card per row on phones */
+  .sf-report table.stack, .sf-report table.stack tbody, .sf-report table.stack tr, .sf-report table.stack td { display: block; width: 100%; }
+  .sf-report table.stack thead { display: none; }
+  .sf-report table.stack tr { border: 1px solid rgba(148, 163, 184, .4); border-radius: .4rem; margin-bottom: .6rem; padding: .25rem .1rem; }
+  .sf-report table.stack td { border: 0; padding: .15rem .6rem; }
+  .sf-report table.stack td::before { content: attr(data-label) ": "; font-weight: 600; color: #64748b; }
+  .sf-report table.stack td[data-label=""]::before, .sf-report table.stack td:not([data-label])::before { content: ""; }
+  .sf-report a { display: inline-block; min-height: 24px; }
+}

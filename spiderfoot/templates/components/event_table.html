@@ -41,6 +41,7 @@
         </svg>
         <input type="text"
                name="q"
+               value="{{ init_q | default('') }}"
                placeholder="Search events..."
                hx-get="/frag/events?id={{ scan_id }}"
                hx-trigger="keyup changed delay:300ms"
@@ -64,7 +65,7 @@
                      transition-colors sm:min-w-[140px]">
         <option value="ALL">All Types</option>
         {% for et in event_types %}
-        <option value="{{ et[0] }}">{{ et[1] }} ({{ et[3] }})</option>
+        <option value="{{ et[0] }}" {% if init_type is defined and init_type == et[0] %}selected{% endif %}>{{ et[1] }} ({{ et[3] }})</option>
         {% endfor %}
       </select>
       <select name="sort"

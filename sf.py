@@ -89,6 +89,18 @@ def main() -> None:
         '_rel_max_llm_calls': 8,
         '_rel_max_llm_tokens': 150000,
         '_rel_max_embed_texts': 1500,
+        # Scan reports written with the AI assistant (see spiderfoot/services/report_job.py)
+        '_report_auto': True,
+        '_report_include_aborted': True,
+        '_report_model': '',
+        '_report_max_calls': 24,
+        '_report_max_tokens': 400000,
+        '_report_section_tokens': 1800,
+        '_report_appendix_max': 120,
+        '_report_sections': 'summary,scope,identity,findings,risks,limits,next',
+        '_report_keep': 5,
+        '_report_concurrency': 1,
+        '_report_call_timeout': 150,
     }
 
     sfOptdescs = {
@@ -127,6 +139,17 @@ def main() -> None:
         '_rel_max_llm_calls': "Most AI calls per relevance assessment.",
         '_rel_max_llm_tokens': "Most AI tokens per relevance assessment.",
         '_rel_max_embed_texts': "Most new texts sent to the embeddings endpoint per assessment.",
+        '_report_auto': "Write a report with the AI assistant when a scan finishes.",
+        '_report_include_aborted': "Also write a report (marked as partial) for scans that were aborted or failed.",
+        '_report_model': "Model for reports (empty: the AI assistant default).",
+        '_report_max_calls': "Most AI calls per report.",
+        '_report_max_tokens': "Most AI tokens per report.",
+        '_report_section_tokens': "Hard cap on the input tokens of one report section.",
+        '_report_appendix_max': "Most findings a report may cite.",
+        '_report_sections': "Report sections to write.",
+        '_report_keep': "Report versions to keep per scan.",
+        '_report_concurrency': "Reports written at the same time.",
+        '_report_call_timeout': "Seconds to wait for the AI endpoint on one report call.",
         '_modulesenabled': "Modules enabled for the scan."  # This is a hack to get a description for an option not actually available.
     }
 
@@ -568,6 +591,13 @@ def start_web_server(sfWebUiConfig: dict, sfConfig: dict, loggingQueue=None) -> 
 
     app = create_app(config=sfConfig)
     app.config['SF_LOGGING_QUEUE'] = loggingQueue
+
+    # Reports queued by finished scans (and by users) are written by one worker thread of this process.
+    try:
+        from spiderfoot.services import report_job
+        report_job.start_worker(lambda: app.config['SF_CONFIG'])
+    except Exception as e:
+        log.error(f"Report worker not started: {e}", exc_info=True)
 
     # Agent access (MCP) on its own port; only when SF_MCP_PORT is set. Never blocks the web UI.
     try:

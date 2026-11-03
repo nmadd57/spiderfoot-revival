@@ -260,6 +260,8 @@ ADMIN_ONLY = [
     ('delete', '/api/presets/default', None), ('delete', '/api/presets/x', None), ('post', '/api/presets/x/default', {}),
     ('patch', '/api/presets/x', {}), ('post', '/api/mcp/settings', {'allow_scan': True}), ('get', '/api/access/settings', None),
     ('post', '/api/access/settings', {'oidc_issuer': 'https://x.test'}), ('post', '/api/access/test', {}), ('get', '/api/access/users', None),
+    ('get', '/api/access/groups', None), ('post', '/api/access/groups', {'name': 'x', 'role': 'user'}),
+    ('post', '/api/access/groups/update', {'name': 'x', 'role': 'admin'}), ('post', '/api/access/groups/remove', {'name': 'x'}),
     (('post'), f'/api/scan/{SCAN_OWNED}/owner', {'user_id': 1}),
     ('get', '/frag/settings-section?section=general', None), ('get', '/frag/settings-section?section=modules', None),
     ('get', '/frag/settings-section?section=ai', None), ('get', '/frag/settings-section?section=access', None),

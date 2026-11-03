@@ -1,0 +1,129 @@
+{# Settings > Reports: the written scan report (AI assistant). Saves through /api/savesettings (global settings _report_*).
+   v = {setting: string}, ai_models, ai_ready, sections = [(id, title)] #}
+<div class="space-y-8" x-data='reportSettings({{ v | tojson }}, {{ ai_ready | tojson }})'>
+
+  <div>
+    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">Reports</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+      When a scan has finished, the AI assistant can write a full report of it: an executive summary, the identity assessment, findings by
+      category, risks, limitations and next steps, with a numbered appendix of the findings it cites. The report is built from computed summaries
+      of the scan, one short prompt per section, so it works with small local models. Without a working AI endpoint a report of figures and lists
+      is written instead. Reports use the connection, model list and &ldquo;mask personal data&rdquo; switch of
+      Settings &rarr; AI Assistant.
+    </p>
+    <p class="text-sm text-amber-600 dark:text-amber-400 mt-2" x-show="!aiReady" x-cloak>The AI assistant is off or not configured: automatic reports are not written, and a report you ask for contains figures and lists only.</p>
+  </div>
+
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">When</h3>
+    <div class="sf-chk flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-200">
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f._report_auto === '1'" @change="f._report_auto = $event.target.checked ? '1' : '0'"> Write a report when a scan finishes (each scan can override this on the New Scan page)</label>
+      <label class="flex items-center gap-2"><input type="checkbox" :checked="f._report_include_aborted === '1'" @change="f._report_include_aborted = $event.target.checked ? '1' : '0'"> Also for aborted or failed scans (marked as partial results)</label>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Model <span class="text-slate-400">(empty: the AI assistant default)</span></span>
+        <input type="text" x-model="f._report_model" list="report-models" autocomplete="off" class="fld font-mono">
+        <datalist id="report-models">{% for m in ai_models %}<option value="{{ m.id }}">{% endfor %}</datalist></label>
+      <label class="block"><span class="lbl">Reports kept per scan</span>
+        <input type="number" min="3" max="50" x-model="f._report_keep" class="fld"></label>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('when')" :disabled="busy" class="btn-primary">Save</button>
+      <span class="text-sm" :class="msg.when.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.when.text"></span>
+    </div>
+  </section>
+
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Content</h3>
+    <fieldset class="sf-chk">
+      <legend class="lbl">Sections</legend>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-1 text-sm text-slate-700 dark:text-slate-200">
+        {% for sid, title in sections %}
+        <label class="flex items-center gap-2"><input type="checkbox" :checked="has('{{ sid }}')" @change="toggle('{{ sid }}', $event.target.checked)"> {{ title }}</label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label class="block"><span class="lbl">Findings the appendix may cite</span>
+      <input type="number" min="10" max="400" x-model="f._report_appendix_max" class="fld sm:max-w-xs"></label>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('content')" :disabled="busy" class="btn-primary">Save</button>
+      <span class="text-sm" :class="msg.content.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.content.text"></span>
+    </div>
+  </section>
+
+  <section class="space-y-4 rounded-lg border border-slate-200 dark:border-sf-border p-3 md:p-4">
+    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">Limits</h3>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      Each part of a report is one call. A report stops using the AI endpoint when it reaches either limit and finishes the remaining parts without
+      it. Token counts are the endpoint&rsquo;s own figures, which can include a prompt the server adds to every call.
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="lbl">Most AI calls per report</span>
+        <input type="number" min="1" max="200" x-model="f._report_max_calls" class="fld"></label>
+      <label class="block"><span class="lbl">Most AI tokens per report</span>
+        <input type="number" min="1000" max="5000000" x-model="f._report_max_tokens" class="fld"></label>
+      <label class="block"><span class="lbl">Input tokens per section (hard cap)</span>
+        <input type="number" min="500" max="8000" x-model="f._report_section_tokens" class="fld"></label>
+      <label class="block"><span class="lbl">Seconds to wait for one call</span>
+        <input type="number" min="10" max="900" x-model="f._report_call_timeout" class="fld"></label>
+      <label class="block"><span class="lbl">Reports written at the same time</span>
+        <input type="number" min="1" max="2" x-model="f._report_concurrency" class="fld"></label>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <button type="button" @click="save('limits')" :disabled="busy" class="btn-primary">Save</button>
+      <span class="text-sm" :class="msg.limits.ok ? 'text-green-600' : 'text-red-500'" x-text="msg.limits.text"></span>
+    </div>
+  </section>
+</div>
+
+<style>
+  .lbl { display:block; font-size:.875rem; font-weight:500; color:rgb(71 85 105); }
+  .dark .lbl { color:rgb(226 232 240); }
+  .fld { display:block; width:100%; margin-top:.25rem; padding:.5rem .75rem; border-radius:.375rem; font-size:.875rem;
+         border:1px solid rgb(148 163 184 / .5); background:transparent; color:inherit; }
+  .btn-primary { padding:.5rem 1rem; border-radius:.375rem; background:var(--color-sf-accent, #06b6d4); color:#fff; font-size:.875rem; }
+  .btn-primary:disabled { opacity:.5; cursor:wait; }
+  @media (max-width: 767px) {
+    .fld { min-height:44px; font-size:16px; }
+    .btn-primary { min-height:44px; flex:1 1 9rem; text-align:center; }
+    .sf-chk label, label.sf-chk { min-height:44px; align-items:center; }
+    .sf-chk input[type=checkbox] { width:20px; height:20px; flex-shrink:0; }
+  }
+</style>
+
+<script>
+function reportSettings(v, aiReady) {
+  const GROUPS = {
+    when: ['_report_auto', '_report_include_aborted', '_report_model', '_report_keep'],
+    content: ['_report_sections', '_report_appendix_max'],
+    limits: ['_report_max_calls', '_report_max_tokens', '_report_section_tokens', '_report_call_timeout', '_report_concurrency'],
+  };
+  const csrf = () => window.__SF_CSRF_TOKEN__ || '';
+  return {
+    v: v, f: { ...v }, busy: false, aiReady: aiReady,
+    msg: { when: { ok: true, text: '' }, content: { ok: true, text: '' }, limits: { ok: true, text: '' } },
+    has(id) { return (this.f._report_sections || '').split(',').map(s => s.trim()).includes(id); },
+    toggle(id, on) {
+      const cur = (this.f._report_sections || '').split(',').map(s => s.trim()).filter(Boolean).filter(s => s !== id);
+      if (on) cur.push(id);
+      this.f._report_sections = cur.join(',');
+    },
+    async save(group) {
+      this.busy = true; this.msg[group] = { ok: true, text: 'Saving…' };
+      const opts = {};
+      GROUPS[group].forEach(k => { if (String(this.f[k]) !== String(this.v[k])) opts[k] = this.f[k]; });
+      try {
+        if (!Object.keys(opts).length) { this.msg[group] = { ok: true, text: 'Nothing changed.' }; this.busy = false; return; }
+        const r = await fetch('/api/savesettings', { method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf() },
+          body: new URLSearchParams({ allopts: JSON.stringify(opts) }).toString() });
+        let d; try { d = JSON.parse(await r.text()); } catch (e) { throw new Error('the server did not answer with JSON; reload the page'); }
+        if (d[0] !== 'SUCCESS') throw new Error(d[1] || 'save failed');
+        GROUPS[group].forEach(k => { this.v[k] = this.f[k]; });
+        this.msg[group] = { ok: true, text: 'Saved.' };
+      } catch (e) { this.msg[group] = { ok: false, text: 'Save failed: ' + (e.message || e) }; }
+      this.busy = false;
+    },
+  };
+}
+</script>

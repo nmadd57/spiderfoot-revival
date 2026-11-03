@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from spiderfoot import SpiderFootHelpers
 from spiderfoot.mcp import catalog, guardrails, schema
 from spiderfoot.mcp.context import ToolError, collect_secrets, scrub
-from spiderfoot.services import access, module_options, relevance_job, relevance_view
+from spiderfoot.services import access, module_options, relevance_job, relevance_view, report_job, report_render, report_sections
 
 log = logging.getLogger('spiderfoot.mcp')
 
@@ -438,6 +438,7 @@ def get_scan(cc, args):
         ttype = dbh.scanTargetType(scan_id)
         rel_view = relevance_view.View(dbh, scan_id)
         rel_ctx = dbh.scanContextGet(scan_id)
+        report_info = _report_brief(dbh, scan_id)
     name, target, created, started, ended, status = row
     with_results = len({m[0] for m in by_module} & set(selected))
     done = status in TERMINAL
@@ -453,6 +454,7 @@ def get_scan(cc, args):
         'modulesSelected': len(selected), 'modulesWithResults': with_results, 'modules': selected,
         'progress': {'percent': percent, 'estimate': not done, 'basis': 'modules that have produced results so far'},
         'relevance': _relevance_summary(rel_view, rel_ctx),
+        'report': report_info,
     }
 
 
@@ -561,10 +563,73 @@ def get_scan_log(cc, args):
     return {'scanId': scan_id, 'status': row[5], 'returned': len(lines), 'log': lines}
 
 
+REPORT_CHARS = 24000      # the most report text one call returns
+REPORT_SECTIONS = list(report_sections.SECTION_IDS) + ['appendix', 'verification']
+
+
+def _report_brief(dbh, scan_id):
+    """Where the written report of a scan stands (for get_scan)."""
+    rows = dbh.reportList(scan_id)
+    if not rows:
+        return {'status': 'none'}
+    active = next((r for r in rows if r['status'] in ('queued', 'running')), None)
+    done = next((r for r in rows if r['status'] == 'done'), None)
+    return {'status': active['status'] if active else (done['status'] if done else rows[0]['status']),
+            'latestVersion': done['version'] if done else None, 'inProgress': active is not None,
+            'sectionsDone': active['sections_done'] if active else None, 'sectionsTotal': active['sections_total'] if active else None}
+
+
+@tool('get_scan_report', 'Read the written report of a scan',
+      'The full written report of a scan as markdown (executive summary, target and scope, identity assessment, findings by '
+      'category, risks, limitations, next steps, and an appendix of the findings it cites as [E12]), with its status and version. '
+      'A scan that has no report yet answers status "none"; one being written answers "queued" or "running" with its progress '
+      '(call again later). Long reports are cut at about 24,000 characters (truncated is true); ask for one section to read the rest. '
+      'The report is AI-written: the header says so, and every claim cites a finding you can check with get_scan_events.',
+      {'scan_id': _SCAN_ID,
+       'section': {'type': 'string', 'enum': REPORT_SECTIONS, 'description': (
+           'Only this part: summary, scope, identity, findings, risks, limits, next, appendix (cited findings) or verification (notes).')},
+       'version': {'type': 'integer', 'minimum': 1, 'description': 'A report version (default: the newest finished one).'}},
+      ['scan_id'])
+def get_scan_report(cc, args):
+    with cc.ctx.db() as dbh:
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'])
+        rows = dbh.reportList(scan_id)
+        report = dbh.reportGet(scan_id, args.get('version'), onlyDone=True)
+    active = next((r for r in rows if r['status'] in ('queued', 'running')), None)
+    out = {'scanId': scan_id, 'scanStatus': row[5], 'versions': [r['version'] for r in rows if r['status'] == 'done']}
+    if active:
+        out['inProgress'] = {'version': active['version'], 'status': active['status'], 'phase': active['phase'],
+                             'sectionsDone': active['sections_done'], 'sectionsTotal': active['sections_total']}
+    if report is None:
+        out['status'] = active['status'] if active else 'none'
+        out['note'] = ('The report is being written; call get_scan_report again in a minute.' if active else
+                       'This scan has no report yet. Call generate_scan_report to write one.')
+        return out
+    md = report['markdown']
+    if args.get('section'):
+        md = _report_part(md, args['section'])
+        if not md:
+            raise ToolError(f"This report has no '{args['section']}' section (it may be switched off in the report settings).")
+    total = len(md)
+    cut = total > REPORT_CHARS
+    out.update({'status': 'done', 'version': report['version'], 'mode': report['mode'], 'model': report['model_used'] or report['model'],
+                'generated': _iso(report['created']), 'tokens': report['tokens'], 'warnings': report['warnings'][:10],
+                'partialScan': report['scan_status'] != 'FINISHED', 'section': args.get('section'),
+                'truncated': cut, 'totalChars': total, 'markdown': md[:REPORT_CHARS]})
+    if cut:
+        out['note'] = 'The report was cut; request a single section with the section argument to read the rest.'
+    return out
+
+
+def _report_part(md, section):
+    titles = dict(report_sections.SECTION_TITLES, appendix='Appendix A', verification='Verification notes')
+    return report_render.extract_section(md, titles[section])
+
+
 # ---------------------------------------------------------------------------------------------
 # writing
 
-def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target_type=None, context='', prune=None):
+def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target_type=None, context='', prune=None, report=None):
     """The guarded path to a running scan, shared by create_scan and rerun_scan."""
     from spiderfoot.blueprints.api import clean_user_input, normalize_target, start_scan_core
     target, ttype = normalize_target(clean_user_input([raw_target])[0], target_type)
@@ -590,7 +655,7 @@ def _launch(cc, dbh, index, name, raw_target, module_ids, confirm_active, target
         raise ToolError('No modules left to run. ' + _dropped_text(dropped))
     scan_name = (NAME_PREFIX + (name or raw_target).strip())[:100]
     res = start_scan_core(scan_name, raw_target, modulelist=','.join(keep), config=cc.ctx.config, dbh=dbh,
-                          logging_queue=cc.ctx.logging_queue, target_type=target_type, owner=cc.user.id, context=context, prune=prune)
+                          logging_queue=cc.ctx.logging_queue, target_type=target_type, owner=cc.user.id, context=context, prune=prune, report=report)
     dropped.update(res.dropped)
     if not res.ok:
         raise ToolError(res.error + (' ' + _dropped_text(dropped) if dropped else ''))
@@ -635,6 +700,9 @@ def _dropped_text(dropped: dict) -> str:
        'prune_unrelated': {'type': 'boolean', 'description': (
            'Person and business-name scans only. Do not follow up findings that are clearly about somebody else '
            '(default: the operator\'s setting, normally true). Nothing is deleted.')},
+       'report': {'type': 'boolean', 'description': (
+           'Write a full report with the AI assistant when the scan ends (default: the operator\'s setting). '
+           'Read it with get_scan_report.')},
        'confirm_active': _CONFIRM_ACTIVE}, ['target'], read_only=False, idempotent=False)
 def create_scan(cc, args):
     cc.require('scan', 'start scans')
@@ -659,7 +727,8 @@ def create_scan(cc, args):
         if not ids:
             raise ToolError('No modules selected.')
         return _launch(cc, dbh, index, args.get('name'), args['target'], ids, args['confirm_active'],
-                       context=relevance_view.clean_context(args.get('context')), prune=args.get('prune_unrelated'))
+                       context=relevance_view.clean_context(args.get('context')), prune=args.get('prune_unrelated'),
+                       report=args.get('report'))
 
 
 @tool('stop_scan', 'Stop a running scan',
@@ -703,7 +772,8 @@ def rerun_scan(cc, args):
         gone = [m for m in ids if m not in known]
         old_ctx = dbh.scanContextGet(scan_id)
         out = _launch(cc, dbh, index, name, row[1], [m for m in ids if m in known], args['confirm_active'], ttype,
-                      context=old_ctx['context'], prune=old_ctx['prune'] if old_ctx['exists'] else None)
+                      context=old_ctx['context'], prune=old_ctx['prune'] if old_ctx['exists'] else None,
+                      report=dbh.reportPrefGet(scan_id))
     if gone:
         out['dropped'] = (out['dropped'] + [{'module': m, 'reason': 'module no longer exists'} for m in gone])[:50]
         out['droppedCount'] += len(gone)
@@ -730,6 +800,34 @@ def reassess_relevance(cc, args):
     started = relevance_job.start_job(cc.ctx.config, scan_id)
     return {'scanId': scan_id, 'started': started, 'alreadyRunning': not started,
             'next': 'Poll get_scan and read relevance.status until it is done, then read get_scan_events.'}
+
+
+@tool('generate_scan_report', 'Write (or rewrite) the report of a scan',
+      'Write a full report of a finished scan with the operator\'s AI assistant, as a new version (earlier versions are kept). It runs '
+      'in the background, one report at a time, within the operator\'s limits on AI calls and tokens, and returns at once with its '
+      'status; poll get_scan_report. Without a working AI endpoint it writes a report of figures and lists only. Needs edit access to the '
+      'scan. A scan that is still running cannot be reported on.',
+      {'scan_id': _SCAN_ID,
+       'model': {'type': 'string', 'maxLength': 200, 'description': 'A model offered by the operator\'s AI settings (default: the report model).'}},
+      ['scan_id'], read_only=False, idempotent=False)
+def generate_scan_report(cc, args):
+    cc.require('scan', 'start or change scans')
+    cfg = cc.ctx.config
+    with cc.ctx.db() as dbh:
+        scan_id, row = _find_scan(cc, dbh, args['scan_id'], 'edit')
+        model = (args.get('model') or '').strip()
+        from spiderfoot.blueprints.report import allowed_models
+        if model and model not in allowed_models(cfg):
+            raise ToolError('That model is not one of the models configured in SpiderFoot.')
+        try:
+            rep, created = report_job.request_report(cfg, dbh, scan_id, trigger='mcp', model=model, requested_by=cc.user.id)
+        except report_job.ReportRefused as e:
+            raise ToolError(str(e))
+    if created and not cc.ctx.app.testing:
+        report_job.start_worker(lambda ctx=cc.ctx: ctx.config)
+    return {'scanId': scan_id, 'version': rep['version'], 'status': rep['status'], 'started': created, 'alreadyInProgress': not created,
+            'aiReady': report_job.ai_ready(cfg),
+            'next': 'Poll get_scan_report until status is done (a local model can take several minutes).'}
 
 
 @tool('mark_event', 'Mark a finding as yours or not related',

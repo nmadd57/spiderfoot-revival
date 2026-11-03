@@ -402,25 +402,28 @@ class TestSettingsAccess:
         assert client_for(app, users['root']).post('/api/access/settings', json={'oidc_issuer': 'http://127.0.0.1:5095'}).status_code == 200
 
     def test_cannot_lock_everyone_out(self, world):
+        # the two free-text group lists were replaced by the group registry: the same guards now sit on its endpoints
         app, users = world
         c = client_for(app, users['root'])
-        r = c.post('/api/access/settings', json={'oidc_admin_groups': []})
-        assert r.status_code == 400 and 'admin group' in r.get_json()['error']
-        r = c.post('/api/access/settings', json={'oidc_admin_groups': ['somebody-else']})
+        r = c.post('/api/access/groups/remove', json={'name': 'sf-admins'})
+        assert r.status_code == 400 and 'last admin group' in r.get_json()['error']
+        c.post('/api/access/groups', json={'name': 'other-admins', 'role': 'admin'})
+        r = c.post('/api/access/groups/remove', json={'name': 'sf-admins'})
         assert r.status_code == 400 and 'your own administrator access' in r.get_json()['error']
-        assert h.db(app).configGet()['_oidc_admin_groups'] == 'sf-admins'
-        assert c.post('/api/access/settings', json={'oidc_admin_groups': ['sf-admins', 'more']}).status_code == 200
+        assert 'sf-admins' in [g['name'] for g in c.get('/api/access/groups').get_json()['groups']]
+        assert c.post('/api/access/groups/remove', json={'name': 'other-admins'}).status_code == 200
 
     def test_turning_sso_on_needs_an_explicit_acknowledgement(self, tmp_path):
         app = h.make_app(tmp_path)
         c = app.test_client()
         token = __import__('re').search(r'name="csrf-token" content="([^"]+)"', c.get('/').get_data(as_text=True)).group(1)
         c.environ_base['HTTP_X_CSRF_TOKEN'] = token
-        body = {'oidc_issuer': h.ISSUER, 'oidc_client_id': h.CLIENT_ID, 'oidc_admin_groups': ['sf-admins']}
+        body = {'oidc_issuer': h.ISSUER, 'oidc_client_id': h.CLIENT_ID}
+        no_admin = c.post('/api/access/settings', json={**body, 'acknowledge': True})
+        assert no_admin.status_code == 400 and 'admin group' in no_admin.get_json()['error']
+        assert c.post('/api/access/groups', json={'name': 'sf-admins', 'role': 'admin'}).status_code == 200
         r = c.post('/api/access/settings', json=body)
         assert r.status_code == 400 and 'Confirm' in r.get_json()['error']
-        no_admin = c.post('/api/access/settings', json={**body, 'oidc_admin_groups': [], 'acknowledge': True})
-        assert no_admin.status_code == 400
         assert c.post('/api/access/settings', json={**body, 'acknowledge': True}).status_code == 200
         assert c.get('/api/scanlist', headers={'Sec-Fetch-Mode': 'cors'}).status_code == 401  # now everyone has to sign in
 

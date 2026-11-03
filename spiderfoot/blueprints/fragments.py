@@ -89,6 +89,12 @@ def _load_scans(which=''):
                 pass
 
         scans.append(scan)
+    try:
+        ready = dbh.reportReadyMap([s['id'] for s in scans])
+    except Exception:
+        ready = {}
+    for s in scans:
+        s['report'] = ready.get(s['id'])
     return scans
 
 
@@ -208,6 +214,8 @@ def results_tab():
             has_relevance=sum(rel_counts.values()) > 0,
             rel_counts=rel_counts,
             can_edit=_can_edit(scan_id, dbh),
+            init_q=request.args.get('init_q', '')[:200],        # from a link in a report: show this finding
+            init_type=request.args.get('init_type', '')[:80],
         )
 
     elif tab == 'graph':
@@ -690,6 +698,19 @@ def settings_section():
         ai_ready = bool(config.get('_ai_enabled') and (config.get('_ai_base_url') or config.get('_ai_openrouter_key')))
         return render_template('fragments/settings_relevance.html', v=v, ai_models=ai_service.model_choices(config), ai_ready=ai_ready)
 
+    elif section == 'reports':
+        from spiderfoot.services import report_job
+        v = {}
+        for key, default in report_job.DEFAULTS.items():
+            val = config.get(key, default)
+            if isinstance(default, bool):
+                v[key] = '1' if val not in (False, 0, '0', 'false', 'False', None) else '0'
+            else:
+                v[key] = str(val if val is not None else '')
+        ai_ready = bool(config.get('_ai_enabled') and (config.get('_ai_base_url') or config.get('_ai_openrouter_key')))
+        return render_template('fragments/settings_reports.html', v=v, ai_models=ai_service.model_choices(config), ai_ready=ai_ready,
+                               sections=[(s, report_job.rs.SECTION_TITLES[s]) for s in report_job.rs.SECTION_IDS])
+
     elif section == 'proxy':
         return render_template('fragments/settings_proxy.html', config=config)
 
@@ -738,9 +759,11 @@ def settings_section():
         return render_template('fragments/settings_mcp.html', st=status, tokens=tokens)
 
     elif section == 'access':
-        from spiderfoot.blueprints.access import settings_view
+        from spiderfoot.blueprints.access import groups_view, settings_view
         from spiderfoot.services import session_auth
         auth = identity.request_settings()
+        if identity.ensure_registry_saved(_get_db(), auth):
+            auth = identity.load_settings(_get_db())
         view = settings_view(auth, session_auth.external_origin(auth))
         view['legacyUsers'] = bool(current_app.config.get('SF_USERS'))
         users = []
@@ -749,6 +772,7 @@ def settings_section():
             users.append({'id': u['id'], 'name': u['display_name'] or u['username'], 'username': u['username'],
                           'email': u['email'], 'role': row.role if row else 'denied', 'groups': u['groups'],
                           'lastLogin': u['last_login'], 'local': u['subject'].startswith('local:')})
-        return render_template('fragments/settings_access.html', view=view, users=users)
+        return render_template('fragments/settings_access.html', view=view, users=users,
+                               group_data=groups_view(auth, _get_db(), identity.current_user()))
 
     return '<p class="text-sm text-slate-400 p-6">Unknown section.</p>'

@@ -181,14 +181,15 @@ A common name matches many people. In person and business-name scans each findin
 
 Set `SF_OIDC_ENABLED=1` with `SF_OIDC_ISSUER`, `SF_OIDC_CLIENT_ID` and `SF_OIDC_CLIENT_SECRET` (or fill in **Settings → Access**, which has Save and Test buttons). Register `<your URL>/auth/callback` as the redirect URI at your identity provider and make it send a `groups` claim.
 
-- **Roles.** Members of `SF_OIDC_ADMIN_GROUPS` are administrators. Members of `SF_OIDC_USER_GROUPS` (empty means any signed-in user) are users. Everyone else gets a 403 page. Settings, API keys, AI, usage and raw queries are administrator-only.
+- **Roles and groups.** Groups are managed in **Settings → Access → Groups**: add a group by name (it must match a value in the provider's `groups` claim), give it the role Admin or User, change the role or remove it. Admin wins over User. Groups that people signed in with but that are not registered yet appear under "Seen at sign-in", including groups of people who were turned away, with one-tap **Add as User / Add as Admin**. Changes apply on the next request, without a restart. Settings, API keys, AI, usage and raw queries are administrator-only.
+- **Unlisted accounts.** "Signed-in users without a registered group" can be set to User or Denied. The default (Automatic) lets them in as users until a User group is registered, which matches older installs; **set it to Denied on any public site**, or restrict who can authenticate at the provider. `SF_OIDC_ADMIN_GROUPS` and `SF_OIDC_USER_GROUPS` only seed an empty registry; `SF_OIDC_DEFAULT_ROLE` (`user` or `none`) overrides the setting.
 - **Scans have owners.** The owner and administrators have full control. Users only see scans they own or that were shared with them (directly or through a group).
 - **Sharing.** The owner or an administrator can grant a user or group **view** (read results, export) or **edit** (stop, re-scan, mark false positives) from the Sharing panel on the scan page. Delete and sharing stay with the owner. Older scans with no owner are administrator-only.
 - **Safety.** Turning SSO on needs at least one admin group and an acknowledgement, and a change that removes your own admin access is refused. `SF_OIDC_ENABLED=0` is the way back in. HTTP Basic auth for API clients keeps working.
 
 Any OIDC provider works. A federating provider such as Dex is a good fit when you sign in with more than one identity provider: point `SF_OIDC_ISSUER` at its issuer URL, register a client with the redirect URI above, and request the `groups` scope.
 
-Other options: `SF_OIDC_SCOPES`, `SF_OIDC_GROUPS_CLAIM`, `SF_OIDC_REDIRECT_URI`, `SF_AUTH_SESSION_HOURS` (default 12), `SF_AUTH_UNOWNED_VISIBLE`, `SF_TRUST_PROXY`. Details and the route table are in [TECHNICAL.md](TECHNICAL.md).
+Other options: `SF_OIDC_DEFAULT_ROLE`, `SF_OIDC_SCOPES`, `SF_OIDC_GROUPS_CLAIM`, `SF_OIDC_REDIRECT_URI`, `SF_AUTH_SESSION_HOURS` (default 12), `SF_AUTH_UNOWNED_VISIBLE`, `SF_TRUST_PROXY`. Details and the route table are in [TECHNICAL.md](TECHNICAL.md).
 
 ## MCP server
 

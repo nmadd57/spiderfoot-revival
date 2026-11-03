@@ -365,3 +365,62 @@ class TestClientAddress:
         for _ in range(10):
             env.post(env.rpc('ping'), token='sfmcp_bad', client=client, headers=spoof)
         assert env.post(env.rpc('ping'), token='sfmcp_bad', client=client, headers={'X-Forwarded-For': '2.2.2.2, 203.0.113.9'}).status_code == 429
+
+
+class TestGroupRegistryInMcp:
+    """Personal tokens and OIDC access tokens use the group registry (the old two lists are only a migration source)."""
+
+    @pytest.fixture
+    def reg(self, env, monkeypatch):
+        idp = h.FakeIdp()
+        idp.install(monkeypatch)
+        env.db().configSet({'_oidc_issuer': h.ISSUER, '_oidc_client_id': h.CLIENT_ID})
+        h.set_registry(env, admin=['sf-admins'], user=['sf-users'])
+        env.idp = idp
+        return env
+
+    def bearer(self, env, **claims):
+        return env.idp.mint(env.idp.claims(**claims))
+
+    def test_access_token_roles_come_from_the_registry(self, reg):
+        assert reg.post(reg.rpc('ping'), token=self.bearer(reg, sub='u1', groups=['sf-users'])).status_code == 200
+        assert reg.db().userGetBySubject('u1')['role'] == 'user'
+        assert reg.post(reg.rpc('ping'), token=self.bearer(reg, sub='a1', groups=['sf-admins', 'sf-users'])).status_code == 200
+        assert reg.db().userGetBySubject('a1')['role'] == 'admin'
+        assert reg.post(reg.rpc('ping'), token=self.bearer(reg, sub='x1', groups=['elsewhere'])).status_code == 403
+
+    def test_new_registry_entries_apply_to_the_next_call(self, reg):
+        token = self.bearer(reg, sub='x2', groups=['dex-new'])
+        assert reg.post(reg.rpc('ping'), token=token).status_code == 403
+        entries = [{'name': 'sf-admins', 'role': 'admin'}, {'name': 'sf-users', 'role': 'user'}, {'name': 'dex-new', 'role': 'user'}]
+        reg.db().configSet({'_oidc_groups': json.dumps(entries)})
+        assert reg.post(reg.rpc('ping'), token=token).status_code == 200
+        entries[2]['role'] = 'admin'
+        reg.db().configSet({'_oidc_groups': json.dumps(entries)})
+        reg.post(reg.rpc('ping'), token=token)
+        assert reg.db().userGetBySubject('x2')['role'] == 'admin'
+
+    def test_denied_groups_of_a_refused_token_are_remembered_for_the_admin(self, reg):
+        assert reg.post(reg.rpc('ping'), token=self.bearer(reg, sub='x3', groups=['mystery'])).status_code == 403
+        assert 'mystery' in json.loads(reg.db().configGet()['_oidc_denied_groups'])
+
+    def test_personal_tokens_follow_the_registry_at_use(self, reg):
+        sam = reg.make_user('sam', ['sf-users'])
+        token = reg.token_for(sam['id'])
+        assert reg.post(reg.rpc('ping'), token=token).status_code == 200
+        h.set_registry(reg, admin=['sf-admins'], user=['someone-else'])
+        assert reg.post(reg.rpc('ping'), token=token).status_code == 403
+        h.set_registry(reg, admin=['sf-admins'], user=['someone-else'], default_role='user')
+        assert reg.post(reg.rpc('ping'), token=token).status_code == 200
+        h.set_registry(reg, admin=['sf-users'], user=[])
+        assert reg.post(reg.rpc('tools/call', {'name': 'list_scans', 'arguments': {}}), token=token).status_code == 200
+
+    def test_dex_shaped_tokens(self, reg):
+        sub = 'CgVhbGljZRIFbG9jYWw'
+        as_string = reg.idp.claims(sub, groups=None)
+        as_string['groups'] = 'sf-users'
+        assert reg.post(reg.rpc('ping'), token=reg.idp.mint(as_string)).status_code == 200
+        assert reg.db().userGetBySubject(sub)['groups'] == ['sf-users']
+        reg.idp.userinfo_claims = {'sub': 'dex-two', 'groups': ['sf-admins']}  # claim omitted by Dex: userinfo is asked
+        assert reg.post(reg.rpc('ping'), token=reg.idp.mint(reg.idp.claims('dex-two', groups=None))).status_code == 200
+        assert reg.db().userGetBySubject('dex-two')['role'] == 'admin'

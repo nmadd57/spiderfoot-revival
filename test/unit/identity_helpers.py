@@ -148,6 +148,17 @@ def configure_sso(app, admin_groups='sf-admins', user_groups='sf-users', **extra
     db(app).configSet(values)
 
 
+def set_registry(app, admin=(), user=(), default_role=None, added_by='tests'):
+    """Store a group registry the way the Groups card does (instead of the old two comma lists). ``app`` may also be the
+    MCP test environment."""
+    from spiderfoot.services import groups
+    entries = groups.seed(list(admin), list(user), added_by, 1_700_000_000)
+    values = {'_oidc_groups': groups.dumps(entries)}
+    if default_role is not None:
+        values['_oidc_default_role'] = default_role
+    (app.db() if callable(getattr(app, 'db', None)) else db(app)).configSet(values)
+
+
 def add_user(app, name, groups=(), subject=None):
     return db(app).userUpsert(subject or f'oidc|{name}', username=name, email=f'{name}@example.test',
                               display_name=name.title(), groups=list(groups), role='user', login=False)

@@ -49,6 +49,10 @@
         <span class="inline-flex items-center shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium {{ badge_class }}">
           {{ badge_label }}
         </span>
+        {% if scan.report %}
+        <a href="/scaninfo?id={{ scan.id }}#report" class="inline-flex items-center shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 hover:opacity-80"
+           title="A written report of this scan is ready">Report ready</a>
+        {% endif %}
       </div>
       <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 text-xs text-slate-500 dark:text-slate-400">
         {# Event count + type breakdown #}

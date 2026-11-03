@@ -21,6 +21,8 @@ window.scanForm = (initialModules, presets) => ({
     droppedModules: [],
     context: '',          // optional hints that help tell the target from namesakes
     prune: true,          // do not follow up findings that are clearly about somebody else
+    report: false,        // write a report with the AI assistant when the scan ends
+    reportDefault: false, // what the settings would do without this checkbox
     hintsOpen: false,
 
     /**
@@ -699,6 +701,8 @@ window.scanForm = (initialModules, presets) => ({
           if ((this.context || '').trim()) body.set('context', this.context.trim());
           body.set('prune', this.prune ? '1' : '0');
         }
+        // Only a choice that differs from the setting is sent (a scan without one follows the setting when it ends)
+        if (this.report !== this.reportDefault) body.set('report', this.report ? '1' : '0');
         // Optional "Share with" list from the new scan form (only present when sign-in is on)
         try {
           const shared = JSON.parse(document.getElementById('share-with-json')?.value || '[]');

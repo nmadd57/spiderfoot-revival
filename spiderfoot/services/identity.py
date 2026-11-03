@@ -11,8 +11,9 @@ setting (database key)             environment                   meaning
 ``_oidc_client_secret``            ``SF_OIDC_CLIENT_SECRET``     never returned by any endpoint
 ``_oidc_scopes``                   ``SF_OIDC_SCOPES``            default ``openid profile email groups``
 ``_oidc_groups_claim``             ``SF_OIDC_GROUPS_CLAIM``      default ``groups``
-``_oidc_admin_groups``             ``SF_OIDC_ADMIN_GROUPS``      comma list; members are administrators
-``_oidc_user_groups``              ``SF_OIDC_USER_GROUPS``       comma list; empty = any signed-in account may use it
+``_oidc_groups``                   (none)                        group registry, JSON (see ``services/groups.py``)
+``_oidc_default_role``             ``SF_OIDC_DEFAULT_ROLE``      ``user`` / ``none`` for unlisted accounts; empty = automatic
+(``_oidc_admin_groups`` / ``_oidc_user_groups`` and ``SF_OIDC_ADMIN_GROUPS`` / ``SF_OIDC_USER_GROUPS`` only seed the registry)
 ``_oidc_redirect_uri``             ``SF_OIDC_REDIRECT_URI``      default: built from the request
 ``_oidc_mcp_audience``             ``SF_OIDC_MCP_AUDIENCE``      audience of access tokens for the MCP server
 ``_auth_session_hours``            ``SF_AUTH_SESSION_HOURS``     default 12
@@ -24,6 +25,8 @@ Without OIDC and without passwd-file users the application has no sign-in at all
 everybody is an administrator. Passwd-file (HTTP Basic) users are administrators too.
 """
 
+import functools
+import logging
 import os
 import typing
 from dataclasses import dataclass
@@ -31,8 +34,10 @@ from dataclasses import dataclass
 from flask import g, has_request_context
 
 from spiderfoot import SpiderFootDb
-from spiderfoot.services import access
+from spiderfoot.services import access, groups as groupreg
 from spiderfoot.services.access import User
+
+log = logging.getLogger('spiderfoot.auth')
 
 DEFAULT_SCOPES = 'openid profile email groups'
 DEFAULT_GROUPS_CLAIM = 'groups'
@@ -49,8 +54,8 @@ KEYS = {
     '_oidc_client_secret': ('SF_OIDC_CLIENT_SECRET', ''),
     '_oidc_scopes': ('SF_OIDC_SCOPES', DEFAULT_SCOPES),
     '_oidc_groups_claim': ('SF_OIDC_GROUPS_CLAIM', DEFAULT_GROUPS_CLAIM),
-    '_oidc_admin_groups': ('SF_OIDC_ADMIN_GROUPS', ''),
-    '_oidc_user_groups': ('SF_OIDC_USER_GROUPS', ''),
+    '_oidc_groups': ('', ''),
+    '_oidc_default_role': ('SF_OIDC_DEFAULT_ROLE', ''),
     '_oidc_redirect_uri': ('SF_OIDC_REDIRECT_URI', ''),
     '_oidc_mcp_audience': ('SF_OIDC_MCP_AUDIENCE', ''),
     '_auth_session_hours': ('SF_AUTH_SESSION_HOURS', str(DEFAULT_SESSION_HOURS)),
@@ -60,19 +65,10 @@ KEYS = {
 SECRET_KEYS = ('_oidc_client_secret',)
 
 
-def split_groups(text) -> list:
-    """A comma (or newline) separated list of group names, without blanks or duplicates."""
-    if isinstance(text, (list, tuple, set)):
-        parts = [str(p) for p in text]
-    else:
-        parts = str(text or '').replace('\n', ',').split(',')
-    seen, out = set(), []
-    for part in parts:
-        part = part.strip()
-        if part and part not in seen:
-            seen.add(part)
-            out.append(part)
-    return out
+# The old group lists and the environment seeds only feed the registry when none is stored yet
+LEGACY_KEYS = ('_oidc_admin_groups', '_oidc_user_groups')
+SEED_ENV = {'_oidc_seed_admin_groups': 'SF_OIDC_ADMIN_GROUPS', '_oidc_seed_user_groups': 'SF_OIDC_USER_GROUPS'}
+DENIED_KEY = '_oidc_denied_groups'
 
 
 @dataclass(frozen=True)
@@ -81,7 +77,7 @@ class AuthSettings:
     from_env: frozenset
 
     def get(self, key: str) -> str:
-        return str(self.values.get(key, KEYS[key][1]) or '')
+        return str(self.values.get(key, KEYS[key][1] if key in KEYS else '') or '')
 
     @property
     def issuer(self) -> str:
@@ -103,13 +99,47 @@ class AuthSettings:
     def groups_claim(self) -> str:
         return self.get('_oidc_groups_claim').strip() or DEFAULT_GROUPS_CLAIM
 
+    @functools.cached_property
+    def _registry_state(self) -> tuple:
+        stored, readable = groupreg.parse(self.get('_oidc_groups'))
+        registry, source = groupreg.effective(
+            stored, readable, self.get('_oidc_admin_groups'), self.get('_oidc_user_groups'),
+            self.get('_oidc_seed_admin_groups'), self.get('_oidc_seed_user_groups'))
+        return registry, source, readable
+
+    @property
+    def registry(self) -> list:
+        """The group registry in force: stored, or (until the first change is saved) built from the old lists and seeds."""
+        return self._registry_state[0]
+
+    @property
+    def registry_source(self) -> str:
+        """'stored', 'migrated' (nothing saved yet) or 'unreadable' (the saved value is damaged: nobody is let in)."""
+        return self._registry_state[1]
+
     @property
     def admin_groups(self) -> list:
-        return split_groups(self.get('_oidc_admin_groups'))
+        return groupreg.names(self.registry, groupreg.ROLE_ADMIN)
 
     @property
     def user_groups(self) -> list:
-        return split_groups(self.get('_oidc_user_groups'))
+        return groupreg.names(self.registry, groupreg.ROLE_USER)
+
+    @property
+    def default_role_setting(self) -> str:
+        """'' (automatic), 'user' or 'none' as configured."""
+        return groupreg.default_role_setting(self.get('_oidc_default_role'))
+
+    @property
+    def default_role(self) -> str:
+        """'user' or 'none': what an account without a registered group is (the automatic mode resolved)."""
+        return groupreg.effective_default(self.default_role_setting, self.registry, self._registry_state[2])
+
+    def with_values(self, **changes) -> 'AuthSettings':
+        return AuthSettings({**self.values, **changes}, self.from_env)
+
+    def with_registry(self, registry: list) -> 'AuthSettings':
+        return self.with_values(_oidc_groups=groupreg.dumps(registry))
 
     @property
     def redirect_uri(self) -> str:
@@ -157,13 +187,17 @@ def load_settings(dbh=None, env=None) -> AuthSettings:
     except Exception:  # nosec B110 - the environment alone still works
         saved = {}
     for key, (var, default) in KEYS.items():
-        if env.get(var, '') != '':
+        if var and env.get(var, '') != '':
             values[key] = env[var]
             from_env.add(key)
         elif key in saved and saved[key] != '':
             values[key] = saved[key]
         else:
             values[key] = default
+    for key in LEGACY_KEYS + (DENIED_KEY,):
+        values[key] = saved.get(key, '')
+    for key, var in SEED_ENV.items():
+        values[key] = env.get(var, '')
     return AuthSettings(values, frozenset(from_env))
 
 
@@ -173,15 +207,33 @@ def _current_config() -> dict:
 
 
 def role_for(groups: typing.Iterable[str], settings: AuthSettings) -> str:
-    """'admin' for members of an admin group, 'user' for members of a user group (or anybody when no user
-    group is configured), otherwise 'denied'."""
-    have = set(groups or [])
-    if have & set(settings.admin_groups):
-        return access.ROLE_ADMIN
-    allowed = settings.user_groups
-    if not allowed or have & set(allowed):
-        return access.ROLE_USER
-    return ROLE_DENIED
+    """'admin' for members of a registered admin group, 'user' for members of a registered user group, otherwise
+    the default role for unlisted accounts ('user') or 'denied'."""
+    return groupreg.resolve(groups, settings.registry, settings.default_role)
+
+
+def save_registry(dbh, registry: list) -> None:
+    dbh.configSet({'_oidc_groups': groupreg.dumps(registry)})
+
+
+def ensure_registry_saved(dbh, settings: AuthSettings) -> bool:
+    """Persist the registry built from the old lists / environment seeds the first time it is needed.
+    Returns True when something was saved. An empty result is not saved (there is nothing to migrate)."""
+    if settings.registry_source == 'migrated' and settings.registry:
+        save_registry(dbh, settings.registry)
+        log.info("Group registry created from the previous group settings (%d groups)", len(settings.registry))
+        return True
+    return False
+
+
+def note_denied_groups(dbh, settings: AuthSettings, group_names) -> None:
+    """Remember the groups of a refused account so the administrator can register them (best effort)."""
+    try:
+        text = groupreg.note_denied(settings.get(DENIED_KEY), group_names)
+        if text is not None:
+            dbh.configSet({DENIED_KEY: text})
+    except Exception:  # nosec B110 - a bookkeeping failure must not change the sign-in outcome
+        log.warning("Could not remember the groups of a refused sign-in")
 
 
 def user_from_row(row: dict, settings: AuthSettings) -> typing.Optional[User]:
