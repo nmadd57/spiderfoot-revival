@@ -1,0 +1,19 @@
+# Minimal SearXNG settings for use by SpiderFoot. The secret key comes from the
+# SEARXNG_SECRET environment variable (see .env).
+use_default_settings: true
+
+general:
+  instance_name: "SpiderFoot SearXNG"
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  # SpiderFoot is the only client and it is not a browser.
+  limiter: false
+  image_proxy: false
+
+search:
+  # SpiderFoot reads the JSON API; keep html for the web page.
+  formats:
+    - html
+    - json

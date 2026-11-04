@@ -52,6 +52,10 @@ The first build is long (it compiles BBOT's native dependency and downloads the 
 
 BBOT's masscan SYN scans need `--cap-add=NET_RAW`; without it BBOT falls back to TCP-connect scans.
 
+### Docker Compose with VPN egress, SearXNG and embeddings
+
+[`examples/vpn-stack/`](examples/vpn-stack/) is a Compose example that sends all of SpiderFoot's outbound traffic through a WireGuard tunnel (with a kill switch) and adds a private SearXNG for web search and llama-swap for local embeddings. See [docs/VPN-STACK.md](docs/VPN-STACK.md) for setup, how to point SpiderFoot at each service, and what to check before relying on it.
+
 ### Bundled tools
 
 The `sfp_tool_*` modules drive these programs, installed in the image with their paths preconfigured:
@@ -310,6 +314,7 @@ If you add Tailwind classes to a template, rebuild the stylesheet: `npx tailwind
 
 - [CHANGELOG.md](CHANGELOG.md): release history and everything changed in this fork
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): every integration, with purpose, auth, cost and link
+- [docs/VPN-STACK.md](docs/VPN-STACK.md): Compose example with WireGuard egress, SearXNG and llama-swap embeddings
 - [DEVELOPMENT.md](DEVELOPMENT.md): project conventions and development guide
 - [TECHNICAL.md](TECHNICAL.md): architecture, API and database reference
 - [correlations/README.md](correlations/README.md): correlation rule authoring guide

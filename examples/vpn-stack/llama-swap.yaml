@@ -1,0 +1,16 @@
+# llama-swap loads a model the first time something asks for it and unloads it
+# after the idle timeout. Add more models here if you want them.
+healthCheckTimeout: 300
+
+models:
+  # The name SpiderFoot sends as "model" (Settings -> Web Search -> Embeddings).
+  "nomic-embed":
+    proxy: "http://127.0.0.1:${PORT}"
+    # Unload after 10 minutes without a request.
+    ttl: 600
+    cmd: >
+      /app/llama-server
+      --port ${PORT}
+      -hf nomic-ai/nomic-embed-text-v1.5-GGUF:Q8_0
+      --embedding
+      --ctx-size 2048

@@ -1,0 +1,23 @@
+# Copy to wg0.conf and fill in the values from your VPN provider's WireGuard
+# configuration. wg0.conf holds your private key: never commit it.
+
+[Interface]
+PrivateKey = <your-private-key>
+Address = <your-tunnel-address>/32
+
+# Kill switch and local routes (one line):
+#   1. For each private (RFC 1918) range, route it through the normal gateway
+#      and allow it. This keeps the other containers on the Docker network
+#      (llama-swap) reachable and lets replies reach your host.
+#   2. Reject everything else that does not leave through the tunnel.
+# If your VPN provider uses 10.x addresses for its own DNS or gateway, narrow
+# 10.0.0.0/8 below, otherwise those addresses are routed outside the tunnel.
+PostUp = GW=$(ip route | awk '/default/ {print $3; exit}'); for n in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do ip route add $n via $GW; iptables -I OUTPUT -d $n -j ACCEPT; done; iptables -A OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+PreDown = for n in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do ip route del $n; iptables -D OUTPUT -d $n -j ACCEPT; done; iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -m addrtype ! --dst-type LOCAL -j REJECT
+
+[Peer]
+PublicKey = <provider-public-key>
+# PresharedKey = <if your provider gives you one>
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = <provider-host-or-ip>:51820
+PersistentKeepalive = 25

@@ -109,3 +109,10 @@ tailwindcss-*
 # Superpowers brainstorming files
 .superpowers/
 docs/superpowers/
+
+# VPN example stack: secrets and generated config
+examples/vpn-stack/.env
+examples/vpn-stack/wireguard/wg_confs/wg0.conf
+examples/vpn-stack/wireguard/*
+!examples/vpn-stack/wireguard/wg_confs/
+!examples/vpn-stack/wireguard/wg_confs/wg0.conf.example

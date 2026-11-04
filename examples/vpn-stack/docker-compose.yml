@@ -1,0 +1,112 @@
+# SpiderFoot with all of its outbound traffic sent through a WireGuard tunnel,
+# plus a private SearXNG (web search) and llama-swap (embeddings).
+#
+#   cp .env.example .env                       # then edit it
+#   cp wireguard/wg_confs/wg0.conf.example wireguard/wg_confs/wg0.conf   # then edit it
+#   docker compose up -d
+#
+# See docs/VPN-STACK.md for how it fits together and how to configure SpiderFoot.
+
+name: spiderfoot-vpn
+
+services:
+  # The tunnel. SpiderFoot and SearXNG share this container's network namespace
+  # (network_mode: service:wireguard), so they have no route to the internet
+  # except through wg0. The PostUp rules in wg0.conf add a kill switch: if the
+  # tunnel drops, their traffic is rejected instead of leaving on your real
+  # connection. Every port of those containers is published here, not on them.
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: sf-wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: "1"
+    environment:
+      TZ: ${TZ:-UTC}
+    # Public resolver, so name lookups go through the tunnel and not your LAN
+    # resolver. Change it if your VPN provider hands out its own DNS server.
+    dns:
+      - 1.1.1.1
+    volumes:
+      # The whole directory: the image rewrites files under wg_confs/.
+      - ./wireguard:/config
+    ports:
+      # SpiderFoot web UI. Loopback only: put an authenticating proxy in front
+      # before you expose it any further (see README, "Running it safely").
+      - "${BIND_ADDRESS:-127.0.0.1}:5001:5001"
+      # SearXNG, published so you can open it and tune engines. It has no login.
+      - "${BIND_ADDRESS:-127.0.0.1}:8888:8080"
+    networks:
+      - internal
+    healthcheck:
+      # Healthy once the peer has completed a handshake (timestamp > 0).
+      test: ["CMD-SHELL", "wg show wg0 latest-handshakes | awk '{ if ($$2 > 0) ok=1 } END { exit !ok }'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  spiderfoot:
+    image: ghcr.io/nmadd57/spiderfoot-revival:latest
+    container_name: sf-spiderfoot
+    restart: unless-stopped
+    network_mode: service:wireguard
+    depends_on:
+      wireguard:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+      llama-swap:
+        condition: service_started
+    volumes:
+      - spiderfoot-data:/var/lib/spiderfoot
+
+  # Web search for the SearXNG-based modules. Runs inside the tunnel too, so
+  # the search engines see the VPN address and not yours. SpiderFoot reaches it
+  # at http://localhost:8080 (same network namespace).
+  searxng:
+    image: searxng/searxng:latest
+    container_name: sf-searxng
+    restart: unless-stopped
+    network_mode: service:wireguard
+    depends_on:
+      wireguard:
+        condition: service_healthy
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env}
+    volumes:
+      - ./searxng:/etc/searxng
+      - searxng-cache:/var/cache/searxng
+
+  # Local embeddings for ranking search results and scoring relevance. Not in
+  # the tunnel: it only talks to SpiderFoot (over the private network) and,
+  # the first time a model is used, to Hugging Face to download it. SpiderFoot
+  # reaches it at http://llama-swap:8080/v1 (see the RFC1918 rule in wg0.conf).
+  llama-swap:
+    image: ghcr.io/mostlygeek/llama-swap:cpu
+    container_name: sf-llama-swap
+    restart: unless-stopped
+    # Root so it can write the model cache in the (root-owned) named volume.
+    user: "0:0"
+    environment:
+      # llama-server stores downloaded models here.
+      LLAMA_CACHE: /models
+    volumes:
+      - ./llama-swap.yaml:/app/config.yaml:ro
+      - llama-models:/models
+    ports:
+      # Optional: lets you test the endpoint from the host.
+      - "${BIND_ADDRESS:-127.0.0.1}:9292:8080"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  spiderfoot-data:
+  searxng-cache:
+  llama-models:
